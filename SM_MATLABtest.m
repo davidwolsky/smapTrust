@@ -148,9 +148,40 @@ end
 
 
 %% Run the main loop
-[Ri,Si,Pi,Ci,Oi,Li] = SMmain(x_init,Sinit,SMopts,Mf,Mc,OPTopts);
+[Ri,Si,Pi,Ci,Oi,Li,TRi,TRin] = SMmain(x_init,Sinit,SMopts,Mf,Mc,OPTopts);
 
-keyboard;
+
+    % iterateSiXp = zeros(1,length(Si));
+    % for ii = 1+1:length(Si)+1
+        % iterateSiXp(ii-1) = ii;
+    % end
+
+% transPi = [1.0000    1.0000    0.9999; 0.9930    0.9312    1.0466; 1.1675 0.9095    0.8870; 1.0273    0.9820    0.7862; 1.0580    1.0528 0.9155; 1.0585    1.0538    0.9173; 1.0585    1.0538    0.9173]
+
+
+    transPi = transpose(cell2mat(Pi))
+    transTRi = transpose(cell2mat(TRi))
+    transTRin = transpose(cell2mat(TRin))
+    
+    [row, col] = size(transPi)
+    c
+    Si{col}{1}.c
+    
+    figure()
+    markerstr = {'s','o','x','+','*','d','.','^','v','>','<','p','h'};
+    colourstr = {'k','b','r','g','m','c','y'};
+    for jj=1:size(transPi,2)
+        % plot(transPi(:,jj), strcat(markerstr{jj},colourstr{jj}),'LineWidth',2,'MarkerSize',10 ), grid on, hold on
+        errorbar(transPi(:,jj), transTRi(:,jj), strcat(markerstr{jj},colourstr{jj}),'LineWidth',1.5,'MarkerSize',10 ), grid on, hold on
+    end
+    xlabel('Iteration')
+    ylabel('Pi Value')
+    title({ 'Pi Values '})
+    % OPTopts.goalStart
+    % OPTopts.goalStop
+    legend()
+
+    keyboard;
 
 
 function Rf = modelF(xi,f)

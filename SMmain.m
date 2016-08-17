@@ -1,4 +1,4 @@
-function [Ri,Si,Pi,Ci,Oi,Li] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
+function [Ri,Si,Pi,Ci,Oi,Li,TRi,TRin] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 
 % Space Mapping main loop
 
@@ -151,7 +151,6 @@ if isfield(SMopts,'wk')
     useAllFine = 1;
 end
 
-
 % !!! NOT SURE IF THIS PART SHOULD BE IN - WORKS FINE WITHOUT... 
 % 
 % % Limit the parameter space
@@ -187,8 +186,13 @@ end
 ximinn = OPTopts.ximin - OPTopts.ximin;
 ximaxn = OPTopts.ximax./OPTopts.ximax;
 xinitn = (xinit - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
+TRin{1} = ximaxn.*ones(Nn,1).*0.25;
+TRi{1}  = ones(Nn,1).*0.5;
 
+% ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 % Optimize coarse model to find initial alignment position
+% ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+[ximinn, ximaxn, TRin] = btrInit(xinitn, TRin, OPTopts, Nn);
 if globOpt
     [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Sinit,OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
     xinitn = reshape(xinitn,Nn,1);
@@ -196,16 +200,19 @@ end
 LHSmat = [];
 RHSvect = [];
 nonLcon = [];
+%[ximinn, ximaxn] = (xin-TRin{1}, xin+TRin{1});
 [xin, costSi] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
 % De-normalize input vector
 xi{1} = xin.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
+TRi{1} = TRin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
+% TRin{1} = xi{1}.*0.1;
 
 % Enter the main loop
 % 1) Evaluate the fine model at current position (Rfi)
 % 2) Get the response of the previous iteration surrogate at current
 %    position (Rsi).  Only the position x(i-1) was calculated in the previous
 %    iteration.
-% 3) Align the model at the current position the get Rsai and Si
+% 3) Align the model at the current poistion the get Rsai and Si
 % 4) Optimize the current model Si to find xi
 % 5) Test for convergence
 
@@ -259,7 +266,12 @@ while ii <= Ni && ~specF && ~TolX_achieved
         specF = 1;
     else
         specF = 0;
+% ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
         % Do optimization
+% ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
+        % TODO: DWW
+        [ximinn, ximaxn, TRin] = btr(xin, TRin, OPTopts, Nn);
+        % TRin{ii+1} = ones(Nn,1);
         if (ii == 1 && globOpt) || globOpt == 2
             [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
             xinitn = reshape(xinitn,Nn,1);
@@ -270,6 +282,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
         [xin, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
         % De-normalize input vector
         xi{ii+1} = xin.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
+        TRi{ii+1} = TRin{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
         
         xin_ii = xi{ii}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
         xin_iip1 = xi{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin; 
@@ -549,22 +562,22 @@ function Rc = coarseMod(M,xi,xp,f)
 if isfield(M,'ximin')
     minI = xi < M.ximin;
     xi(minI) = M.ximin(minI);
-    warning('Out of bounds coarse model evaluation encountered on ximin')
+    warning( strcat('Out of bounds coarse model evaluation encountered on ximin = ', mat2str(M.ximin), ', xi = ', mat2str(xi)) )
 end
 if isfield(M,'ximax')
     maxI = xi > M.ximax;
     xi(maxI) = M.ximax(maxI);
-    warning('Out of bounds coarse model evaluation encountered on ximax')
+    warning( strcat('Out of bounds coarse model evaluation encountered on ximax = ', mat2str(M.ximin), ', xi = ', mat2str(xi)) )
 end
 if isfield(M,'xpmin')
     minIp = xp < M.xpmin;
     xp(minIp) = M.xpmin(minIp);
-    warning('Out of bounds coarse model evaluation encountered on xpmin')
+    warning( strcat('Out of bounds coarse model evaluation encountered on xpmin = ', mat2str(M.ximin), ', xi = ', mat2str(xi)) )
 end
 if isfield(M,'xpmax')
     maxIp = xp > M.xpmax;
     xp(maxIp) = M.xpmax(maxIp);
-    warning('Out of bounds coarse model evaluation encountered on xpmax')
+    warning( strcat('Out of bounds coarse model evaluation encountered on xpmax = ', mat2str(M.xpmax), ', xi = ', mat2str(xi)) )
 end
 
 Nn = length(xi);
@@ -687,3 +700,74 @@ cost = costFunc(Rs,OPTopts);
 end
 
 
+
+function [xmin, xmax, TRrad] = btr(x, TRrad, OPTopts, Nn)
+    % Assuming everything here is normalised.
+    
+    xmin = x - TRrad{end}
+    xmax = x + TRrad{end}
+    for ii = 1:Nn
+        if xmin(ii) < 0
+            xmin(ii) = 0
+        end
+        if xmax(ii) > 1
+            xmax(ii) = 1
+        end
+    end
+
+
+    % The basic trust-region algorithm - Chapter 6, pg116
+    % x0 - previous point
+    % rad0 - initial trust-reagion radius
+    % pk -
+    % n1, n2, y1, y2 choices are discissed in Section 17.1
+    %   n1 - if pk >= n1 then successful iterations
+    %   n2 -
+    %   0 < n1 < n2 <1
+    %   y1 -
+    %   y2 -
+    %   0 < y1 < y2 <1
+    % mk - quadratic model?
+
+    %%% %%% %%% %%% %%% %%%
+    % STEP 0: Initialisation
+
+    x0 = x;    % Parameter coordinate
+    % x0 = transpose(xi{length(x)})
+    rad0 = TRrad{end};
+    n1 = 0.01;
+    n2 = 0.9;
+    y1 = 0.5;
+    y2 = 0.5;
+    k = 0;
+
+    %%% %%% %%% %%% %%% %%%
+    % STEP 1: Model definition
+
+    %%% %%% %%% %%% %%% %%%
+    % STEP 2: Step calculation
+
+    %%% %%% %%% %%% %%% %%%
+    % STEP 3: Acceptance of the trial point
+
+    %%% %%% %%% %%% %%% %%%
+    % STEP 4: Trust-region radius update
+    % Si{length(Si)}{:}.ximax
+
+
+    TRrad{end+1} = TRrad{end}
+end
+
+function [xmin, xmax, TRrad] = btrInit(x, TRrad, OPTopts, Nn)
+    % Assuming everything here is normalised.
+    xmin = x - TRrad{end}
+    xmax = x + TRrad{end}
+    for ii = 1:Nn
+        if xmin(ii) < 0
+            xmin(ii) = 0
+        end
+        if xmax(ii) > 1
+            xmax(ii) = 1
+        end
+    end
+end
