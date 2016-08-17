@@ -218,6 +218,7 @@ TolX_achieved = 0;
 ii = 0;
 while ii <= Ni && ~specF && ~TolX_achieved
     ii = ii+1;
+
     Rci{ii} = coarseMod(Mc,xi{ii},Sinit.xp,fc);
     Rfi{ii} = fineMod(Mf,xi{ii});
     if ii == 1
@@ -298,31 +299,9 @@ while ii <= Ni && ~specF && ~TolX_achieved
 %     save SMlog ii xi Rci Rfi Rsi Si costS costF limF limC limS
     save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c
     
-    if plotIter
-        figure(ii)
-        for rr = 1:Nr
-            subplot(Nr,1,rr)
-            if isfield(Rci{ii}{rr},'f')
-                plot(Rci{ii}{rr}.f,Rfi{ii}{rr}.r,'k'), grid on, hold on
-                plot(Rci{ii}{rr}.f,Rci{ii}{rr}.r,'r'), grid on, hold on
-                plot(Rsi{ii}{rr}.f,Rsi{ii}{rr}.r,'b')
-                plot(Rsai{ii}{rr}.f,Rsai{ii}{rr}.r,'g--')
-                xlabel('Frequency')
-                % Plot the specs...
-            else
-                plot(Rfi{ii}{rr}.r,'k'), grid on, hold on
-                plot(Rci{ii}{rr}.r,'r'), grid on, hold on
-                plot(Rsi{ii}{rr}.r,'b')
-                plot(Rsai{ii}{rr}.r,'g')
-                xlabel('Index')
-                % Plot the specs...
-            end
-            ylabel(OPTopts.Rtype{rr})
-            title(['Iteration ',num2str(ii)])
-            legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate')
-        end
-        
-    end
+    % Plot the fine, coarse, optimised surrogate and aligned surrogate
+    plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, Nr, OPTopts);
+    
     
 end
 
@@ -350,7 +329,33 @@ Li.limMax_c = limMax_c;
 
 end
 
-
+function plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, Nr, OPTopts)
+    if plotIter
+        figure(ii)
+        for rr = 1:Nr
+            subplot(Nr,1,rr)
+            if isfield(Rci{ii}{rr},'f')
+                plot(Rci{ii}{rr}.f,Rfi{ii}{rr}.r,'k'), grid on, hold on
+                plot(Rci{ii}{rr}.f,Rci{ii}{rr}.r,'r'), grid on, hold on
+                plot(Rsi{ii}{rr}.f,Rsi{ii}{rr}.r,'b')
+                plot(Rsai{ii}{rr}.f,Rsai{ii}{rr}.r,'g--')
+                xlabel('Frequency')
+                % Plot the specs...
+            else
+                plot(Rfi{ii}{rr}.r,'k'), grid on, hold on
+                plot(Rci{ii}{rr}.r,'r'), grid on, hold on
+                plot(Rsi{ii}{rr}.r,'b')
+                plot(Rsai{ii}{rr}.r,'g')
+                xlabel('Index')
+                % Plot the specs...
+            end
+            ylabel(OPTopts.Rtype{rr})
+            title(['Iteration ',num2str(ii)])
+            legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate')
+        end
+        
+    end
+end
 
 function Rf = fineMod(M,xi)
 
@@ -549,22 +554,26 @@ function Rc = coarseMod(M,xi,xp,f)
 if isfield(M,'ximin')
     minI = xi < M.ximin;
     xi(minI) = M.ximin(minI);
-    warning('Out of bounds coarse model evaluation encountered on ximin')
+    warning( strcat('Out of bounds coarse model evaluation encountered on ximin = ', ...
+        mat2str(M.ximin), ', xi = ', mat2str(xi)) )
 end
 if isfield(M,'ximax')
     maxI = xi > M.ximax;
     xi(maxI) = M.ximax(maxI);
-    warning('Out of bounds coarse model evaluation encountered on ximax')
+    warning( strcat('Out of bounds coarse model evaluation encountered on ximax', ...
+        mat2str(M.ximax), ', xi = ', mat2str(xi)) )
 end
 if isfield(M,'xpmin')
     minIp = xp < M.xpmin;
     xp(minIp) = M.xpmin(minIp);
-    warning('Out of bounds coarse model evaluation encountered on xpmin')
+    warning( strcat('Out of bounds coarse model evaluation encountered on xpmin', ...
+        mat2str(M.xpmin), ', xi = ', mat2str(xi)) )
 end
 if isfield(M,'xpmax')
     maxIp = xp > M.xpmax;
     xp(maxIp) = M.xpmax(maxIp);
-    warning('Out of bounds coarse model evaluation encountered on xpmax')
+    warning( strcat('Out of bounds coarse model evaluation encountered on xpmax', ...
+        mat2str(M.xpmax), ', xi = ', mat2str(xi)) )
 end
 
 Nn = length(xi);
