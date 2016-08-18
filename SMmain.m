@@ -219,6 +219,10 @@ ii = 0;
 while ii <= Ni && ~specF && ~TolX_achieved
     ii = ii+1;
 
+    %evaluateModel()
+
+    %eveluateResponse()
+
     Rci{ii} = coarseMod(Mc,xi{ii},Sinit.xp,fc);
     Rfi{ii} = fineMod(Mf,xi{ii});
     if ii == 1
@@ -300,7 +304,8 @@ while ii <= Ni && ~specF && ~TolX_achieved
     save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c
     
     % Plot the fine, coarse, optimised surrogate and aligned surrogate
-    plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, Nr, OPTopts);
+    % plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, Nr, OPTopts);
+    plotModels();
     
     
 end
@@ -327,9 +332,9 @@ Li.limMax_f = limMax_f;
 Li.limMin_c = limMin_c;
 Li.limMax_c = limMax_c;
 
-end
 
-function plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, Nr, OPTopts)
+function plotModels()
+% function plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, Nr, OPTopts)
     if plotIter
         figure(ii)
         for rr = 1:Nr
@@ -357,6 +362,7 @@ function plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, Nr, OPTopts)
     end
 end
 
+end
 function Rf = fineMod(M,xi)
 
 % Rf is a cell array of structures containing the response in Rf.r, the type Rf.t, and the
@@ -554,26 +560,34 @@ function Rc = coarseMod(M,xi,xp,f)
 if isfield(M,'ximin')
     minI = xi < M.ximin;
     xi(minI) = M.ximin(minI);
-    warning( strcat('Out of bounds coarse model evaluation encountered on ximin = ', ...
-        mat2str(M.ximin), ', xi = ', mat2str(xi)) )
+    if minI | 0
+		warning( strcat('Out of bounds coarse model evaluation encountered on ximin = ', ...
+			mat2str(M.ximin), ', xi = ', mat2str(xi)) )
+	end
 end
 if isfield(M,'ximax')
     maxI = xi > M.ximax;
     xi(maxI) = M.ximax(maxI);
-    warning( strcat('Out of bounds coarse model evaluation encountered on ximax', ...
-        mat2str(M.ximax), ', xi = ', mat2str(xi)) )
+    if maxI | 0
+		warning( strcat('Out of bounds coarse model evaluation encountered on ximax', ...
+			mat2str(M.ximax), ', xi = ', mat2str(xi)) )
+	end
 end
 if isfield(M,'xpmin')
     minIp = xp < M.xpmin;
     xp(minIp) = M.xpmin(minIp);
-    warning( strcat('Out of bounds coarse model evaluation encountered on xpmin', ...
-        mat2str(M.xpmin), ', xi = ', mat2str(xi)) )
+    if minIp | 0
+		warning( strcat('Out of bounds coarse model evaluation encountered on xpmin', ...
+			mat2str(M.xpmin), ', xi = ', mat2str(xi)) )
+	end
 end
 if isfield(M,'xpmax')
     maxIp = xp > M.xpmax;
     xp(maxIp) = M.xpmax(maxIp);
-    warning( strcat('Out of bounds coarse model evaluation encountered on xpmax', ...
-        mat2str(M.xpmax), ', xi = ', mat2str(xi)) )
+    if maxIp | 0
+		warning( strcat('Out of bounds coarse model evaluation encountered on xpmax', ...
+			mat2str(M.xpmax), ', xi = ', mat2str(xi)) )
+	end
 end
 
 Nn = length(xi);
