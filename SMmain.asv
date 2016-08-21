@@ -1,4 +1,4 @@
-function [Ri,Si,Pi,Ci,Oi,Li,TRi,TRin] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
+function [Ri,Si,Pi,Ci,Oi,Li] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 
 % Space Mapping main loop
 
@@ -151,6 +151,7 @@ if isfield(SMopts,'wk')
     useAllFine = 1;
 end
 
+
 % !!! NOT SURE IF THIS PART SHOULD BE IN - WORKS FINE WITHOUT... 
 % 
 % % Limit the parameter space
@@ -182,17 +183,46 @@ end
 %     end
 % end
 
+
+% Enter the main loop
+% 0) Normalise parameters
+% 0) Optimise coarse model to find initial alignment position
+% 0) Evaluate the fine model at starting position
+% 0) Get the initial response
+% 1) 4) Optimize the current model Si to find xi
+% 2) 5) Test for convergence
+% 3) 1) Evaluate the fine model at current position (Rfi)
+% 4) 2) Get the response of the previous iteration surrogate at current
+%    position (Rsi).  Only the position x(i-1) was calculated in the previous
+%    iteration.
+% 5) 3) Align the model at the current position the get Rsai and Si
+
+%%% 1) Evaluate the fine model at current position (Rfi)
+%%% 2) Get the response of the previous iteration surrogate at current
+%%%    position (Rsi).  Only the position x(i-1) was calculated in the previous
+%%%    iteration.
+%%% 3) Align the model at the current position the get Rsai and Si
+%%% 4) Optimize the current model Si to find xi
+%%% 5) Test for convergence
+
+% [Rci,Rfi,Rsi,Rsai,Si] = deal(cell(1,Ni));
+% Rsai is the aligned surrogate, and Rsi the optimized surrogate at each
+% iteration
+specF = 0;  % Flag to test if the fine model reached spec
+TolX_achieved = 0;
+% ii = 0;
+
+[limMin_f{1},limMax_f{1},limMin_c{1},limMax_c{1}] = deal(zeros(size(xi{1})));
+
+ii = 0;
+% For the initial starting point ii=1
+ii = 1;
 % Normalize the optimization parameters
 ximinn = OPTopts.ximin - OPTopts.ximin;
 ximaxn = OPTopts.ximax./OPTopts.ximax;
 xinitn = (xinit - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
-TRin{1} = ximaxn.*ones(Nn,1);
-TRi{1}  = ones(Nn,1)*0.5;
 
-% ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
 % Optimize coarse model to find initial alignment position
-% ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
-[ximinn, ximaxn, TRin] = btr(xi, TRin, OPTopts);
 if globOpt
     [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Sinit,OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
     xinitn = reshape(xinitn,Nn,1);
@@ -200,146 +230,119 @@ end
 LHSmat = [];
 RHSvect = [];
 nonLcon = [];
-%[ximinn, ximaxn] = (xin-TRin{1}, xin+TRin{1});
 [xin, costSi] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
 % De-normalize input vector
 xi{1} = xin.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
-TRi{1} = TRin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
-% TRin{1} = xi{1}.*0.1;
 
-% Enter the main loop
-% 1) Evaluate the fine model at current position (Rfi)
-% 2) Get the response of the previous iteration surrogate at current
-%    position (Rsi).  Only the position x(i-1) was calculated in the previous
-%    iteration.
-% 3) Align the model at the current poistion the get Rsai and Si
-% 4) Optimize the current model Si to find xi
-% 5) Test for convergence
-
-% [Rci,Rfi,Rsi,Rsai,Si] = deal(cell(1,Ni));
-% Rsai is the aligned surrogate, and Rsi the optimized surrogate at each
-% iteration
-costC = costSi; % Only calculate the coarse model cost once, at iteration 0
-specF = 0;  % Flag to test if the fine model reached spec
-TolX_achieved = 0;
-ii = 0;
-while ii <= Ni && ~specF && ~TolX_achieved
-    ii = ii+1;
-    Rci{ii} = coarseMod(Mc,xi{ii},Sinit.xp,fc);
-    Rfi{ii} = fineMod(Mf,xi{ii});
-    if ii == 1
-        for rr = 1:Nr
-            if globOptSM > 0, SMopts.globOpt = 1; end
-            Si{ii}{rr} = buildSurr(xi{ii},Rfi{ii}{rr}.r,Sinit,SMopts);
-            Rsi{ii}{rr}.r = evalSurr(xi{ii},Si{ii}{rr});
-            Rsi{ii}{rr}.t = Rci{ii}{rr}.t;
-            if isfield(Rci{ii}{rr},'f'), Rsi{ii}{rr}.f = Rci{ii}{rr}.f; end
-            Rsai{ii}{rr} = Rsi{ii}{rr};
-        end
-    else
-        for rr = 1:Nr
-            % Get the surrogate response after previous iteration
-            % optimization - thus at current iteration position
-            Rsi{ii}{rr}.r = evalSurr(xi{ii},Si{ii-1}{rr});
-            Rsi{ii}{rr}.t = Rci{ii}{rr}.t;
-            if isfield(Rci{ii}{rr},'f'), Rsi{ii}{rr}.f = Rci{ii}{rr}.f; end
-            if globOptSM < 2, SMopts.globOpt = 0; end
-            if ~useAllFine
-                Si{ii}{rr} = buildSurr(xi{ii},Rfi{ii}{rr}.r,Si{ii-1}{rr},SMopts);
-            else
-                for iii = 1:ii
-                    r{iii} = Rfi{iii}{rr}.r;
-                end
-                Si{ii}{rr} = buildSurr(xi,r,Si{ii-1}{rr},SMopts);
-            end
-            % Also get the currently aligned surrogate for comparison
-            Rsai{ii}{rr}.r = evalSurr(xi{ii},Si{ii}{rr});
-            Rsai{ii}{rr}.t = Rci{ii}{rr}.t;
-            if isfield(Rci{ii}{rr},'f'), Rsai{ii}{rr}.f = Rci{ii}{rr}.f; end
-        end
+Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
+Rfi{1} = fineMod(Mf,xi{1});
+% if ii == 1
+    for rr = 1:Nr
+        if globOptSM > 0, SMopts.globOpt = 1; end
+        Si{1}{rr} = buildSurr(xi{1},Rfi{1}{rr}.r,Sinit,SMopts);
+        Rsi{1}{rr}.r = evalSurr(xi{1},Si{1}{rr});
+        Rsi{1}{rr}.t = Rci{1}{rr}.t;
+        if isfield(Rci{1}{rr},'f'), Rsi{1}{rr}.f = Rci{1}{rr}.f; end
+        Rsai{1}{rr} = Rsi{1}{rr};
     end
-    
+% else
+% end
+
+
     % Test fine model response
-    [limMin_f{1},limMax_f{1},limMin_c{1},limMax_c{1}] = deal(zeros(size(xi{1})));
-    costFi = costFunc(Rfi{ii},OPTopts);
-    if costFi == 0 && isempty(find(ismember(OPTopts.goalType,'bw'),1))   % Exit if spec is reached (will typically not work for eq and never for minimax, and bw is explicitly excluded)
+    costFi = costFunc(Rfi{1},OPTopts);
+    costC = costSi; % Only calculate the coarse model cost once, at iteration 0
+
+    costS{1} = costSi;
+    costF{1} = costFi;
+
+
+
+while ii <= Ni && ~specF && ~TolX_achieved
+%Coming into this iteration as ii now with the fine model run here already and responses avaliable. 
+
+    
+    % % Test fine model response
+    % costFi = costFunc(Rfi{ii},OPTopts);
+
+    % Exit if spec is reached (will typically not work for eq and never for minimax, and bw is explicitly excluded)
+    % if costFi == 0 && isempty(find(ismember(OPTopts.goalType,'bw'),1))   
+    if costF{ii} == 0 && isempty(find(ismember(OPTopts.goalType,'bw'),1))   
         specF = 1;
     else
         specF = 0;
-% ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
         % Do optimization
-% ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====
-        % TODO: DWW
-        [ximinn, ximaxn, TRin] = btr(xi, TRin, OPTopts);
-        % TRin{ii+1} = ones(Nn,1);
         if (ii == 1 && globOpt) || globOpt == 2
-            % [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
-            [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinn,TRin{ii+1},M_PBIL,optsPBIL);
+            [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
             xinitn = reshape(xinitn,Nn,1);
         end
         LHSmat = [];
         RHSvect = [];
         nonLcon = [];
-        % [xin, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
-        [xin, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xinitn,ximinn,TRin{ii+1},LHSmat,RHSvect,nonLcon,optsFminS);
-        % De-normalize input vector
-        xi{ii+1} = xin.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
-        TRi{ii+1} = TRin{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
+        [xin_ii, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
+        % De-normalize input vector. The new input vector that is.
+        xi{ii+1} = xin_ii.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
         
-        xin_ii = xi{ii}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
-        xin_iip1 = xi{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin; 
-        TolXn = norm((xin_iip1 - xin_ii),2);
-        TolX_achieved = TolXn < TolX;
+        % CRC_DDV: DWW: isn't xin_ii meant to be denormalised now, so why the 'n'
+        xi_ii = xi{ii}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
+        xi_iip1 = xi{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin; 
+        % CRC_DDV: DWW: TolXn has an 'n' which has a different meaning through the prior code. Shouldn't 
+        % this rempresent the L^2-Norm?
+        TolXnorm = norm((xi_iip1 - xi_ii),2);
+        TolX_achieved = TolXnorm < TolX;
 %         if TolX_achieved, keyboard; end
-        
-        % Check if fine model is limited 
-        if isfield(Mf,'ximin')
-            limMin_f{ii} = xi{ii+1} < Mf.ximin;
-        end
-        if isfield(Mc,'ximin')
-            limMin_c{ii} = xi{ii+1} < Mc.ximin;
-        end
-        if isfield(Mf,'ximax')
-            limMax_f{ii} = xi{ii+1} > Mf.ximax;
-        end
-        if isfield(Mc,'ximax')
-            limMax_c{ii} = xi{ii+1} > Mc.ximax;
-        end
+		
+		enforceFineModelLimits();
+		
     end
     
-    costS{ii} = costSi;
-    costF{ii} = costFi;
+    Rci{ii+1} = coarseMod(Mc,xi{ii+1},Sinit.xp,fc);
+    Rfi{ii+1} = fineMod(Mf,xi{ii+1});
+    
+    for rr = 1:Nr
+        % Get the surrogate response after previous iteration
+        % optimization - thus at current iteration position
+        Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1-1}{rr});
+        Rsi{ii+1}{rr}.t = Rci{ii+1}{rr}.t;
+        if isfield(Rci{ii+1}{rr},'f'), Rsi{ii+1}{rr}.f = Rci{ii+1}{rr}.f; end
+        if globOptSM < 2, SMopts.globOpt = 0; end
+        if ~useAllFine
+            Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
+        else
+            for iii = 1:ii+1
+                r{iii} = Rfi{iii}{rr}.r;
+            end
+            Si{ii+1}{rr} = buildSurr(xi,r,Si{ii+1-1}{rr},SMopts);
+        end
+        % Also get the currently aligned surrogate for comparison
+        Rsai{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1}{rr});
+        Rsai{ii+1}{rr}.t = Rci{ii+1}{rr}.t;
+        if isfield(Rci{ii+1}{rr},'f'), Rsai{ii+1}{rr}.f = Rci{ii+1}{rr}.f; end
+    end
+    % end
+
+    % Test fine model response
+    costFi = costFunc(Rfi{ii+1},OPTopts);
+
+
+    % CRC_DDV: DWW: +1 ?
+    costS{ii+1} = costSi;
+    costF{ii+1} = costFi;
+
+    %
+
+
     % Make a (crude) log file
 %     save SMlog ii xi Rci Rfi Rsi Si costS costF limF limC limS
     save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c
     
-    if plotIter
-        figure(ii)
-        for rr = 1:Nr
-            subplot(Nr,1,rr)
-            if isfield(Rci{ii}{rr},'f')
-                plot(Rci{ii}{rr}.f,Rfi{ii}{rr}.r,'k'), grid on, hold on
-                plot(Rci{ii}{rr}.f,Rci{ii}{rr}.r,'r'), grid on, hold on
-                plot(Rsi{ii}{rr}.f,Rsi{ii}{rr}.r,'b')
-                plot(Rsai{ii}{rr}.f,Rsai{ii}{rr}.r,'g--')
-                xlabel('Frequency')
-                % Plot the specs...
-            else
-                plot(Rfi{ii}{rr}.r,'k'), grid on, hold on
-                plot(Rci{ii}{rr}.r,'r'), grid on, hold on
-                plot(Rsi{ii}{rr}.r,'b')
-                plot(Rsai{ii}{rr}.r,'g')
-                xlabel('Index')
-                % Plot the specs...
-            end
-            ylabel(OPTopts.Rtype{rr})
-            title(['Iteration ',num2str(ii)])
-            legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate')
-        end
-        
-    end
+    % Plot the fine, coarse, optimised surrogate and aligned surrogate
+    % plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, Nr, OPTopts);
+    plotModels();
     
-end
+    ii = ii+1;
+    
+end % Main while loop
 
 % Handle output structures
 Ri.Rc = Rci;
@@ -355,7 +358,7 @@ Ci.costF = costF;
 
 Oi.specF = specF;
 Oi.TolX_achieved = TolX_achieved;
-Oi.TolXn = TolXn;
+Oi.TolXn = TolXnorm;
 Oi.Ni = ii;
 
 Li.limMin_f = limMin_f;
@@ -363,9 +366,70 @@ Li.limMax_f = limMax_f;
 Li.limMin_c = limMin_c;
 Li.limMax_c = limMax_c;
 
-end
+
+function plotModels()
+% function plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, Nr, OPTopts)
+	if plotIter
+		figure(ii)
+		for rr = 1:Nr
+			subplot(Nr,1,rr)
+			if isfield(Rci{ii}{rr},'f')
+				plot(Rci{ii}{rr}.f,Rfi{ii}{rr}.r,'k'), grid on, hold on
+				plot(Rci{ii}{rr}.f,Rci{ii}{rr}.r,'r'), grid on, hold on
+				plot(Rsi{ii}{rr}.f,Rsi{ii}{rr}.r,'b')
+				plot(Rsai{ii}{rr}.f,Rsai{ii}{rr}.r,'g--')
+				xlabel('Frequency')
+				% Plot the specs...
+			else
+				plot(Rfi{ii}{rr}.r,'k'), grid on, hold on
+				plot(Rci{ii}{rr}.r,'r'), grid on, hold on
+				plot(Rsi{ii}{rr}.r,'b')
+				plot(Rsai{ii}{rr}.r,'g')
+				xlabel('Index')
+				% Plot the specs...
+			end
+			ylabel(OPTopts.Rtype{rr})
+			title(['Iteration ',num2str(ii)])
+			legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate')
+		end
+
+	end
+end % plotModels
+
+function enforceFineModelLimits()
+	% Check if fine model is limited 
+	if isfield(Mf,'ximin')
+		limMin_f{ii} = xi{ii+1} < Mf.ximin;
+		if limMin_f{ii} | 0
+			warning( strcat('Fine model bound met: xi{ii+1} = ', ...
+				mat2str(xi{ii+1}), ', Mf.ximin = ', mat2str(Mf.ximin)) )
+		end
+	end
+	if isfield(Mc,'ximin')
+		limMin_c{ii} = xi{ii+1} < Mc.ximin;
+		if limMin_c{ii} | 0
+			warning( strcat('Fine model bound met: xi{ii+1} = ', ...
+				mat2str(xi{ii+1}), ', Mc.ximin = ', mat2str(Mc.ximin)) )
+		end
+	end
+	if isfield(Mf,'ximax')
+		limMax_f{ii} = xi{ii+1} > Mf.ximax;
+		if limMax_f{ii} | 0
+			warning( strcat('Fine model bound met: xi{ii+1} = ', ...
+				mat2str(xi{ii+1}), ', Mf.ximax = ', mat2str(Mf.ximax)) )
+		end
+	end
+	if isfield(Mc,'ximax')
+		limMax_c{ii} = xi{ii+1} > Mc.ximax;
+		if limMin_f{ii} | 0
+			warning( strcat('Fine model bound met: xi{ii+1} = ', ...
+				mat2str(xi{ii+1}), ',  Mc.ximax = ', mat2str( Mc.ximax)) )
+		end
+	end
+end %enforceFineModelLimits
 
 
+end % SMmain
 
 function Rf = fineMod(M,xi)
 
@@ -564,22 +628,34 @@ function Rc = coarseMod(M,xi,xp,f)
 if isfield(M,'ximin')
     minI = xi < M.ximin;
     xi(minI) = M.ximin(minI);
-    warning( strcat('Out of bounds coarse model evaluation encountered on ximin = ', mat2str(M.ximin), ', xi = ', mat2str(xi)) )
+    if minI | 0
+		warning( strcat('Out of bounds coarse model evaluation encountered on ximin = ', ...
+			mat2str(M.ximin), ', xi = ', mat2str(xi)) )
+	end
 end
 if isfield(M,'ximax')
     maxI = xi > M.ximax;
     xi(maxI) = M.ximax(maxI);
-    warning( strcat('Out of bounds coarse model evaluation encountered on ximax = ', mat2str(M.ximin), ', xi = ', mat2str(xi)) )
+    if maxI | 0
+		warning( strcat('Out of bounds coarse model evaluation encountered on ximax', ...
+			mat2str(M.ximax), ', xi = ', mat2str(xi)) )
+	end
 end
 if isfield(M,'xpmin')
     minIp = xp < M.xpmin;
     xp(minIp) = M.xpmin(minIp);
-    warning( strcat('Out of bounds coarse model evaluation encountered on xpmin = ', mat2str(M.ximin), ', xi = ', mat2str(xi)) )
+    if minIp | 0
+		warning( strcat('Out of bounds coarse model evaluation encountered on xpmin', ...
+			mat2str(M.xpmin), ', xi = ', mat2str(xi)) )
+	end
 end
 if isfield(M,'xpmax')
     maxIp = xp > M.xpmax;
     xp(maxIp) = M.xpmax(maxIp);
-    warning( strcat('Out of bounds coarse model evaluation encountered on xpmax = ', mat2str(M.xpmax), ', xi = ', mat2str(xi)) )
+    if maxIp | 0
+		warning( strcat('Out of bounds coarse model evaluation encountered on xpmax', ...
+			mat2str(M.xpmax), ', xi = ', mat2str(xi)) )
+	end
 end
 
 Nn = length(xi);
@@ -702,42 +778,3 @@ cost = costFunc(Rs,OPTopts);
 end
 
 
-
-function [xmin, xmax, TRrad] = btr(x, TRrad, OPTopts)
-    % Assuming everything here is normalised.
-    xmin = x{end} - TRrad{end}
-    xmax = x{end} + TRrad{end}
-    % TODO: DWW: cap top an bottom of hard OPTopt limits
-
-    TRrad{end+1} = ones(length(x))
-
-    % The basic trust-region algorithm - Chapter 6, pg116
-    % x0 - previous point
-    % rad0 - initial trust-reagion radius
-    % n1 -
-    % n2 -
-    % y1 -
-    % y2 -
-
-    %%% %%% %%% %%% %%% %%%
-    % STEP 0: Initialisation
-
-    % x0 = zeros(1,length(x));    % Parameter coordinate
-    % x0 = transpose(xi{length(x)})
-    % rad0 = S{length(S)}{:}.ximax
-
-    %%% %%% %%% %%% %%% %%%
-    % STEP 1: Model definition
-
-    %%% %%% %%% %%% %%% %%%
-    % STEP 2: Step calculation
-
-    %%% %%% %%% %%% %%% %%%
-    % STEP 3: Acceptance of the trial point
-
-    %%% %%% %%% %%% %%% %%%
-    % STEP 4: Trust-region radius update
-    % Si{length(Si)}{:}.ximax
-
-
-end

@@ -19,7 +19,7 @@
 			"file": "SMmain.m",
 			"settings":
 			{
-				"buffer_size": 26240,
+				"buffer_size": 28093,
 				"line_ending": "Windows"
 			}
 		},
@@ -91,6 +91,12 @@
 		"case_sensitive": false,
 		"find_history":
 		[
+			"Rci",
+			"OPTopts",
+			"TolX",
+			"xin",
+			"ii",
+			"% 1) Evaluate the fine model at current position (Rfi)\n% 2) Get the response of the previous iteration surrogate at current\n%    position (Rsi).  Only the position x(i-1) was calculated in the previous\n%    iteration.\n% 3) Align the model at the current position the get Rsai and Si\n% 4) Optimize the current model Si to find xi\n% 5) Test for convergence\n",
 			"plotIter",
 			"btr",
 			"Nn",
@@ -140,15 +146,15 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 26240,
+						"buffer_size": 28093,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								22238,
-								22238
+								24031,
+								24031
 							]
 						],
 						"settings":
@@ -158,7 +164,7 @@
 							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 6669.0,
+						"translation.y": 7397.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 1,
@@ -176,15 +182,15 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 26240,
+						"buffer_size": 28093,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								13153,
-								13153
+								12638,
+								12638
 							]
 						],
 						"settings":
@@ -194,7 +200,7 @@
 							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 3838.0,
+						"translation.y": 3747.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 0,
@@ -261,7 +267,7 @@
 		"cols":
 		[
 			0.0,
-			0.461764705882,
+			0.406617647058,
 			1.0
 		],
 		"rows":

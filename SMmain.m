@@ -210,11 +210,9 @@ end
 % iteration
 specF = 0;  % Flag to test if the fine model reached spec
 TolX_achieved = 0;
-% ii = 0;
 
 [limMin_f{1},limMax_f{1},limMin_c{1},limMax_c{1}] = deal(zeros(size(xi{1})));
 
-ii = 0;
 % For the initial starting point ii=1
 ii = 1;
 % Normalize the optimization parameters
@@ -236,18 +234,17 @@ xi{1} = xin.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
 
 Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
 Rfi{1} = fineMod(Mf,xi{1});
-% if ii == 1
-    for rr = 1:Nr
-        if globOptSM > 0, SMopts.globOpt = 1; end
-        Si{1}{rr} = buildSurr(xi{1},Rfi{1}{rr}.r,Sinit,SMopts);
-        Rsi{1}{rr}.r = evalSurr(xi{1},Si{1}{rr});
-        Rsi{1}{rr}.t = Rci{1}{rr}.t;
-        if isfield(Rci{1}{rr},'f'), Rsi{1}{rr}.f = Rci{1}{rr}.f; end
-        Rsai{1}{rr} = Rsi{1}{rr};
-    end
-% else
-% end
+for rr = 1:Nr
+    if globOptSM > 0, SMopts.globOpt = 1; end
+    Si{1}{rr} = buildSurr(xi{1},Rfi{1}{rr}.r,Sinit,SMopts);
+    Rsi{1}{rr}.r = evalSurr(xi{1},Si{1}{rr});
+    Rsi{1}{rr}.t = Rci{1}{rr}.t;
+    if isfield(Rci{1}{rr},'f'), Rsi{1}{rr}.f = Rci{1}{rr}.f; end
+    Rsai{1}{rr} = Rsi{1}{rr};
+end
 
+    % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
+    plotModels(plotIter, 1, Rci, Rfi, Rsi, Rsai, OPTopts);
 
     % Test fine model response
     costFi = costFunc(Rfi{1},OPTopts);
@@ -260,10 +257,6 @@ Rfi{1} = fineMod(Mf,xi{1});
 
 while ii <= Ni && ~specF && ~TolX_achieved
 %Coming into this iteration as ii now with the fine model run here already and responses avaliable. 
-
-    
-    % % Test fine model response
-    % costFi = costFunc(Rfi{ii},OPTopts);
 
     % Exit if spec is reached (will typically not work for eq and never for minimax, and bw is explicitly excluded)
     % if costFi == 0 && isempty(find(ismember(OPTopts.goalType,'bw'),1))   
@@ -291,35 +284,13 @@ while ii <= Ni && ~specF && ~TolX_achieved
         TolXnorm = norm((xi_iip1 - xi_ii),2);
         TolX_achieved = TolXnorm < TolX;
 %         if TolX_achieved, keyboard; end
-        
-        % Check if fine model is limited 
-        if isfield(Mf,'ximin')
-            limMin_f{ii} = xi{ii+1} < Mf.ximin;
-        end
-        if isfield(Mc,'ximin')
-            limMin_c{ii} = xi{ii+1} < Mc.ximin;
-        end
-        if isfield(Mf,'ximax')
-            limMax_f{ii} = xi{ii+1} > Mf.ximax;
-        end
-        if isfield(Mc,'ximax')
-            limMax_c{ii} = xi{ii+1} > Mc.ximax;
-        end
+		
+		enforceFineModelLimits();
+		
     end
     
-
     Rci{ii+1} = coarseMod(Mc,xi{ii+1},Sinit.xp,fc);
     Rfi{ii+1} = fineMod(Mf,xi{ii+1});
-    % if ii == 1
-    %     for rr = 1:Nr
-    %         if globOptSM > 0, SMopts.globOpt = 1; end
-    %         Si{ii}{rr} = buildSurr(xi{ii},Rfi{ii}{rr}.r,Sinit,SMopts);
-    %         Rsi{ii}{rr}.r = evalSurr(xi{ii},Si{ii}{rr});
-    %         Rsi{ii}{rr}.t = Rci{ii}{rr}.t;
-    %         if isfield(Rci{ii}{rr},'f'), Rsi{ii}{rr}.f = Rci{ii}{rr}.f; end
-    %         Rsai{ii}{rr} = Rsi{ii}{rr};
-    %     end
-    % else
     
     for rr = 1:Nr
         % Get the surrogate response after previous iteration
@@ -346,21 +317,16 @@ while ii <= Ni && ~specF && ~TolX_achieved
     % Test fine model response
     costFi = costFunc(Rfi{ii+1},OPTopts);
 
-
     % CRC_DDV: DWW: +1 ?
     costS{ii+1} = costSi;
     costF{ii+1} = costFi;
-
-    %
-
 
     % Make a (crude) log file
 %     save SMlog ii xi Rci Rfi Rsi Si costS costF limF limC limS
     save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c
     
     % Plot the fine, coarse, optimised surrogate and aligned surrogate
-    % plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, Nr, OPTopts);
-    plotModels();
+    plotModels(plotIter, ii+1, Rci, Rfi, Rsi, Rsai, OPTopts);
     
     ii = ii+1;
     
@@ -380,7 +346,7 @@ Ci.costF = costF;
 
 Oi.specF = specF;
 Oi.TolX_achieved = TolX_achieved;
-Oi.TolXn = TolXn;
+Oi.TolXn = TolXnorm;
 Oi.Ni = ii;
 
 Li.limMin_f = limMin_f;
@@ -388,37 +354,75 @@ Li.limMax_f = limMax_f;
 Li.limMin_c = limMin_c;
 Li.limMax_c = limMax_c;
 
+% CRC_DWW: DWW: I don't like these function methods either. Can't tell from the 
+% function name or statement which iteration we working with, nor do we allow any 
+% reuse. Should be passing stuff in and also fn should be out of this loop later. 
+function enforceFineModelLimits()
+	% Check if fine model is limited 
+	if isfield(Mf,'ximin')
+		limMin_f{ii} = xi{ii+1} < Mf.ximin;
+		if limMin_f{ii} | 0
+			warning( strcat('Fine model bound met: xi{ii+1} = ', ...
+				mat2str(xi{ii+1}), ', Mf.ximin = ', mat2str(Mf.ximin)) )
+		end
+	end
+	if isfield(Mc,'ximin')
+		limMin_c{ii} = xi{ii+1} < Mc.ximin;
+		if limMin_c{ii} | 0
+			warning( strcat('Fine model bound met: xi{ii+1} = ', ...
+				mat2str(xi{ii+1}), ', Mc.ximin = ', mat2str(Mc.ximin)) )
+		end
+	end
+	if isfield(Mf,'ximax')
+		limMax_f{ii} = xi{ii+1} > Mf.ximax;
+		if limMax_f{ii} | 0
+			warning( strcat('Fine model bound met: xi{ii+1} = ', ...
+				mat2str(xi{ii+1}), ', Mf.ximax = ', mat2str(Mf.ximax)) )
+		end
+	end
+	if isfield(Mc,'ximax')
+		limMax_c{ii} = xi{ii+1} > Mc.ximax;
+		if limMin_f{ii} | 0
+			warning( strcat('Fine model bound met: xi{ii+1} = ', ...
+				mat2str(xi{ii+1}), ',  Mc.ximax = ', mat2str( Mc.ximax)) )
+		end
+	end
+end %enforceFineModelLimits
 
-function plotModels()
-% function plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, Nr, OPTopts)
-    if plotIter
-        figure(ii)
+
+end % SMmain
+
+
+function plotModels(plotFlag, itNum, Rci, Rfi, Rsi, Rsai, OPTopts)
+    if plotFlag
+        figure(itNum)
+		Nr = length(OPTopts.Rtype); % Number of responses requested
         for rr = 1:Nr
             subplot(Nr,1,rr)
-            if isfield(Rci{ii}{rr},'f')
-                plot(Rci{ii}{rr}.f,Rfi{ii}{rr}.r,'k'), grid on, hold on
-                plot(Rci{ii}{rr}.f,Rci{ii}{rr}.r,'r'), grid on, hold on
-                plot(Rsi{ii}{rr}.f,Rsi{ii}{rr}.r,'b')
-                plot(Rsai{ii}{rr}.f,Rsai{ii}{rr}.r,'g--')
+            if isfield(Rci{itNum}{rr},'f')
+                plot(Rci{itNum}{rr}.f,Rfi{itNum}{rr}.r,'k'), grid on, hold on
+                plot(Rci{itNum}{rr}.f,Rci{itNum}{rr}.r,'r'), grid on, hold on
+                plot(Rsi{itNum}{rr}.f,Rsi{itNum}{rr}.r,'b')
+                plot(Rsai{itNum}{rr}.f,Rsai{itNum}{rr}.r,'g--')
                 xlabel('Frequency')
                 % Plot the specs...
             else
-                plot(Rfi{ii}{rr}.r,'k'), grid on, hold on
-                plot(Rci{ii}{rr}.r,'r'), grid on, hold on
-                plot(Rsi{ii}{rr}.r,'b')
-                plot(Rsai{ii}{rr}.r,'g')
+                plot(Rfi{itNum}{rr}.r,'k'), grid on, hold on
+                plot(Rci{itNum}{rr}.r,'r'), grid on, hold on
+                plot(Rsi{itNum}{rr}.r,'b')
+                plot(Rsai{itNum}{rr}.r,'g')
                 xlabel('Index')
                 % Plot the specs...
             end
             ylabel(OPTopts.Rtype{rr})
-            title(['Iteration ',num2str(ii)])
+            title(['Iteration ',num2str(itNum)])
             legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate')
         end
-        
-    end
-end
 
-end
+    end
+end % plotModels
+
+
 function Rf = fineMod(M,xi)
 
 % Rf is a cell array of structures containing the response in Rf.r, the type Rf.t, and the
