@@ -97,11 +97,12 @@ function [Ri,Si,Pi,Ci,Oi,Li] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %             not want xp SM included
 % 2016-03-13: Update how search space box limits are handled - they are
 %             compulsary
+% CRC_DDV: DWW: Where is this used now? I want to use the delta keyword.
 % 2016-03-14: Add the delta_x exit criterion
 % 2016-05-27: Normalize data for optimization
 % 2016-08-10: Normalization fixed because it was terrible!
 %
-% ToDo: TR
+% TODO_DWW: BTR - The basic trust-region algorithm - Chapter 6, pg116
 %       
 
 % Set defaults
@@ -189,6 +190,12 @@ end
 % 0) Optimise coarse model to find initial alignment position
 % 0) Evaluate the fine model at starting position
 % 0) Get the initial response
+% 0-BTR) Initialisation: eta1, eta2, gamma1, gamma2
+% 1-BTR) Model definition: choose radius and mk = cost(Rci{}) - approximates objective fn? TODO_DWW
+%                                           fx = cost(Rfi{}) -  the objective fn? TODO_DWW
+% 2-BTR) Step calculation: sk that reduces mk
+% 3-BTR) Accept trial point: rhok
+% 4-BTR) Trust region radius update
 % 1) 4) Optimize the current model Si to find xi
 % 2) 5) Test for convergence
 % 3) 1) Evaluate the fine model at current position (Rfi)
@@ -218,6 +225,8 @@ ii = 1;
 % Normalize the optimization parameters
 ximinn = OPTopts.ximin - OPTopts.ximin;
 ximaxn = OPTopts.ximax./OPTopts.ximax;
+% CRC_DDV: DWW: We need to come up with better names for these xinitn, init, xin.
+% camel case or paskal or with underscores or something >.< 
 xinitn = (xinit - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
 
 % Optimize coarse model to find initial alignment position
@@ -228,6 +237,7 @@ end
 LHSmat = [];
 RHSvect = [];
 nonLcon = [];
+% CRC_DDV: DWW: xin, shouldn't it have been defined already if it is being passed into costSurr?
 [xin, costSi] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
 % De-normalize input vector
 xi{1} = xin.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
@@ -253,6 +263,29 @@ end
     costS{1} = costSi;
     costF{1} = costFi;
 
+% 0-BTR) Initialisation: 
+% Chapter 17, pg 781: eta1=0.05; eta2=0.9; 
+eta1 = 0.05;
+eta2 = 0.9;
+gamma1 = 0.5;
+gamma2 = 0.5;
+delta{1} = 1;
+
+% x0 = x{1}; here with the initial point found above.
+delta{1} = 1; % The trust region radius.
+% TODO_DWW: DWW: this should become a function I guess if not just used once.
+% p{ii}{kk}
+rhok{1}{1} =  ( costF{1} - costF{2} )/( costS{1} - costS{2} );
+m{1} = costS{1} 
+s{1} = 
+B{1} =      % Model bounds for fine model? TODO_DWW: ?
+
+
+
+% 1-BTR) Model definition: chose radius and mk = cost(Rf{}) ? TODO_DWW
+% 2-BTR) Step calculation: sk that reduces mk
+% 3-BTR) Accept trial point: rhok
+% 4-BTR) Trust region radius update: delta
 
 
 while ii <= Ni && ~specF && ~TolX_achieved
@@ -264,31 +297,143 @@ while ii <= Ni && ~specF && ~TolX_achieved
         specF = 1;
     else
         specF = 0;
-        % Do optimization
-        if (ii == 1 && globOpt) || globOpt == 2
-            [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
-            xinitn = reshape(xinitn,Nn,1);
-        end
-        LHSmat = [];
-        RHSvect = [];
-        nonLcon = [];
-        [xin_ii, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
-        % De-normalize input vector. The new input vector that is.
-        xi{ii+1} = xin_ii.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
+        % 1-BTR) Model definition:
+        % 2-BTR) Step calculation:
+        %      Kinda both done in the same line...
+        k = 1;
+        % CRC_DDV: shouldn't this be xi{ii} that has been normalised again?
+        % sn{1} = xin;
+        % sn{} is normalised?
+        % sf{} is denormalise/fine/real/actual parameter space?
+        % sd{}, 
+        % (xinit - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
+        sd{1} = xi{ii};
+        %TODO_DWW: DWW: DO actually normalise this, use iterate dependent delta!
+        % ?????????
+        sn{1} = (xi{ii} - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
+        sn{1} = (xi{ii} - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin); 
+        % TODO_DWW: DWW: change to something other than Ni I guess.
+        while kk <= Ni && ~specK
+            % Do optimization
+            % Do step calculation
+            if globOpt || globOpt == 2
+                % CRC_DDV: DWW: Can the above be changed here. Was if (ii == 1 && globOpt) || globOpt == 2
+                % TODO_DWW: DWW: change these to smin and smax or something because we are now working with the step...
+                snmin = sn{k} - delta{ii};
+                snmax = sn{k} + delta{ii};
+                % ximinn = xin - delta{ii};
+                % ximaxn = xin + delta{ii};
+                [sn{k+1},costSk{kk+1},exitFlag,output] = PBILreal(@(xin) costSurr(s{k},Si{kk}{:},OPTopts),snmin,snmax,M_PBIL,optsPBIL);
+                % [xinitn,costSk,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
+                sn{k+1} = reshape(s{k+1},Nn,1);
+                % xinitn = reshape(xinitn,Nn,1);
+            end
+            LHSmat = [];
+            RHSvect = [];
+            nonLcon = [];
+            % CRC_DDV: DWW: is this right how i'm applying the trust radius to the surrogate model... 
+            % TODO_DWW: DWW: change these to smin and smax or something because we are now working with the step...
+            smin = sn{kk} - delta{ii};
+            smax = sn{kk} + delta{ii};
+            % ximinn = xin - delta{ii};
+            % ximaxn = xin + delta{ii};
+            % TODO_DWW: DWW: do checks to make sure that it doesn't go beyond the (0-1) normalised range.
+            [sn{kk+1}, costSk{kk+1}] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),sn{kk},smin,smax,LHSmat,RHSvect,nonLcon,optsFminS);
+            % [xin_ii, costSk] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                Sorta losing the plot here                    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+            % De-normalize input vector. The new input vector that is.
+            % ?????????
+            % sd{ii+1} = sn{kk+1}.*(snmax - snmin) + snmin;
+            sd{ii+1} = sn{kk+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
+            % xi{ii+1} = xin_ii.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
         
-        % CRC_DDV: DWW: isn't xin_ii meant to be denormalised now, so why the 'n'
-        xi_ii = xi{ii}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
-        xi_iip1 = xi{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin; 
-        % CRC_DDV: DWW: TolXn has an 'n' which has a different meaning through the prior code. Shouldn't 
-        % this rempresent the L^2-Norm?
-        TolXnorm = norm((xi_iip1 - xi_ii),2);
-        TolX_achieved = TolXnorm < TolX;
-%         if TolX_achieved, keyboard; end
+            % CRC_DDV: DWW: not sure how to bring this back in again 
+%         % CRC_DDV: DWW: isn't xin_ii meant to be denormalised now, so why the 'n'
+%         xi_ii = xi{ii}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
+%         xi_iip1 = xi{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin; 
+%         % CRC_DDV: DWW: TolXn has an 'n' which has a different meaning through the prior code. Shouldn't 
+%         % this rempresent the L^2-Norm?
+%         TolXnorm = norm((xi_iip1 - xi_ii),2);
+%         TolX_achieved = TolXnorm < TolX;
+% %         if TolX_achieved, keyboard; end
 		
-		enforceFineModelLimits();
-		
-    end
+          % enforceFineModelLimits();
+
+    % TODO_DWW: DWW: not quite sure where this end should go    
+    % end % else from (if costF{ii} == 0 ...)
+          
+            % TODO_DWW: I am not sure why this used to be above the else's end...
+            enforceFineModelLimits();
     
+            % CRC_DDV: DWW: Rci{} -> Rcs{} or Rck ... ? 
+            %               Rfi{} ->
+            %               Rsi{} ->
+            %               Si{}  -> Sk{}
+            %               Rsai{}-> Rsak{}
+            %               costFi-> costFk
+            %               costSi-> costSk
+            %               costCi-> costCk
+            Rck{kk+1} = coarseMod(Mc,sd{kk+1},Sinit.xp,fc);
+            Rfk{kk+1} = fineMod(Mf,sd{kk+1});
+            % Rci{ii+1} = coarseMod(Mc,xi{ii+1},Sinit.xp,fc);
+            % Rfi{ii+1} = fineMod(Mf,xi{ii+1});
+            
+            for rr = 1:Nr
+                % Get the surrogate response after previous iteration
+                % optimization - thus at current iteration position
+                Rfk{kk+1}{rr}.r = evalSurr(sd{kk+1},Sk{ii+1-1}{rr});
+                Rsk{kk+1}{rr}.t = Rck{kk+1}{rr}.t;
+                if isfield(Rck{ii+1}{rr},'f'), Rsk{kk+1}{rr}.f = Rck{kk+1}{rr}.f; end
+                if globOptSM < 2, SMopts.globOpt = 0; end
+                if ~useAllFine
+                    Sk{kk+1}{rr} = buildSurr(sd{kk+1},Rfk{kk+1}{rr}.r,Sk{kk+1-1}{rr},SMopts);
+                else
+                    for kkk = 1:kk+1
+                        r{kkk} = Rfk{kkk}{rr}.r;
+                    end
+                    % CRC_DDV: DWW: shouldn't this buildSurr take xi{kk+1} rather? 
+                    % Si{kk+1}{rr} = buildSurr(xi,r,Si{kk+1-1}{rr},SMopts);
+                    Sk{kk+1}{rr} = buildSurr(sd,r,Sk{kk+1-1}{rr},SMopts);
+                end
+                % Also get the currently aligned surrogate for comparison
+                Rsak{kk+1}{rr}.r = evalSurr(sd{kk+1},Sk{kk+1}{rr});
+                Rsak{kk+1}{rr}.t = Rck{kk+1}{rr}.t;
+                if isfield(Rck{kk+1}{rr},'f'), Rsak{kk+1}{rr}.f = Rck{kk+1}{rr}.f; end
+            end % for
+
+            % Test fine model response
+            costFk{kk+1} = costFunc(Rfk{kk+1},OPTopts);
+            % TODO_DWW: rename this
+            costSk_?{ii+1}{kk} = costSk{kk+1};
+            costF_?{ii+1}{kk} = costFk{kk+1};
+
+
+
+
+
+            % 3-BTR) Accept trial point: rhok
+
+            rhok{kk} =  ( costFk{kk} - costFk{kk+1} )/( costS{kk} - costS{kk+1} );
+            % 4-BTR) Trust region radius update: delta
+
+
+
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %%%%%%%%    You are here now    %%%%%%%%%%
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+
+        end % while kk
+
+    % end
+
     Rci{ii+1} = coarseMod(Mc,xi{ii+1},Sinit.xp,fc);
     Rfi{ii+1} = fineMod(Mf,xi{ii+1});
     
@@ -312,10 +457,14 @@ while ii <= Ni && ~specF && ~TolX_achieved
         Rsai{ii+1}{rr}.t = Rci{ii+1}{rr}.t;
         if isfield(Rci{ii+1}{rr},'f'), Rsai{ii+1}{rr}.f = Rci{ii+1}{rr}.f; end
     end
-    % end
 
     % Test fine model response
     costFi = costFunc(Rfi{ii+1},OPTopts);
+
+    % TODO_DWW: DWW: actually store the correct fine and surrogate models
+    % Rci{ii+1} = coarseMod(Mc,xi{ii+1},Sinit.xp,fc);
+    % Rfi{ii+1} = fineMod(Mf,xi{ii+1});
+
 
     % CRC_DDV: DWW: +1 ?
     costS{ii+1} = costSi;
