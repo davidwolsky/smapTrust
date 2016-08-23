@@ -228,9 +228,9 @@ end
 LHSmat = [];
 RHSvect = [];
 nonLcon = [];
-[xin, costSi] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
+[xin{1}, costS{1}] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
 % De-normalize input vector
-xi{1} = xin.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
+xi{1} = xin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
 
 Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
 Rfi{1} = fineMod(Mf,xi{1});
@@ -247,14 +247,8 @@ end
     plotModels(plotIter, 1, Rci, Rfi, Rsi, Rsai, OPTopts);
 
     % Test fine model response
-    costFi = costFunc(Rfi{1},OPTopts);
-    costC = costSi; % Only calculate the coarse model cost once, at iteration 0
-
-    costS{1} = costSi;
-    costF{1} = costFi;
-
-
-
+    costF{1} = costFunc(Rfi{1},OPTopts);
+    
 while ii <= Ni && ~specF && ~TolX_achieved
 %Coming into this iteration as ii now with the fine model run here already and responses avaliable. 
 
@@ -272,16 +266,11 @@ while ii <= Ni && ~specF && ~TolX_achieved
         LHSmat = [];
         RHSvect = [];
         nonLcon = [];
-        [xin_ii, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
+        [xin{ii+1}, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
         % De-normalize input vector. The new input vector that is.
-        xi{ii+1} = xin_ii.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
+        xi{ii+1} = xin{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
         
-        % CRC_DDV: DWW: isn't xin_ii meant to be denormalised now, so why the 'n'
-        xi_ii = xi{ii}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
-        xi_iip1 = xi{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin; 
-        % CRC_DDV: DWW: TolXn has an 'n' which has a different meaning through the prior code. Shouldn't 
-        % this rempresent the L^2-Norm?
-        TolXnorm = norm((xi_iip1 - xi_ii),2);
+        TolXnorm = norm((xin{ii+1} - xin{ii}),2);
         TolX_achieved = TolXnorm < TolX;
 %         if TolX_achieved, keyboard; end
 		
@@ -315,11 +304,9 @@ while ii <= Ni && ~specF && ~TolX_achieved
     % end
 
     % Test fine model response
-    costFi = costFunc(Rfi{ii+1},OPTopts);
+    costF{ii+1} = costFunc(Rfi{ii+1},OPTopts);
 
-    % CRC_DDV: DWW: +1 ?
     costS{ii+1} = costSi;
-    costF{ii+1} = costFi;
 
     % Make a (crude) log file
 %     save SMlog ii xi Rci Rfi Rsi Si costS costF limF limC limS
@@ -340,13 +327,13 @@ Ri.Rsa = Rsai;  % Surrogate before optimization, just after alignment at end of 
 
 Pi = xi;
 
-Ci.costC = costC;
+% Ci.costC = costC;
 Ci.costS = costS;
 Ci.costF = costF;
 
 Oi.specF = specF;
-Oi.TolX_achieved = TolX_achieved;
-Oi.TolXn = TolXnorm;
+Oi.TolX_achieved = TolX_achieved;   % Flag
+Oi.TolXnorm = TolXnorm; % Actual value
 Oi.Ni = ii;
 
 Li.limMin_f = limMin_f;
