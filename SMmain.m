@@ -254,66 +254,88 @@ while ii <= Ni && ~specF && ~TolX_achieved
 
     % Exit if spec is reached (will typically not work for eq and never for minimax, and bw is explicitly excluded)
     % if costFi == 0 && isempty(find(ismember(OPTopts.goalType,'bw'),1))   
-    if costF{ii} == 0 && isempty(find(ismember(OPTopts.goalType,'bw'),1))   
+    if costF{ii} == 0 && isempty(find(ismember(OPTopts.goalType,'bw'),1))
         specF = 1;
     else
         specF = 0;
-        % Do optimization
-        if (ii == 1 && globOpt) || globOpt == 2
-            [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
-            xinitn = reshape(xinitn,Nn,1);
-        end
-        LHSmat = [];
-        RHSvect = [];
-        nonLcon = [];
-        [xin{ii+1}, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
-        % De-normalize input vector. The new input vector that is.
-        xi{ii+1} = xin{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
         
-        TolXnorm = norm((xin{ii+1} - xin{ii}),2);
-        TolX_achieved = TolXnorm < TolX;
-%         if TolX_achieved, keyboard; end
-		
-		enforceFineModelLimits();
-		
-    end
-    
-    Rci{ii+1} = coarseMod(Mc,xi{ii+1},Sinit.xp,fc);
-    Rfi{ii+1} = fineMod(Mf,xi{ii+1});
-    
-    for rr = 1:Nr
-        % Get the surrogate response after previous iteration
-        % optimization - thus at current iteration position
-        Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1-1}{rr});
-        Rsi{ii+1}{rr}.t = Rci{ii+1}{rr}.t;
-        if isfield(Rci{ii+1}{rr},'f'), Rsi{ii+1}{rr}.f = Rci{ii+1}{rr}.f; end
-        if globOptSM < 2, SMopts.globOpt = 0; end
-        if ~useAllFine
-            Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
-        else
-            for iii = 1:ii+1
-                r{iii} = Rfi{iii}{rr}.r;
+        % TR
+        TRsuccess = 0;
+        kk = 1;
+        while ~TRsuccess && kk < TRNi
+            % Set up TR boundaries
+            xminnTR = max((xin{ii} - Delta{ii}),ximinn);
+            xmaxnTR = min((xin{ii} + Delta{ii}),ximaxn);
+            
+            % Do optimization
+            if (ii == 1 && globOpt) || globOpt == 2
+                [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinnTR,ximaxnTR,M_PBIL,optsPBIL);
+                xinitn = reshape(xinitn,Nn,1);
             end
-            Si{ii+1}{rr} = buildSurr(xi,r,Si{ii+1-1}{rr},SMopts);
+            LHSmat = [];
+            RHSvect = [];
+            nonLcon = [];
+            [xin{ii+1}, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xinitn,ximinnTR,ximaxnTR,LHSmat,RHSvect,nonLcon,optsFminS);
+            % De-normalize input vector. The new input vector that is.
+            xi{ii+1} = xin{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
+            
+            TolXnorm = norm((xin{ii+1} - xin{ii}),2);
+            TolX_achieved = TolXnorm < TolX;
+            %         if TolX_achieved, keyboard; end
+            
+            enforceFineModelLimits();
+            
+            Rci{ii+1} = coarseMod(Mc,xi{ii+1},Sinit.xp,fc);
+            Rfi{ii+1} = fineMod(Mf,xi{ii+1});
+            
+            for rr = 1:Nr
+                % Get the surrogate response after previous iteration
+                % optimization - thus at current iteration position
+                Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1-1}{rr});
+                Rsi{ii+1}{rr}.t = Rci{ii+1}{rr}.t;
+                if isfield(Rci{ii+1}{rr},'f'), Rsi{ii+1}{rr}.f = Rci{ii+1}{rr}.f; end
+                if globOptSM < 2, SMopts.globOpt = 0; end
+                if ~useAllFine
+                    Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
+                else
+                    for iii = 1:ii+1
+                        r{iii} = Rfi{iii}{rr}.r;
+                    end
+                    Si{ii+1}{rr} = buildSurr(xi,r,Si{ii+1-1}{rr},SMopts);
+                end
+                % Also get the currently aligned surrogate for comparison
+                Rsai{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1}{rr});
+                Rsai{ii+1}{rr}.t = Rci{ii+1}{rr}.t;
+                if isfield(Rci{ii+1}{rr},'f'), Rsai{ii+1}{rr}.f = Rci{ii+1}{rr}.f; end
+            end
+            
+            % Test fine model response
+            costF{ii+1} = costFunc(Rfi{ii+1},OPTopts);
+            costS{ii+1} = costSi;
+            
+            rho{ii}{kk} = (costF(ii) - costF(ii+1))./(costS(ii) - costS(ii+1));
+            sk{ii} = xin{ii+1}-xin{ii};
+            if rho{ii}{kk} >= eta2
+                TRsuccess = 1;
+                Delta{ii+1} = max(alp1.*norm(sk{ii}),Delta{ii});
+            elseif rho{ii}{kk} > eta1
+                TRsuccess = 1;
+                Delta{ii+1} = Delta{ii};
+            else
+                TRsuccess = 0;
+                Delta{ii} = alp2.*norm(sk{ii}); % Shrink current Delta
+            end
+            kk = kk+1;
         end
-        % Also get the currently aligned surrogate for comparison
-        Rsai{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1}{rr});
-        Rsai{ii+1}{rr}.t = Rci{ii+1}{rr}.t;
-        if isfield(Rci{ii+1}{rr},'f'), Rsai{ii+1}{rr}.f = Rci{ii+1}{rr}.f; end
+        
+        % Make a (crude) log file
+        %     save SMlog ii xi Rci Rfi Rsi Si costS costF limF limC limS
+        save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c
+        
+        % Plot the fine, coarse, optimised surrogate and aligned surrogate
+        plotModels(plotIter, ii+1, Rci, Rfi, Rsi, Rsai, OPTopts);
+        
     end
-    % end
-
-    % Test fine model response
-    costF{ii+1} = costFunc(Rfi{ii+1},OPTopts);
-
-    costS{ii+1} = costSi;
-
-    % Make a (crude) log file
-%     save SMlog ii xi Rci Rfi Rsi Si costS costF limF limC limS
-    save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c
-    
-    % Plot the fine, coarse, optimised surrogate and aligned surrogate
-    plotModels(plotIter, ii+1, Rci, Rfi, Rsi, Rsai, OPTopts);
     
     ii = ii+1;
     
