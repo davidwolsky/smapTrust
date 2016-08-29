@@ -100,12 +100,14 @@ function [Ri,Si,Pi,Ci,Oi,Li] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 % 2016-03-14: Add the delta_x exit criterion
 % 2016-05-27: Normalize data for optimization
 % 2016-08-10: Normalization fixed because it was terrible!
+% 2016-08-21: Refactored the main loop to get fine model evaluation at the end and first iteration setup before loop.
 %
 % ToDo: TR
 %       
 
 % Set defaults
 Ni = 10;    % Maximum number of iterations
+TRNi = Ni;  % Maximum number of iterations for the Trust region loop
 TolX = 10^-2;
 globOpt = 0;
 M_PBIL = 8;
@@ -115,6 +117,8 @@ optsPBIL = [];
 plotIter = 1;
 
 if isfield(OPTopts,'Ni'), Ni = OPTopts.Ni; end
+% TODO: DWW: 
+if isfield(OPTopts,'TRNi'), TRNi = OPTopts.TRNi; end
 if isfield(OPTopts,'TolX'), TolX = abs(OPTopts.TolX); end % Force positive
 if isfield(OPTopts,'globOpt'), globOpt = OPTopts.globOpt; end
 if isfield(OPTopts,'M_PBIL'), M_PBIL = OPTopts.M_PBIL; end
@@ -123,6 +127,7 @@ if isfield(OPTopts,'optsFminS'), optsFminS = OPTopts.optsFminS; end
 if isfield(OPTopts,'M_PBIL'), M_PBIL = OPTopts.M_PBIL; end
 if isfield(OPTopts,'optsPBIL'), optsPBIL = OPTopts.optsPBIL; end
 if isfield(OPTopts,'plotIter'), plotIter = OPTopts.plotIter; end
+
 
 % Set up models - bookkeeping
 Nq = 0;
@@ -219,6 +224,12 @@ ii = 1;
 ximinn = OPTopts.ximin - OPTopts.ximin;
 ximaxn = OPTopts.ximax./OPTopts.ximax;
 xinitn = (xinit - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
+% The initial trust region radius
+Delta{1} = 0.25;
+eta1 = 0.05;
+eta2 = 0.9;
+alp1 = 2.5;
+alp2 = 0.25;
 
 % Optimize coarse model to find initial alignment position
 if globOpt
@@ -243,14 +254,14 @@ for rr = 1:Nr
     Rsai{1}{rr} = Rsi{1}{rr};
 end
 
-    % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
-    plotModels(plotIter, 1, Rci, Rfi, Rsi, Rsai, OPTopts);
+% Plot the initial fine, coarse, optimised surrogate and aligned surrogate
+plotModels(plotIter, 1, Rci, Rfi, Rsi, Rsai, OPTopts);
 
-    % Test fine model response
-    costF{1} = costFunc(Rfi{1},OPTopts);
+% Test fine model response
+costF{1} = costFunc(Rfi{1},OPTopts);
     
 while ii <= Ni && ~specF && ~TolX_achieved
-%Coming into this iteration as ii now with the fine model run here already and responses avaliable. 
+%Coming into this iteration as ii now with the fine model run here already and responses available. 
 
     % Exit if spec is reached (will typically not work for eq and never for minimax, and bw is explicitly excluded)
     % if costFi == 0 && isempty(find(ismember(OPTopts.goalType,'bw'),1))   
@@ -264,11 +275,12 @@ while ii <= Ni && ~specF && ~TolX_achieved
         kk = 1;
         while ~TRsuccess && kk < TRNi
             % Set up TR boundaries
-            xminnTR = max((xin{ii} - Delta{ii}),ximinn);
-            xmaxnTR = min((xin{ii} + Delta{ii}),ximaxn);
+            ximinnTR = max((xin{ii} - Delta{ii}),ximinn);
+            ximaxnTR = min((xin{ii} + Delta{ii}),ximaxn);
             
             % Do optimization
-            if (ii == 1 && globOpt) || globOpt == 2
+            % CRC_DDV: is this meant to always happen?
+            if globOpt
                 [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinnTR,ximaxnTR,M_PBIL,optsPBIL);
                 xinitn = reshape(xinitn,Nn,1);
             end
@@ -279,6 +291,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
             % De-normalize input vector. The new input vector that is.
             xi{ii+1} = xin{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
             
+            % L2 norm describing the parameter space distance between the points
             TolXnorm = norm((xin{ii+1} - xin{ii}),2);
             TolX_achieved = TolXnorm < TolX;
             %         if TolX_achieved, keyboard; end
@@ -310,27 +323,44 @@ while ii <= Ni && ~specF && ~TolX_achieved
             end
             
             % Test fine model response
-            costF{ii+1} = costFunc(Rfi{ii+1},OPTopts);
-            costS{ii+1} = costSi;
+            costF{ii+1} = costFunc(Rfi{ii+1},OPTopts)
+            costS{ii+1} = costSi
             
-            rho{ii}{kk} = (costF(ii) - costF(ii+1))./(costS(ii) - costS(ii+1));
+			% TODO: DWW: These values are far to high.
+			%			 Also the first value is always wrongish i think
+			%			 with cost of surrogate...
+			
+            % Evaluate results and adjust radius for next iteration
+			% CRC_DDV: what about when both of these are negative?
+			costChangeF = (costF{ii} - costF{ii+1})
+			costChangeS = (costS{ii} - costS{ii+1})
+			if ( costChangeF > 0 && costChangeS > 0 && abs(costChangeS) > TolX )
+				rho{ii}{kk} = (costChangeF)./(costChangeS);
+			else
+				rho{ii}{kk} = 0.0;
+			end
+			
+			rho{ii}
+			Delta{ii}
+            keyboard
+			% TODO: DWW: These values seem too low.
             sk{ii} = xin{ii+1}-xin{ii};
             if rho{ii}{kk} >= eta2
                 TRsuccess = 1;
-                Delta{ii+1} = max(alp1.*norm(sk{ii}),Delta{ii});
+                Delta{ii+1} = max(alp1.*norm(sk{ii}),Delta{ii})
             elseif rho{ii}{kk} > eta1
                 TRsuccess = 1;
-                Delta{ii+1} = Delta{ii};
+                Delta{ii+1} = Delta{ii}
             else
                 TRsuccess = 0;
-                Delta{ii} = alp2.*norm(sk{ii}); % Shrink current Delta
+                Delta{ii} = alp2.*norm(sk{ii}) % Shrink current Delta
             end
             kk = kk+1;
         end
         
         % Make a (crude) log file
         %     save SMlog ii xi Rci Rfi Rsi Si costS costF limF limC limS
-        save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c
+        save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c rho  Delta
         
         % Plot the fine, coarse, optimised surrogate and aligned surrogate
         plotModels(plotIter, ii+1, Rci, Rfi, Rsi, Rsai, OPTopts);
@@ -349,7 +379,6 @@ Ri.Rsa = Rsai;  % Surrogate before optimization, just after alignment at end of 
 
 Pi = xi;
 
-% Ci.costC = costC;
 Ci.costS = costS;
 Ci.costF = costF;
 
@@ -357,6 +386,9 @@ Oi.specF = specF;
 Oi.TolX_achieved = TolX_achieved;   % Flag
 Oi.TolXnorm = TolXnorm; % Actual value
 Oi.Ni = ii;
+Oi.rho = rho;
+Oi.Delta = Delta;
+
 
 Li.limMin_f = limMin_f;
 Li.limMax_f = limMax_f;
@@ -453,12 +485,19 @@ function Rf = fineMod(M,xi)
 if isfield(M,'ximin')
     minI = xi < M.ximin;
     xi(minI) = M.ximin(minI);
-    warning('Out of bounds fine model evaluation encountered on ximin')
+    if minI | 0
+		warning( strcat('Out of bounds fine model evaluation encountered on ximin = ', ...
+			mat2str(M.ximin), ', xi = ', mat2str(xi)) )
+	end
+	
 end
 if isfield(M,'ximax')
     maxI = xi > M.ximax;
     xi(maxI) = M.ximax(maxI);
-    warning('Out of bounds fine model evaluation encountered on ximax')
+    if maxI | 0
+		warning( strcat('Out of bounds fine model evaluation encountered on ximax = ', ...
+			mat2str(M.ximax), ', xi = ', mat2str(xi)) )
+	end
 end
 
 Nn = length(xi);
@@ -673,7 +712,7 @@ Rc = cell(1,Nr);
 % Call the correct solver
 switch M.solver
     case 'CST'
-        error('CST solver not implimented yet for coarse model evaluations')
+        error('CST solver not implemented yet for coarse model evaluations')
         
     case 'FEKO'
         % Build parameter string
@@ -713,10 +752,10 @@ switch M.solver
         end
         
     case 'AWR'
-        error('AWR solver not implimented yet for coarse model evaluations')
+        error('AWR solver not implemented yet for coarse model evaluations')
         
     case 'ADS'
-        error('ADS solver not implimented yet for coarse model evaluations')
+        error('ADS solver not implemented yet for coarse model evaluations')
         
     case 'MATLAB'
         Ni = length(M.params);  % This is interpreted as the number of inputs to the function

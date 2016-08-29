@@ -72,6 +72,7 @@ SMopts.wk = 1.0;
 OPTopts.ximin = Mf.ximin;
 OPTopts.ximax = Mf.ximax;
 OPTopts.Ni = 5;
+OPTopts.TRNi = OPTopts.Ni*2;
 OPTopts.Rtype = {'Gen'};
 OPTopts.globOpt = 1;
 OPTopts.goalType = {'minimax'};
