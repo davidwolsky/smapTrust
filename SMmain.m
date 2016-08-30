@@ -231,6 +231,8 @@ eta2 = 0.9;
 alp1 = 2.5;
 alp2 = 0.25;
 
+
+
 % Optimize coarse model to find initial alignment position
 if globOpt
     [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Sinit,OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
@@ -266,6 +268,12 @@ for rr = 1:Nr
     if isfield(Rci{1}{rr},'f'), Rsi{1}{rr}.f = Rci{1}{rr}.f; end
     Rsai{1}{rr} = Rsi{1}{rr};
 end
+
+% TODO: DWW: rename
+count_all = 1;
+xi_all{count_all} = xi{1};
+Rfi_all{count_all} = Rfi{1};
+
 
 % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
 plotModels(plotIter, 1, Rci, Rfi, Rsi, Rsai, OPTopts);
@@ -313,6 +321,9 @@ while ii <= Ni && ~specF && ~TolX_achieved
             
             Rci{ii+1} = coarseMod(Mc,xi{ii+1},Sinit.xp,fc);
             Rfi{ii+1} = fineMod(Mf,xi{ii+1});
+
+            xi_all{count_all+1} = xi{ii+1};
+            Rfi_all{count_all+1} =Rfi{ii+1};
             
             for rr = 1:Nr
                 % Get the surrogate response after previous iteration
@@ -324,10 +335,10 @@ while ii <= Ni && ~specF && ~TolX_achieved
                 if ~useAllFine
                     Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
                 else
-                    for iii = 1:ii+1
-                        r{iii} = Rfi{iii}{rr}.r;
+                    for iii = 1:count_all+1
+                        r{iii} = Rfi_all{iii}{rr}.r;
                     end
-                    Si{ii+1}{rr} = buildSurr(xi,r,Si{ii+1-1}{rr},SMopts);
+                    Si{ii+1}{rr} = buildSurr(xi_all,r,Si{ii+1-1}{rr},SMopts);
                 end
                 % Also get the currently aligned surrogate for comparison
                 Rsai{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1}{rr});
@@ -369,6 +380,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
                 Delta{ii} = alp2.*norm(sk{ii}) % Shrink current Delta
             end
             kk = kk+1;
+            count_all = count_all+1;
         end
         
         % Make a (crude) log file
