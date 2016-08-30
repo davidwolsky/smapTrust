@@ -240,10 +240,23 @@ LHSmat = [];
 RHSvect = [];
 nonLcon = [];
 [xin{1}, costS{1}] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
+
+% Remove start
+% Force a bad start...
+xin{1} = xin{1}./2;
+% Remove stop
+
+
 % De-normalize input vector
 xi{1} = xin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
 
 Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
+
+% Remove start
+costS{1} = costFunc(Rci{1},OPTopts);
+% Remove stop
+
+
 Rfi{1} = fineMod(Mf,xi{1});
 for rr = 1:Nr
     if globOptSM > 0, SMopts.globOpt = 1; end
@@ -273,7 +286,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
         % TR
         TRsuccess = 0;
         kk = 1;
-        while ~TRsuccess && kk < TRNi
+        while ~TRsuccess && kk < TRNi && ~TolX_achieved
             % Set up TR boundaries
             ximinnTR = max((xin{ii} - Delta{ii}),ximinn);
             ximaxnTR = min((xin{ii} + Delta{ii}),ximaxn);
