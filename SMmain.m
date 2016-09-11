@@ -271,8 +271,11 @@ end
 
 % TODO: DWW: rename
 count_all = 1;
-xi_all{count_all} = xi{1};
+xi_all{count_all}  = xi{1};
+xin_all{count_all} = xin{1};
 Rfi_all{count_all} = Rfi{1};
+Si_all{count_all}  = Si{1};
+costS_all{1} = costS{1};
 
 
 % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
@@ -280,6 +283,7 @@ plotModels(plotIter, 1, Rci, Rfi, Rsi, Rsai, OPTopts);
 
 % Test fine model response
 costF{1} = costFunc(Rfi{1},OPTopts);
+costF_all{1} = costF{1};
     
 while ii <= Ni && ~specF && ~TolX_achieved
 %Coming into this iteration as ii now with the fine model run here already and responses available. 
@@ -322,33 +326,49 @@ while ii <= Ni && ~specF && ~TolX_achieved
             Rci{ii+1} = coarseMod(Mc,xi{ii+1},Sinit.xp,fc);
             Rfi{ii+1} = fineMod(Mf,xi{ii+1});
 
-            xi_all{count_all+1} = xi{ii+1};
-            Rfi_all{count_all+1} =Rfi{ii+1};
+            xi_all{count_all+1}  = xi{ii+1};
+			xin_all{count_all+1} = xin{ii+1};
+            Rfi_all{count_all+1} = Rfi{ii+1};
             
             for rr = 1:Nr
                 % Get the surrogate response after previous iteration
                 % optimization - thus at current iteration position
                 Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1-1}{rr});
+%                 Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si_all{count_all}{rr});
                 Rsi{ii+1}{rr}.t = Rci{ii+1}{rr}.t;
-                if isfield(Rci{ii+1}{rr},'f'), Rsi{ii+1}{rr}.f = Rci{ii+1}{rr}.f; end
+                if isfield(Rci{ii+1}{rr},'f')
+                    Rsi{ii+1}{rr}.f = Rci{ii+1}{rr}.f; 
+                end
                 if globOptSM < 2, SMopts.globOpt = 0; end
                 if ~useAllFine
+                    % Re-evaluate the surrogate at the new point. 
+                    Si{ii}{rr}   = buildSurr(xi{ii},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
                     Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
                 else
                     for iii = 1:count_all+1
                         r{iii} = Rfi_all{iii}{rr}.r;
                     end
+                    % Re-evaluate the surrogate at the new point. 
+                    Si{ii}{rr}   = buildSurr(xi_all,r,Si{ii+1-1}{rr},SMopts);
                     Si{ii+1}{rr} = buildSurr(xi_all,r,Si{ii+1-1}{rr},SMopts);
                 end
                 % Also get the currently aligned surrogate for comparison
                 Rsai{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1}{rr});
                 Rsai{ii+1}{rr}.t = Rci{ii+1}{rr}.t;
-                if isfield(Rci{ii+1}{rr},'f'), Rsai{ii+1}{rr}.f = Rci{ii+1}{rr}.f; end
+                if isfield(Rci{ii+1}{rr},'f')
+                    Rsai{ii+1}{rr}.f = Rci{ii+1}{rr}.f; 
+                end
             end
+            Si_all{count_all+1} = Si{ii+1};
             
             % Test fine model response
-            costF{ii+1} = costFunc(Rfi{ii+1},OPTopts)
-            costS{ii+1} = costSi
+            costF{ii+1} = costFunc(Rfi{ii+1},OPTopts);
+			costF_all{count_all+1} = costF{ii+1};
+			
+            costS{ii}   = costSurr(xin{ii},Si{ii+1}{:},OPTopts);
+            costS{ii+1} = costSurr(xin{ii+1},Si{ii+1}{:},OPTopts);
+			costS_all{count_all+1} = costS{ii+1};
+%             costS{ii+1} = costSi
             
 			% TODO: DWW: These values are far to high.
 			%			 Also the first value is always wrongish i think
@@ -366,7 +386,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
 			
 			rho{ii}
 			Delta{ii}
-            keyboard
+%             keyboard
 			% TODO: DWW: These values seem too low.
             sk{ii} = xin{ii+1}-xin{ii};
             if rho{ii}{kk} >= eta2
