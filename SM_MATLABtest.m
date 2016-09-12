@@ -13,7 +13,7 @@ opts.getF = 0;
 opts.getd = 0;
 opts.getE = 0;
 
-opts.optsFminS = optimset('display','iter');
+opts.optsFminS = optimset('display','none');
 
 
 x_init = [0.5,1.5,0.03]';
@@ -64,7 +64,7 @@ SMopts.ximin = Mc.ximin;
 SMopts.ximax = Mc.ximax;
 SMopts.xpmin = Mc.xpmin;
 SMopts.xpmax = Mc.xpmax;
-SMopts.optsFminS = optimset('display','iter','TolX',1e-6,'TolFun',1e-6);
+SMopts.optsFminS = optimset('display','none','TolX',1e-6,'TolFun',1e-6);
 SMopts.optsPBIL.Nfeval = 5000;
 SMopts.wk = 1.0;
 
@@ -82,7 +82,7 @@ OPTopts.goalWeight = {1};
 OPTopts.goalStart = {3};
 OPTopts.goalStop = {7};
 OPTopts.errNorm = {2};
-OPTopts.optsPBIL.display =  'iter'; 
+OPTopts.optsPBIL.display =  'none'; 
 OPTopts.optsPBIL.Nfeval = 5000;
 OPTopts.optsPBIL.Nbest = 10; % DOM
 OPTopts.M_PBIL = 4;
