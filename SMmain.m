@@ -270,11 +270,11 @@ for rr = 1:Nr
 end
 
 % TODO: DWW: rename
-count_all = 1;
-xi_all{count_all}  = xi{1};
-xin_all{count_all} = xin{1};
-Rfi_all{count_all} = Rfi{1};
-Si_all{count_all}  = Si{1};
+% count_all = 1;
+xi_all{1}    = xi{1};
+xin_all{1}   = xin{1};
+Rfi_all{1}   = Rfi{1};
+Si_all{1}    = Si{1};
 costS_all{1} = costS{1};
 
 
@@ -304,8 +304,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
             ximaxnTR = min((xin{ii} + Delta{ii}),ximaxn);
             
             % Do optimization
-            % CRC_DDV: is this meant to always happen?
-            if globOpt
+            if globOpt == 2
                 [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinnTR,ximaxnTR,M_PBIL,optsPBIL);
                 xinitn = reshape(xinitn,Nn,1);
             end
@@ -323,18 +322,20 @@ while ii <= Ni && ~specF && ~TolX_achieved
             
             enforceFineModelLimits();
             
+            % CRC_DDV: DWW: Isn't it weird that the coarseMod is run the same number of times as the fine?
             Rci{ii+1} = coarseMod(Mc,xi{ii+1},Sinit.xp,fc);
             Rfi{ii+1} = fineMod(Mf,xi{ii+1});
 
-            xi_all{count_all+1}  = xi{ii+1};
-			xin_all{count_all+1} = xin{ii+1};
-            Rfi_all{count_all+1} = Rfi{ii+1};
+            xi_all{end+1}  = xi{ii+1};
+			xin_all{end+1} = xin{ii+1};
+            Rfi_all{end+1} = Rfi{ii+1};
             
             for rr = 1:Nr
                 % Get the surrogate response after previous iteration
                 % optimization - thus at current iteration position
                 Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1-1}{rr});
-%                 Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si_all{count_all}{rr});
+                % CRC_DDV: DWW: Not sure which of these should actually be used here...
+%                 Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si_all{end}{rr});
                 Rsi{ii+1}{rr}.t = Rci{ii+1}{rr}.t;
                 if isfield(Rci{ii+1}{rr},'f')
                     Rsi{ii+1}{rr}.f = Rci{ii+1}{rr}.f; 
@@ -345,7 +346,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
                     Si{ii}{rr}   = buildSurr(xi{ii},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
                     Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
                 else
-                    for iii = 1:count_all+1
+                    for iii = 1:length(Rfi_all)
                         r{iii} = Rfi_all{iii}{rr}.r;
                     end
                     % Re-evaluate the surrogate at the new point. 
@@ -359,23 +360,18 @@ while ii <= Ni && ~specF && ~TolX_achieved
                     Rsai{ii+1}{rr}.f = Rci{ii+1}{rr}.f; 
                 end
             end
-            Si_all{count_all+1} = Si{ii+1};
+            Si_all{end+1} = Si{ii+1};
             
             % Test fine model response
             costF{ii+1} = costFunc(Rfi{ii+1},OPTopts);
-			costF_all{count_all+1} = costF{ii+1};
+			costF_all{end+1} = costF{ii+1};
 			
             costS{ii}   = costSurr(xin{ii},Si{ii+1}{:},OPTopts);
             costS{ii+1} = costSurr(xin{ii+1},Si{ii+1}{:},OPTopts);
-			costS_all{count_all+1} = costS{ii+1};
+			costS_all{end+1} = costS{ii+1};
 %             costS{ii+1} = costSi
-            
-			% TODO: DWW: These values are far to high.
-			%			 Also the first value is always wrongish i think
-			%			 with cost of surrogate...
 			
             % Evaluate results and adjust radius for next iteration
-			% CRC_DDV: what about when both of these are negative?
 			costChangeF = (costF{ii} - costF{ii+1})
 			costChangeS = (costS{ii} - costS{ii+1})
 			if ( costChangeF > 0 && costChangeS > 0 && abs(costChangeS) > TolX )
@@ -387,7 +383,6 @@ while ii <= Ni && ~specF && ~TolX_achieved
 			rho{ii}
 			Delta{ii}
 %             keyboard
-			% TODO: DWW: These values seem too low.
             sk{ii} = xin{ii+1}-xin{ii};
             if rho{ii}{kk} >= eta2
                 TRsuccess = 1;
@@ -399,8 +394,24 @@ while ii <= Ni && ~specF && ~TolX_achieved
                 TRsuccess = 0;
                 Delta{ii} = alp2.*norm(sk{ii}) % Shrink current Delta
             end
+
             kk = kk+1;
-            count_all = count_all+1;
+            % count_all = count_all+1;
+
+%             keyboard 
+            % Remove any additional fine model runs and clean up rest of iteration lasting variables.
+            if TRsuccess
+                for count = 1:kk-2
+                    xi_all(length(xi_all)-1) = [];
+                    xin_all(length(xin_all)-1) = [];
+                    Rfi_all(length(Rfi_all)-1) = [];
+                    Si_all(length(Si_all)-1) = [];
+                    costS_all(length(costS_all)-1) = [];
+                    costF_all(length(costF_all)-1) = [];
+				end
+            end
+
+
         end
         
         % Make a (crude) log file
