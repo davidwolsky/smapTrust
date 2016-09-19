@@ -225,7 +225,8 @@ ximinn = OPTopts.ximin - OPTopts.ximin;
 ximaxn = OPTopts.ximax./OPTopts.ximax;
 xinitn = (xinit - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
 % The initial trust region radius
-Delta{1} = 0.25;
+Deltan{1} = ones(Nn,1).*0.25;
+Delta{1} = Deltan{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
 eta1 = 0.05;
 eta2 = 0.9;
 alp1 = 2.5;
@@ -300,8 +301,8 @@ while ii <= Ni && ~specF && ~TolX_achieved
         kk = 1;
         while ~TRsuccess && kk < TRNi && ~TolX_achieved
             % Set up TR boundaries
-            ximinnTR = max((xin{ii} - Delta{ii}),ximinn);
-            ximaxnTR = min((xin{ii} + Delta{ii}),ximaxn);
+            ximinnTR = max((xin{ii} - Deltan{ii}),ximinn);
+            ximaxnTR = min((xin{ii} + Deltan{ii}),ximaxn);
             
             % Do optimization
             if globOpt == 2
@@ -381,21 +382,25 @@ while ii <= Ni && ~specF && ~TolX_achieved
 			end
 			
 			rho{ii}
-			Delta{ii}
+			Deltan{ii}
+            Nn
 %             keyboard
             sk{ii} = xin{ii+1}-xin{ii};
             if rho{ii}{kk} >= eta2
-                TRsuccess = 1;
-                Delta{ii+1} = max(alp1.*norm(sk{ii}),Delta{ii})
+                TRsuccess = 1
+                Deltan{ii+1} = max(alp1.*norm(sk{ii}),Deltan{ii})
+                Delta{ii+1} = Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin
             elseif rho{ii}{kk} > eta1
-                TRsuccess = 1;
-                Delta{ii+1} = Delta{ii}
+                TRsuccess = 1
+                Deltan{ii+1} = Deltan{ii}
+                Delta{ii+1} = Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin
             else
-                TRsuccess = 0;
-                Delta{ii} = alp2.*norm(sk{ii}) % Shrink current Delta
+                TRsuccess = 0
+                Deltan{ii} = ones(Nn,1).*(alp2*norm(sk{ii})) % Shrink current Delta
+                Delta{ii} = Deltan{ii}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin
             end
-
-            kk = kk+1;
+            
+            kk = kk+1
             % count_all = count_all+1;
 
 %             keyboard 
@@ -416,7 +421,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
         
         % Make a (crude) log file
         %     save SMlog ii xi Rci Rfi Rsi Si costS costF limF limC limS
-        save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c rho  Delta
+        save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c rho  Deltan
         
         % Plot the fine, coarse, optimised surrogate and aligned surrogate
         plotModels(plotIter, ii+1, Rci, Rfi, Rsi, Rsai, OPTopts);
@@ -434,6 +439,14 @@ Ri.Rs = Rsi;    % Surrogate after optimization
 Ri.Rsa = Rsai;  % Surrogate before optimization, just after alignment at end of previous iteration
 
 Pi = xi;
+
+% Clean up the duplicate run of the last iteration
+% TODO_DWW: DWW: you should probably actually fix this then
+xin(end) = [];
+xi(end) = [];
+
+plotIterations(true, xin, Deltan);
+plotIterations(true, xi, Delta);
 
 Ci.costS = costS;
 Ci.costF = costF;
@@ -520,6 +533,35 @@ function plotModels(plotFlag, itNum, Rci, Rfi, Rsi, Rsai, OPTopts)
 end % plotModels
 
 
+function plotIterations(plotFlag, xi, Delta)
+    if plotFlag
+        markerstr = {'s','o','x','+','*','d','.','^','v','>','<','p','h'};
+        colourstr = {'k','b','r','g','m','c','y'};
+
+        Ni = length(xi);
+        Nx = length(xi{1});
+        transXi = transpose(cell2mat(xi))
+        transDelta = transpose(cell2mat(Delta))
+        figure()
+
+        if (Nx == 2)
+            for ii = 1:Ni
+                plot(xi{ii}(1),xi{ii}(2),strcat(markerstr{1},colourstr{ii}),'LineWidth',2,'MarkerSize',5*ii), grid on, hold on
+            end
+            errorbar(transXi(:,1), transXi(:,2), transDelta(:,1)), hold on
+        else
+            for ii = 1:Nx
+                errorbar(transXi(:,ii), transDelta(:,ii), strcat(markerstr{ii},colourstr{ii}),'LineWidth',1.5,'MarkerSize',10 ), grid on, hold on
+            end
+        end
+        xlabel('Iteration')
+        ylabel('Xi Value')
+        title({'Xi Values'})
+        legend()
+    end
+end
+
+
 function Rf = fineMod(M,xi)
 
 % Rf is a cell array of structures containing the response in Rf.r, the type Rf.t, and the
@@ -529,12 +571,6 @@ function Rf = fineMod(M,xi)
 %   path:   Full path to file
 %   name:   File name of file (without extension)
 %   solver:     'CST'/'MATLAB'/'FEKO' (for now)
-%   params:     Cell array of paramater names - same order as xinit {Nn,1}
-%   ximin:  Vector of minimum values to limit the parameters [Nn,1]
-%   ximax:  Vector of maximum values to limit the parameters [Nn,1]
-%   freq:       Array of simulation frequencies [Nm,1] (optional)
-%   Rtype:      Type of response (cell array if more than one needed)
-%               Valid types:
 %               'S11dB' - obvious!
 
 % Limit the inputs
@@ -542,10 +578,16 @@ if isfield(M,'ximin')
     minI = xi < M.ximin;
     xi(minI) = M.ximin(minI);
     if minI | 0
-		warning( strcat('Out of bounds fine model evaluation encountered on ximin = ', ...
-			mat2str(M.ximin), ', xi = ', mat2str(xi)) )
-	end
-	
+        warning( strcat('Out of bounds fine model evaluation encountered on ximin = ', ...
+            mat2str(M.ximin), ', xi = ', mat2str(xi)) )
+    end
+    
+%   params:     Cell array of paramater names - same order as xinit {Nn,1}
+%   ximin:  Vector of minimum values to limit the parameters [Nn,1]
+%   ximax:  Vector of maximum values to limit the parameters [Nn,1]
+%   freq:       Array of simulation frequencies [Nm,1] (optional)
+%   Rtype:      Type of response (cell array if more than one needed)
+%               Valid types:
 end
 if isfield(M,'ximax')
     maxI = xi > M.ximax;
