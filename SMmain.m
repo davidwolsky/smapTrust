@@ -225,8 +225,8 @@ ximinn = OPTopts.ximin - OPTopts.ximin;
 ximaxn = OPTopts.ximax./OPTopts.ximax;
 xinitn = (xinit - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
 % The initial trust region radius
-Deltan{1} = ones(Nn,1).*0.25;
-Delta{1} = Deltan{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
+Deltan{1} = 0.25;
+Delta{1} = Deltan{1}.*(OPTopts.ximax - OPTopts.ximin);
 eta1 = 0.05;
 eta2 = 0.9;
 alp1 = 2.5;
@@ -246,7 +246,7 @@ nonLcon = [];
 
 % Remove start
 % Force a bad start...
-xin{1} = xin{1}./2;
+% xin{1} = xin{1}./2;
 % Remove stop
 
 
@@ -256,7 +256,7 @@ xi{1} = xin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
 Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
 
 % Remove start
-costS{1} = costFunc(Rci{1},OPTopts);
+% costS{1} = costFunc(Rci{1},OPTopts);
 % Remove stop
 
 
@@ -389,15 +389,16 @@ while ii <= Ni && ~specF && ~TolX_achieved
             if rho{ii}{kk} >= eta2
                 TRsuccess = 1
                 Deltan{ii+1} = max(alp1.*norm(sk{ii}),Deltan{ii})
-                Delta{ii+1} = Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin
+                Delta{ii+1} = Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin)
             elseif rho{ii}{kk} > eta1
                 TRsuccess = 1
                 Deltan{ii+1} = Deltan{ii}
-                Delta{ii+1} = Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin
+                Delta{ii+1} = Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin)
             else
                 TRsuccess = 0
-                Deltan{ii} = ones(Nn,1).*(alp2*norm(sk{ii})) % Shrink current Delta
-                Delta{ii} = Deltan{ii}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin
+                Deltan{ii} = alp2*norm(sk{ii}) % Shrink current Delta
+                %  TODO_DWW: nope... no shift on a radius!
+                Delta{ii} = Deltan{ii}.*(OPTopts.ximax - OPTopts.ximin)
             end
             
             kk = kk+1
@@ -442,12 +443,12 @@ Pi = xi;
 
 % Clean up the duplicate run of the last iteration
 % TODO_DWW: DWW: you should probably actually fix this then
-xin(end) = [];
-xi(end) = [];
+% xin(end) = [];
+% xi(end) = [];
 
 plotIterations(true, xin, Deltan);
 plotIterations(true, xi, Delta);
-
+% TODO_DWW: indicate OPT min and max. 
 Ci.costS = costS;
 Ci.costF = costF;
 
@@ -535,23 +536,38 @@ end % plotModels
 
 function plotIterations(plotFlag, xi, Delta)
     if plotFlag
+        % TODO_DWW: make string
         markerstr = {'s','o','x','+','*','d','.','^','v','>','<','p','h'};
         colourstr = {'k','b','r','g','m','c','y'};
 
-        Ni = length(xi);
-        Nx = length(xi{1});
+        Ni = length(xi)
+        Nx = length(xi{1})
         transXi = transpose(cell2mat(xi))
+        Ndi = length(Delta)
+        Ndx = length(Delta{1})
+        if (Ni > Ndi)
+            Delta{end+1} = zeros(Ndx,1)
+        end
         transDelta = transpose(cell2mat(Delta))
         figure()
 
-        if (Nx == 2)
+        if (Nx == 2 )
             for ii = 1:Ni
                 plot(xi{ii}(1),xi{ii}(2),strcat(markerstr{1},colourstr{ii}),'LineWidth',2,'MarkerSize',5*ii), grid on, hold on
             end
-            errorbar(transXi(:,1), transXi(:,2), transDelta(:,1)), hold on
+            if (Ndx > 1)
+                for ii = 1:Ndx
+                    errorbar(transXi(:,1), transXi(:,2), transDelta(:,ii)), hold on
+                end
+            else
+                errorbar(transXi(:,1), transXi(:,2), transDelta(:)), hold on
+            end
         else
             for ii = 1:Nx
                 errorbar(transXi(:,ii), transDelta(:,ii), strcat(markerstr{ii},colourstr{ii}),'LineWidth',1.5,'MarkerSize',10 ), grid on, hold on
+                % TODO_DWW: think about how to display the radius nicely
+                %   - offset
+                %   - maybe just plot up from the bottom... 
             end
         end
         xlabel('Iteration')
