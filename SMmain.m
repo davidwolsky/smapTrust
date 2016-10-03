@@ -246,7 +246,7 @@ nonLcon = [];
 
 % Remove start
 % Force a bad start...
-% xin{1} = xin{1}./2;
+xin{1} = xin{1}./2;
 % Remove stop
 
 
@@ -256,7 +256,7 @@ xi{1} = xin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
 Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
 
 % Remove start
-% costS{1} = costFunc(Rci{1},OPTopts);
+costS{1} = costFunc(Rci{1},OPTopts);
 % Remove stop
 
 
@@ -397,14 +397,12 @@ while ii <= Ni && ~specF && ~TolX_achieved
             else
                 TRsuccess = 0
                 Deltan{ii} = alp2*norm(sk{ii}) % Shrink current Delta
-                %  TODO_DWW: nope... no shift on a radius!
                 Delta{ii} = Deltan{ii}.*(OPTopts.ximax - OPTopts.ximin)
             end
             
             kk = kk+1
             % count_all = count_all+1;
 
-%             keyboard 
             % Remove any additional fine model runs and clean up rest of iteration lasting variables.
             if TRsuccess
                 for count = 1:kk-2
@@ -416,13 +414,11 @@ while ii <= Ni && ~specF && ~TolX_achieved
                     costF_all(length(costF_all)-1) = [];
 				end
             end
-
-
         end
         
         % Make a (crude) log file
         %     save SMlog ii xi Rci Rfi Rsi Si costS costF limF limC limS
-        save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c rho  Deltan
+        save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c rho Deltan
         
         % Plot the fine, coarse, optimised surrogate and aligned surrogate
         plotModels(plotIter, ii+1, Rci, Rfi, Rsi, Rsai, OPTopts);
@@ -440,11 +436,6 @@ Ri.Rs = Rsi;    % Surrogate after optimization
 Ri.Rsa = Rsai;  % Surrogate before optimization, just after alignment at end of previous iteration
 
 Pi = xi;
-
-% Clean up the duplicate run of the last iteration
-% TODO_DWW: DWW: you should probably actually fix this then
-% xin(end) = [];
-% xi(end) = [];
 
 plotIterations(true, xin, Deltan);
 plotIterations(true, xi, Delta);
@@ -536,9 +527,8 @@ end % plotModels
 
 function plotIterations(plotFlag, xi, Delta)
     if plotFlag
-        % TODO_DWW: make string
-        markerstr = {'s','o','x','+','*','d','.','^','v','>','<','p','h'};
-        colourstr = {'k','b','r','g','m','c','y'};
+        markerstr = 'sox+*d.^v><ph';
+        colourstr = 'kbrgmcy';
 
         Ni = length(xi)
         Nx = length(xi{1})
@@ -553,7 +543,7 @@ function plotIterations(plotFlag, xi, Delta)
 
         if (Nx == 2 )
             for ii = 1:Ni
-                plot(xi{ii}(1),xi{ii}(2),strcat(markerstr{1},colourstr{ii}),'LineWidth',2,'MarkerSize',5*ii), grid on, hold on
+                plot(xi{ii}(1),xi{ii}(2),strcat(markerstr(1),colourstr(ii)),'LineWidth',2,'MarkerSize',5*ii), grid on, hold on
             end
             if (Ndx > 1)
                 for ii = 1:Ndx
@@ -564,7 +554,7 @@ function plotIterations(plotFlag, xi, Delta)
             end
         else
             for ii = 1:Nx
-                errorbar(transXi(:,ii), transDelta(:,ii), strcat(markerstr{ii},colourstr{ii}),'LineWidth',1.5,'MarkerSize',10 ), grid on, hold on
+                errorbar(transXi(:,ii), transDelta(:,ii), strcat(markerstr(ii),colourstr(ii)),'LineWidth',1.5,'MarkerSize',10 ), grid on, hold on
                 % TODO_DWW: think about how to display the radius nicely
                 %   - offset
                 %   - maybe just plot up from the bottom... 
