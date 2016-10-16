@@ -244,9 +244,10 @@ RHSvect = [];
 nonLcon = [];
 [xin{1}, costS{1}] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
 
+% keyboard
 % Remove start
 % Force a bad start...
-xin{1} = xin{1}./2;
+% xin{1} = xin{1}./2;
 % Remove stop
 
 
@@ -256,7 +257,7 @@ xi{1} = xin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
 Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
 
 % Remove start
-costS{1} = costFunc(Rci{1},OPTopts);
+% costS{1} = costFunc(Rci{1},OPTopts);
 % Remove stop
 
 
@@ -334,6 +335,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
             for rr = 1:Nr
                 % Get the surrogate response after previous iteration
                 % optimization - thus at current iteration position
+                % TODO_DWW: comment a bit more and clean up. Explain ii +-1
                 Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1-1}{rr});
                 % CRC_DDV: DWW: Not sure which of these should actually be used here...
 %                 Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si_all{end}{rr});
@@ -367,6 +369,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
             costF{ii+1} = costFunc(Rfi{ii+1},OPTopts);
 			costF_all{end+1} = costF{ii+1};
 			
+            % TODO_DWW: Comment here about needng to compare the last and current surrogates
             costS{ii}   = costSurr(xin{ii},Si{ii+1}{:},OPTopts);
             costS{ii+1} = costSurr(xin{ii+1},Si{ii+1}{:},OPTopts);
 			costS_all{end+1} = costS{ii+1};
@@ -405,6 +408,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
 
             % Remove any additional fine model runs and clean up rest of iteration lasting variables.
             if TRsuccess
+                %  TODO_DWW: comment about this.
                 for count = 1:kk-2
                     xi_all(length(xi_all)-1) = [];
                     xin_all(length(xin_all)-1) = [];
@@ -437,8 +441,8 @@ Ri.Rsa = Rsai;  % Surrogate before optimization, just after alignment at end of 
 
 Pi = xi;
 
-plotIterations(true, xin, Deltan);
-plotIterations(true, xi, Delta);
+plotIterations(true, xin, Deltan, 'Normalised');
+plotIterations(true, xi, Delta, 'De-normalised');
 % TODO_DWW: indicate OPT min and max. 
 Ci.costS = costS;
 Ci.costF = costF;
@@ -525,44 +529,59 @@ function plotModels(plotFlag, itNum, Rci, Rfi, Rsi, Rsai, OPTopts)
 end % plotModels
 
 
-function plotIterations(plotFlag, xi, Delta)
+function plotIterations(plotFlag, xi, Delta, caption)
     if plotFlag
-        markerstr = 'sox+*d.^v><ph';
+        markerstr = 'xso+*d.^v><ph';
         colourstr = 'kbrgmcy';
 
-        Ni = length(xi)
-        Nx = length(xi{1})
-        transXi = transpose(cell2mat(xi))
-        Ndi = length(Delta)
-        Ndx = length(Delta{1})
+        % Manipulate data format and ensure that everything has the same dimensions
+        Ni = length(xi);
+        Nx = length(xi{1});
+        transXi = transpose(cell2mat(xi));
+        Ndi = length(Delta);
+        Ndx = length(Delta{1});
         if (Ni > Ndi)
-            Delta{end+1} = zeros(Ndx,1)
+            % Handle the case of the no TR is available - returned from tollerance or something 
+            Delta{end+1} = zeros(Ndx,1);
         end
-        transDelta = transpose(cell2mat(Delta))
-        figure()
+        transDelta = transpose(cell2mat(Delta));
 
+        figure()
+        % For two dimensional plot the two parameters against each other 
         if (Nx == 2 )
+            axis equal
             for ii = 1:Ni
                 plot(xi{ii}(1),xi{ii}(2),strcat(markerstr(1),colourstr(ii)),'LineWidth',2,'MarkerSize',5*ii), grid on, hold on
-            end
-            if (Ndx > 1)
-                for ii = 1:Ndx
-                    errorbar(transXi(:,1), transXi(:,2), transDelta(:,ii)), hold on
+                % Plot the TR radius by setting up the rectangle
+                if (Ndx > 1)
+                    transDDelta = [transDelta]
+                else
+                    transDDelta = [transDelta,transDelta]
                 end
-            else
-                errorbar(transXi(:,1), transXi(:,2), transDelta(:)), hold on
+                transMerge = [transXi-transDDelta,transDDelta*2];
+                % Only plot radius if it is valid
+                if (transMerge(ii,3) > 0)
+                    rectangle('Position',transMerge(ii,1:4), 'EdgeColor',colourstr(ii),'LineWidth',2)
+                end
             end
+            axis equal
+            xlabel('x1 value')
+            ylabel('x2 value')
+            title({strcat('Values at each iteration ploted against each other with trust region radius - ', caption)})
         else
             for ii = 1:Nx
-                errorbar(transXi(:,ii), transDelta(:,ii), strcat(markerstr(ii),colourstr(ii)),'LineWidth',1.5,'MarkerSize',10 ), grid on, hold on
-                % TODO_DWW: think about how to display the radius nicely
-                %   - offset
-                %   - maybe just plot up from the bottom... 
+                plot(transXi(:,ii), strcat(markerstr(ii),colourstr(ii)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+                xOffset = transpose(1:Ni)+(ii*0.07);
+                if (Ndx > 1)
+                    errorbar(xOffset, transXi(:,ii), transDelta(:,ii), strcat('.',colourstr(ii)),'LineWidth',1.5,'MarkerSize',10 ), grid on, hold on                 
+                else
+                    errorbar(xOffset, transXi(:,ii), transDelta(:), strcat('.',colourstr(ii)),'LineWidth',1.5,'MarkerSize',10 ), grid on, hold on                    
+                end
             end
+            xlabel('Iteration')
+            ylabel('Value')
+            title({strcat('Values per iteration with trust region radius - ', caption)})
         end
-        xlabel('Iteration')
-        ylabel('Xi Value')
-        title({'Xi Values'})
         legend()
     end
 end
@@ -891,10 +910,6 @@ switch M.solver
         error(['M.solver unknown for coarse model evaluation'])
 end
 end
-        
-        
-
-
 
 function cost = costSurr(xin,S,OPTopts)
 
