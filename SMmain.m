@@ -135,9 +135,9 @@ if isfield(OPTopts,'M_PBIL'), M_PBIL = OPTopts.M_PBIL; end
 if isfield(OPTopts,'optsPBIL'), optsPBIL = OPTopts.optsPBIL; end
 if isfield(OPTopts,'plotIter'), plotIter = OPTopts.plotIter; end
 if isfield(OPTopts,'eta1'), eta1 = OPTopts.eta1; end
-if isfield(OPTopts,'eta2'), eta1 = OPTopts.eta2; end
-if isfield(OPTopts,'alp1'), eta1 = OPTopts.alp1; end
-if isfield(OPTopts,'alp2'), eta1 = OPTopts.alp2; end
+if isfield(OPTopts,'eta2'), eta2 = OPTopts.eta2; end
+if isfield(OPTopts,'alp1'), alp1 = OPTopts.alp1; end
+if isfield(OPTopts,'alp2'), alp2 = OPTopts.alp2; end
 
 
 % Set up models - bookkeeping
