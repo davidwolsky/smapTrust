@@ -242,21 +242,28 @@ xinitn = (xinit - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
 Ti.Deltan{1} = 0.25;
 Ti.Delta{1} = Ti.Deltan{1}.*(OPTopts.ximax - OPTopts.ximin);
 
-% Optimize coarse model to find initial alignment position
-if globOpt
-    [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Sinit,OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
-    xinitn = reshape(xinitn,Nn,1);
+% CRC_TestEnabled: testing enforced
+if ~testEnabled
+    % Optimize coarse model to find initial alignment position
+    if globOpt
+        [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Sinit,OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
+        xinitn = reshape(xinitn,Nn,1);
+    end
+    LHSmat = [];
+    RHSvect = [];
+    nonLcon = [];
+    [xin{1}, costS{1}] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
+else
+    testEnabled
+    xinitn
+    xin{1} = xinitn
+    costS{1} = costSurr(xinitn,Sinit,OPTopts)
+    keyboard
+    % Remove start
+    % Force a bad start...
+    % xin{1} = xin{1}./2;
+    % Remove stop
 end
-LHSmat = [];
-RHSvect = [];
-nonLcon = [];
-[xin{1}, costS{1}] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
-
-% keyboard
-% Remove start
-% Force a bad start...
-% xin{1} = xin{1}./2;
-% Remove stop
 
 
 % De-normalize input vector
