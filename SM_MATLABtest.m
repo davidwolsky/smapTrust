@@ -17,8 +17,8 @@ opts.optsFminS = optimset('display','none');
 
 
 % x_init = [0.5,1.5,0.03,0.5,0.5]';
-% x_init = [0.5,1.5,0.03]';
-x_init = [0.5,1.5]';
+x_init = [0.5,1.5,0.03]';
+% x_init = [0.5,1.5]';
 xp_init = [2,1]';
 
 Nn = length(x_init);
@@ -90,6 +90,10 @@ OPTopts.optsPBIL.Nbest = 10; % DOM
 OPTopts.M_PBIL = 4;
 OPTopts.optsFminS = optimset('display','none');
 OPTopts.TolX = 10e-4;
+OPTopts.eta1 = 0.05;
+OPTopts.eta2 = 0.9;
+OPTopts.alp1 = 2.5;
+OPTopts.alp2 = 0.25;
 % OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
 
 
@@ -151,7 +155,7 @@ end
 
 
 %% Run the main loop
-[Ri,Si,Pi,Ci,Oi,Li] = SMmain(x_init,Sinit,SMopts,Mf,Mc,OPTopts);
+[Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(x_init,Sinit,SMopts,Mf,Mc,OPTopts);
 
 keyboard;
 

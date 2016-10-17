@@ -1,4 +1,4 @@
-function [Ri,Si,Pi,Ci,Oi,Li] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
+function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 
 % Space Mapping main loop
 
@@ -37,6 +37,7 @@ function [Ri,Si,Pi,Ci,Oi,Li] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %               'S11complex'
 %               'Gen' - generic case for use with MATLAB models 
 %   Ni:         Maximum number of iterations
+%   TRNi:       Maximum number of iterations for the Trust region loop
 %   globOpt:    Flag to run PBIL (1 for only first iteration, 2 for all iterations) (default 0)
 %   M_PBIL:     Vector of bits for the global search variables (see PBILreal.m)
 %   globOptSM:  Flag to run PBIL during the PE process (1 for only first iteration, 2 for all iterations) (default 0)
@@ -63,7 +64,10 @@ function [Ri,Si,Pi,Ci,Oi,Li] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   optsFminS:  options for the fminsearch local optimizer
 %   optsPBIL:   options for the PBIL global optimizer
 %   plotIter:   Flag to plot the responses after each iteration
-
+%   eta1:       A factor used by the TR to define the bound governing when to keep or reduce the radius.
+%   eta2:       A factor used by the TR to decide the bound governing when to keep or grow the radius.
+%   alp1:       A factor used by the TR to define the rate at which the radius grows with a very sucessful run.
+%   alp2:       A factor used by the TR to define the rate at which the radius shrinks for divergent fine and surrogate runs.
 
 % Returns:
 % Ri:   Structure containing the responses at each iteration
@@ -72,6 +76,7 @@ function [Ri,Si,Pi,Ci,Oi,Li] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 % Ci:   Structure containing the costs at each iteration
 % Oi:   Structure containing the 'optimizer' information at each iteration
 % Li:   Structure containing the limiting information at each iteration
+% Ti:   Structure containing the trust region information for each iteration and fine model evaluations 
 
 % Date created: 2015-03-06
 % Dirk de Villiers and Ryno Beyers
@@ -101,8 +106,7 @@ function [Ri,Si,Pi,Ci,Oi,Li] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 % 2016-05-27: Normalize data for optimization
 % 2016-08-10: Normalization fixed because it was terrible!
 % 2016-08-21: Refactored the main loop to get fine model evaluation at the end and first iteration setup before loop.
-%
-% ToDo: TR
+% 2016-10-17: Introduced the basic trust region (BTR) based on Trust-Region Methods by A. R. Conn, N. I. M. Gould and P. L. Toint   
 %       
 
 % Set defaults
@@ -115,9 +119,12 @@ globOptSM = 0;
 optsFminS = optimset('display','none');
 optsPBIL = [];
 plotIter = 1;
+eta1 = 0.05;
+eta2 = 0.9;
+alp1 = 2.5;
+alp2 = 0.25;
 
 if isfield(OPTopts,'Ni'), Ni = OPTopts.Ni; end
-% TODO: DWW: 
 if isfield(OPTopts,'TRNi'), TRNi = OPTopts.TRNi; end
 if isfield(OPTopts,'TolX'), TolX = abs(OPTopts.TolX); end % Force positive
 if isfield(OPTopts,'globOpt'), globOpt = OPTopts.globOpt; end
@@ -127,6 +134,10 @@ if isfield(OPTopts,'optsFminS'), optsFminS = OPTopts.optsFminS; end
 if isfield(OPTopts,'M_PBIL'), M_PBIL = OPTopts.M_PBIL; end
 if isfield(OPTopts,'optsPBIL'), optsPBIL = OPTopts.optsPBIL; end
 if isfield(OPTopts,'plotIter'), plotIter = OPTopts.plotIter; end
+if isfield(OPTopts,'eta1'), eta1 = OPTopts.eta1; end
+if isfield(OPTopts,'eta2'), eta1 = OPTopts.eta2; end
+if isfield(OPTopts,'alp1'), eta1 = OPTopts.alp1; end
+if isfield(OPTopts,'alp2'), eta1 = OPTopts.alp2; end
 
 
 % Set up models - bookkeeping
@@ -190,29 +201,30 @@ end
 
 
 % Enter the main loop
-% 0) Normalise parameters
-% 0) Optimise coarse model to find initial alignment position
-% 0) Evaluate the fine model at starting position
-% 0) Get the initial response
-% 1) 4) Optimize the current model Si to find xi
-% 2) 5) Test for convergence
-% 3) 1) Evaluate the fine model at current position (Rfi)
-% 4) 2) Get the response of the previous iteration surrogate at current
-%    position (Rsi).  Only the position x(i-1) was calculated in the previous
-%    iteration.
-% 5) 3) Align the model at the current position the get Rsai and Si
+%   0)  Normalise parameters
+%       - Optimise coarse model to find initial alignment position
+%       - Evaluate the fine model at starting position
+%       - Get the initial response
+%   1)  Test for convergence.
+%       2)  Use TR to set up bounds for the optimiser.
+%       3)  Optimize the current model Si{ii} to find the next xi (xi{ii+1}).
+%       Evaluation are placed forward into the next (ii+1) iteration placeholder. 
+%       This is over-written if the runs is not successful, i.e. the surrogate and fine models diverge. 
+%       4)  Evaluate the fine model at next position (Rfi{ii+1}).
+%       5)  Get the response of the current iteration surrogate (Rsi{ii}) and at the next step (Rsi{ii+1}). 
+%       6)  Re-evaluate the current surrogate (Si{ii} with xi{ii}) and that for the next step (Si{ii+1} 
+%           with xi{ii+1}). This is done with the new fine model evaluation included. The re-evaluation 
+%           is also done so that the surrogate costs can be compared correctly.
+%       7)  Align the model at the next step to get Rsai.
+%       8)  Calculate the costs change for the fine model and the surrogates (between ii and ii+1). 
+%           The difference is stored in rho{ii} and clipped to zero if one, or both, costs get worse.
+%       8)  Calculate the step (sk{ii}) between the current and next paremater.
+%       9)  Decide if this step is successful.
+%      10)  Depending on how successful either keep the current normaised radius (Deltan{ii}) or grow it. 
+%           If it is unsuccessful (the costs diverge) then shrink the radius and try this step again 
+%           (increase kk but not ii).
+%      11)  If successful then clean up the extra fine models that were kept.
 
-%%% 1) Evaluate the fine model at current position (Rfi)
-%%% 2) Get the response of the previous iteration surrogate at current
-%%%    position (Rsi).  Only the position x(i-1) was calculated in the previous
-%%%    iteration.
-%%% 3) Align the model at the current position the get Rsai and Si
-%%% 4) Optimize the current model Si to find xi
-%%% 5) Test for convergence
-
-% [Rci,Rfi,Rsi,Rsai,Si] = deal(cell(1,Ni));
-% Rsai is the aligned surrogate, and Rsi the optimized surrogate at each
-% iteration
 specF = 0;  % Flag to test if the fine model reached spec
 TolX_achieved = 0;
 
@@ -225,14 +237,8 @@ ximinn = OPTopts.ximin - OPTopts.ximin;
 ximaxn = OPTopts.ximax./OPTopts.ximax;
 xinitn = (xinit - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
 % The initial trust region radius
-Deltan{1} = 0.25;
-Delta{1} = Deltan{1}.*(OPTopts.ximax - OPTopts.ximin);
-eta1 = 0.05;
-eta2 = 0.9;
-alp1 = 2.5;
-alp2 = 0.25;
-
-
+Ti.Deltan{1} = 0.25;
+Ti.Delta{1} = Ti.Deltan{1}.*(OPTopts.ximax - OPTopts.ximin);
 
 % Optimize coarse model to find initial alignment position
 if globOpt
@@ -273,11 +279,11 @@ end
 
 % TODO: DWW: rename
 % count_all = 1;
-xi_all{1}    = xi{1};
-xin_all{1}   = xin{1};
-Rfi_all{1}   = Rfi{1};
-Si_all{1}    = Si{1};
-costS_all{1} = costS{1};
+Ti.xi_all{1} = xi{1};
+% xin_all{1} = xin{1};
+Ti.Rfi_all{1} = Rfi{1};
+% Si_all{1} = Si{1};
+% costS_all{1} = costS{1};
 
 
 % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
@@ -291,7 +297,6 @@ while ii <= Ni && ~specF && ~TolX_achieved
 %Coming into this iteration as ii now with the fine model run here already and responses available. 
 
     % Exit if spec is reached (will typically not work for eq and never for minimax, and bw is explicitly excluded)
-    % if costFi == 0 && isempty(find(ismember(OPTopts.goalType,'bw'),1))   
     if costF{ii} == 0 && isempty(find(ismember(OPTopts.goalType,'bw'),1))
         specF = 1;
     else
@@ -302,8 +307,8 @@ while ii <= Ni && ~specF && ~TolX_achieved
         kk = 1;
         while ~TRsuccess && kk < TRNi && ~TolX_achieved
             % Set up TR boundaries
-            ximinnTR = max((xin{ii} - Deltan{ii}),ximinn);
-            ximaxnTR = min((xin{ii} + Deltan{ii}),ximaxn);
+            ximinnTR = max((xin{ii} - Ti.Deltan{ii}),ximinn);
+            ximaxnTR = min((xin{ii} + Ti.Deltan{ii}),ximaxn);
             
             % Do optimization
             if globOpt == 2
@@ -328,9 +333,9 @@ while ii <= Ni && ~specF && ~TolX_achieved
             Rci{ii+1} = coarseMod(Mc,xi{ii+1},Sinit.xp,fc);
             Rfi{ii+1} = fineMod(Mf,xi{ii+1});
 
-            xi_all{end+1}  = xi{ii+1};
-			xin_all{end+1} = xin{ii+1};
-            Rfi_all{end+1} = Rfi{ii+1};
+            Ti.xi_all{end+1}  = xi{ii+1};
+			% xin_all{end+1} = xin{ii+1};
+            Ti.Rfi_all{end+1} = Rfi{ii+1};
             
             for rr = 1:Nr
                 % Get the surrogate response after previous iteration
@@ -349,12 +354,12 @@ while ii <= Ni && ~specF && ~TolX_achieved
                     Si{ii}{rr}   = buildSurr(xi{ii},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
                     Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
                 else
-                    for iii = 1:length(Rfi_all)
-                        r{iii} = Rfi_all{iii}{rr}.r;
+                    for iii = 1:length(Ti.Rfi_all)
+                        r{iii} = Ti.Rfi_all{iii}{rr}.r;
                     end
                     % Re-evaluate the surrogate at the new point. 
-                    Si{ii}{rr}   = buildSurr(xi_all,r,Si{ii+1-1}{rr},SMopts);
-                    Si{ii+1}{rr} = buildSurr(xi_all,r,Si{ii+1-1}{rr},SMopts);
+                    Si{ii}{rr}   = buildSurr(Ti.xi_all,r,Si{ii+1-1}{rr},SMopts);
+                    Si{ii+1}{rr} = buildSurr(Ti.xi_all,r,Si{ii+1-1}{rr},SMopts);
                 end
                 % Also get the currently aligned surrogate for comparison
                 Rsai{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1}{rr});
@@ -363,7 +368,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
                     Rsai{ii+1}{rr}.f = Rci{ii+1}{rr}.f; 
                 end
             end
-            Si_all{end+1} = Si{ii+1};
+            % Si_all{end+1} = Si{ii+1};
             
             % Test fine model response
             costF{ii+1} = costFunc(Rfi{ii+1},OPTopts);
@@ -372,49 +377,48 @@ while ii <= Ni && ~specF && ~TolX_achieved
             % TODO_DWW: Comment here about needng to compare the last and current surrogates
             costS{ii}   = costSurr(xin{ii},Si{ii+1}{:},OPTopts);
             costS{ii+1} = costSurr(xin{ii+1},Si{ii+1}{:},OPTopts);
-			costS_all{end+1} = costS{ii+1};
-%             costS{ii+1} = costSi
+			% costS_all{end+1} = costS{ii+1};
 			
             % Evaluate results and adjust radius for next iteration
-			costChangeF = (costF{ii} - costF{ii+1})
-			costChangeS = (costS{ii} - costS{ii+1})
+			costChangeF = (costF{ii} - costF{ii+1});
+			costChangeS = (costS{ii} - costS{ii+1});
 			if ( costChangeF > 0 && costChangeS > 0 && abs(costChangeS) > TolX )
-				rho{ii}{kk} = (costChangeF)./(costChangeS);
+				Ti.rho{ii}{kk} = (costChangeF)./(costChangeS);
 			else
-				rho{ii}{kk} = 0.0;
+				Ti.rho{ii}{kk} = 0.0;
 			end
 			
-			rho{ii}
-			Deltan{ii}
-            Nn
+			% Ti.rho{ii}
+			% Ti.Deltan{ii}
+            % Nn
 %             keyboard
-            sk{ii} = xin{ii+1}-xin{ii};
-            if rho{ii}{kk} >= eta2
-                TRsuccess = 1
-                Deltan{ii+1} = max(alp1.*norm(sk{ii}),Deltan{ii})
-                Delta{ii+1} = Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin)
-            elseif rho{ii}{kk} > eta1
-                TRsuccess = 1
-                Deltan{ii+1} = Deltan{ii}
-                Delta{ii+1} = Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin)
+            Ti.sk{ii} = xin{ii+1}-xin{ii};
+            if Ti.rho{ii}{kk} >= eta2
+                TRsuccess = 1;
+                Ti.Deltan{ii+1} = max(alp1.*norm(Ti.sk{ii}),Ti.Deltan{ii});
+                Ti.Delta{ii+1} = Ti.Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin);
+            elseif Ti.rho{ii}{kk} > eta1
+                TRsuccess = 1;
+                Ti.Deltan{ii+1} = Ti.Deltan{ii};
+                Ti.Delta{ii+1} = Ti.Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin);
             else
-                TRsuccess = 0
-                Deltan{ii} = alp2*norm(sk{ii}) % Shrink current Delta
-                Delta{ii} = Deltan{ii}.*(OPTopts.ximax - OPTopts.ximin)
+                TRsuccess = 0;
+                Ti.Deltan{ii} = alp2*norm(Ti.sk{ii}); % Shrink current Delta
+                Ti.Delta{ii} = Ti.Deltan{ii}.*(OPTopts.ximax - OPTopts.ximin);
             end
             
-            kk = kk+1
+            kk = kk+1;
             % count_all = count_all+1;
 
             % Remove any additional fine model runs and clean up rest of iteration lasting variables.
             if TRsuccess
                 %  TODO_DWW: comment about this.
                 for count = 1:kk-2
-                    xi_all(length(xi_all)-1) = [];
-                    xin_all(length(xin_all)-1) = [];
-                    Rfi_all(length(Rfi_all)-1) = [];
-                    Si_all(length(Si_all)-1) = [];
-                    costS_all(length(costS_all)-1) = [];
+                    Ti.xi_all(length(Ti.xi_all)-1) = [];
+                    % xin_all(length(xin_all)-1) = [];
+                    Ti.Rfi_all(length(Ti.Rfi_all)-1) = [];
+                    % Si_all(length(Si_all)-1) = [];
+                    % costS_all(length(costS_all)-1) = [];
                     costF_all(length(costF_all)-1) = [];
 				end
             end
@@ -422,7 +426,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
         
         % Make a (crude) log file
         %     save SMlog ii xi Rci Rfi Rsi Si costS costF limF limC limS
-        save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c rho Deltan
+        save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c Ti
         
         % Plot the fine, coarse, optimised surrogate and aligned surrogate
         plotModels(plotIter, ii+1, Rci, Rfi, Rsi, Rsai, OPTopts);
@@ -441,8 +445,8 @@ Ri.Rsa = Rsai;  % Surrogate before optimization, just after alignment at end of 
 
 Pi = xi;
 
-plotIterations(true, xin, Deltan, 'Normalised');
-plotIterations(true, xi, Delta, 'De-normalised');
+plotIterations(true, xin, Ti.Deltan, 'Normalised');
+plotIterations(true, xi, Ti.Delta, 'De-normalised');
 % TODO_DWW: indicate OPT min and max. 
 Ci.costS = costS;
 Ci.costF = costF;
@@ -451,8 +455,8 @@ Oi.specF = specF;
 Oi.TolX_achieved = TolX_achieved;   % Flag
 Oi.TolXnorm = TolXnorm; % Actual value
 Oi.Ni = ii;
-Oi.rho = rho;
-Oi.Delta = Delta;
+Oi.rho = Ti.rho;
+Oi.Delta = Ti.Delta;
 
 
 Li.limMin_f = limMin_f;
@@ -554,9 +558,9 @@ function plotIterations(plotFlag, xi, Delta, caption)
                 plot(xi{ii}(1),xi{ii}(2),strcat(markerstr(1),colourstr(ii)),'LineWidth',2,'MarkerSize',5*ii), grid on, hold on
                 % Plot the TR radius by setting up the rectangle
                 if (Ndx > 1)
-                    transDDelta = [transDelta]
+                    transDDelta = [transDelta];
                 else
-                    transDDelta = [transDelta,transDelta]
+                    transDDelta = [transDelta,transDelta];
                 end
                 transMerge = [transXi-transDDelta,transDDelta*2];
                 % Only plot radius if it is valid
