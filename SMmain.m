@@ -80,7 +80,7 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 
 % Date created: 2015-03-06
 % Dirk de Villiers and Ryno Beyers
-% Last Modified: 2016-08-10
+% Last Modified: 2016-10-17
 % Updates:
 % 2015-03-06: Write function shell and basic functionality
 % 2015-03-09: Continue with shell and basic functionality
@@ -107,7 +107,7 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 % 2016-08-10: Normalization fixed because it was terrible!
 % 2016-08-21: Refactored the main loop to get fine model evaluation at the end and first iteration setup before loop.
 % 2016-10-17: Introduced the basic trust region (BTR) based on Trust-Region Methods by A. R. Conn, N. I. M. Gould and P. L. Toint   
-%       
+% 2016-10-17: Create a test suite that is relatively deterministic for a mathamatical model. 
 
 % Set defaults
 Ni = 10;    % Maximum number of iterations
@@ -123,6 +123,7 @@ eta1 = 0.05;
 eta2 = 0.9;
 alp1 = 2.5;
 alp2 = 0.25;
+testEnabled = 0;
 
 if isfield(OPTopts,'Ni'), Ni = OPTopts.Ni; end
 if isfield(OPTopts,'TRNi'), TRNi = OPTopts.TRNi; end
@@ -138,6 +139,8 @@ if isfield(OPTopts,'eta1'), eta1 = OPTopts.eta1; end
 if isfield(OPTopts,'eta2'), eta1 = OPTopts.eta2; end
 if isfield(OPTopts,'alp1'), eta1 = OPTopts.alp1; end
 if isfield(OPTopts,'alp2'), eta1 = OPTopts.alp2; end
+% TODO_DWW: Ensure this eta bug is fixed
+if isfield(OPTopts,'testEnabled'), eta1 = OPTopts.alp2; end
 
 
 % Set up models - bookkeeping
