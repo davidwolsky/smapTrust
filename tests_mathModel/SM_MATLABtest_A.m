@@ -1,4 +1,4 @@
-function [] = SM_MATLABtest(type)
+function [] = SM_MATLABtest_A(type)
 
 if nargin < 1
     type = 'c';
@@ -92,12 +92,14 @@ OPTopts.optsPBIL.Nfeval = 5000;
 OPTopts.optsPBIL.Nbest = 10; % DOM
 OPTopts.M_PBIL = 4;
 OPTopts.optsFminS = optimset('display','none');
+OPTopts.plotIter = 1;
 OPTopts.TolX = 10e-4;
 OPTopts.eta1 = 0.05;
 OPTopts.eta2 = 0.9;
 OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
-% CRC_TestEnabled: enabled testing
+OPTopts.DeltaInit = 0.25;
+OPTopts.TREnabled = true;
 OPTopts.testEnabled = 1;
 % OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
 
@@ -164,6 +166,8 @@ end
 %% Run the main loop
 [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(x_init,Sinit,SMopts,Mf,Mc,OPTopts);
 
+
+plotIterations(true, Pi, Ti.Delta, OPTopts, 'universalised -- _A');
 keyboard;
 
 

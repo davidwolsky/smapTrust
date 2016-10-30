@@ -57,7 +57,7 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   goalWeight: Vector of goal weights [1,Ng]
 %   goalStart:  Cell array of start of valid goal domain {1,Ng}
 %   goalStop:   Cell array of stop of valid goal domain {1,Ng}
-%   goalCent:   Cell array of centre point of goal domain {1,Ng} (used by the 'bw' goalType) (optional)
+%   goalCent:   Cell array of center point of goal domain {1,Ng} (used by the 'bw' goalType) (optional)
 %   errNorm:    Cell array of type of error norms to use for optimization {1,Ng}
 %               Valid types: (1,2,inf)
 %   TolX:       Termination tolerance on X [ positive scalar - default 10^-2]
@@ -66,8 +66,11 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   plotIter:   Flag to plot the responses after each iteration
 %   eta1:       A factor used by the TR to define the bound governing when to keep or reduce the radius.
 %   eta2:       A factor used by the TR to decide the bound governing when to keep or grow the radius.
-%   alp1:       A factor used by the TR to define the rate at which the radius grows with a very sucessful run.
+%   alp1:       A factor used by the TR to define the rate at which the radius grows with a very successful run.
 %   alp2:       A factor used by the TR to define the rate at which the radius shrinks for divergent fine and surrogate runs.
+%   DeltaInit:  The initial trust region radius.
+% TODO_DWW: Implement this as the next feature for refactoring.  
+%   TREnabled:  Is the trust region approach enabled
 
 % Returns:
 % Ri:   Structure containing the responses at each iteration
@@ -105,9 +108,9 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 % 2016-03-14: Add the delta_x exit criterion
 % 2016-05-27: Normalize data for optimization
 % 2016-08-10: Normalization fixed because it was terrible!
-% 2016-08-21: Refactored the main loop to get fine model evaluation at the end and first iteration setup before loop.
+% 2016-08-21: Re-factored the main loop to get fine model evaluation at the end and first iteration setup before loop.
 % 2016-10-17: Introduced the basic trust region (BTR) based on Trust-Region Methods by A. R. Conn, N. I. M. Gould and P. L. Toint   
-% 2016-10-17: Create a test suite that is relatively deterministic for a mathamatical model. 
+% 2016-10-17: Create a test suite that is relatively deterministic for a mathematical model. 
 
 % Set defaults
 Ni = 10;    % Maximum number of iterations
@@ -124,6 +127,8 @@ eta2 = 0.9;
 alp1 = 2.5;
 alp2 = 0.25;
 testEnabled = 0;
+DeltaInit = 0.25;
+TREnabled = true;
 
 if isfield(OPTopts,'Ni'), Ni = OPTopts.Ni; end
 if isfield(OPTopts,'TRNi'), TRNi = OPTopts.TRNi; end
@@ -139,6 +144,8 @@ if isfield(OPTopts,'eta1'), eta1 = OPTopts.eta1; end
 if isfield(OPTopts,'eta2'), eta2 = OPTopts.eta2; end
 if isfield(OPTopts,'alp1'), alp1 = OPTopts.alp1; end
 if isfield(OPTopts,'alp2'), alp2 = OPTopts.alp2; end
+if isfield(OPTopts,'DeltaInit'), DeltaInit = OPTopts.DeltaInit; end
+if isfield(OPTopts,'TREnabled'), TREnabled = OPTopts.TREnabled; end
 if isfield(OPTopts,'testEnabled'), testEnabled = OPTopts.testEnabled; end
 
 
@@ -239,10 +246,10 @@ ximinn = OPTopts.ximin - OPTopts.ximin;
 ximaxn = OPTopts.ximax./OPTopts.ximax;
 xinitn = (xinit - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
 % The initial trust region radius
-Ti.Deltan{1} = 0.25;
-Ti.Delta{1} = Ti.Deltan{1}.*(OPTopts.ximax - OPTopts.ximin);
+% TODO_DWW: make it possible to not use TR
+Ti.Deltan{1} = DeltaInit;
+Ti.Delta{1} = DeltaInit.*(OPTopts.ximax - OPTopts.ximin);
 
-% CRC_TestEnabled: testing enforced
 if ~testEnabled
     % Optimize coarse model to find initial alignment position
     if globOpt
@@ -258,11 +265,6 @@ else
     xinitn
     xin{1} = xinitn
     costS{1} = costSurr(xinitn,Sinit,OPTopts)
-    keyboard
-    % Remove start
-    % Force a bad start...
-    % xin{1} = xin{1}./2;
-    % Remove stop
 end
 
 
@@ -270,12 +272,6 @@ end
 xi{1} = xin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
 
 Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
-
-% Remove start
-% costS{1} = costFunc(Rci{1},OPTopts);
-% Remove stop
-
-
 Rfi{1} = fineMod(Mf,xi{1});
 for rr = 1:Nr
     if globOptSM > 0, SMopts.globOpt = 1; end
@@ -334,12 +330,12 @@ while ii <= Ni && ~specF && ~TolX_achieved
             % L2 norm describing the parameter space distance between the points
             TolXnorm = norm((xin{ii+1} - xin{ii}),2);
             TolX_achieved = TolXnorm < TolX;
-            %         if TolX_achieved, keyboard; end
             
             enforceFineModelLimits();
             
-            % CRC_DDV: DWW: Isn't it weird that the coarseMod is run the same number of times as the fine?
-            Rci{ii+1} = coarseMod(Mc,xi{ii+1},Sinit.xp,fc);
+            if ( plotIter )
+                Rci{ii+1} = coarseMod(Mc,xi{ii+1},Sinit.xp,fc);
+            end
             Rfi{ii+1} = fineMod(Mf,xi{ii+1});
 
             Ti.xi_all{end+1}  = xi{ii+1};
@@ -351,11 +347,9 @@ while ii <= Ni && ~specF && ~TolX_achieved
                 % optimization - thus at current iteration position
                 % TODO_DWW: comment a bit more and clean up. Explain ii +-1
                 Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1-1}{rr});
-                % CRC_DDV: DWW: Not sure which of these should actually be used here...
-%                 Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si_all{end}{rr});
-                Rsi{ii+1}{rr}.t = Rci{ii+1}{rr}.t;
-                if isfield(Rci{ii+1}{rr},'f')
-                    Rsi{ii+1}{rr}.f = Rci{ii+1}{rr}.f; 
+                Rsi{ii+1}{rr}.t = Rci{1}{rr}.t;
+                if isfield(Rci{1}{rr},'f')
+                    Rsi{ii+1}{rr}.f = Rci{1}{rr}.f; 
                 end
                 if globOptSM < 2, SMopts.globOpt = 0; end
                 if ~useAllFine
@@ -372,9 +366,9 @@ while ii <= Ni && ~specF && ~TolX_achieved
                 end
                 % Also get the currently aligned surrogate for comparison
                 Rsai{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1}{rr});
-                Rsai{ii+1}{rr}.t = Rci{ii+1}{rr}.t;
-                if isfield(Rci{ii+1}{rr},'f')
-                    Rsai{ii+1}{rr}.f = Rci{ii+1}{rr}.f; 
+                Rsai{ii+1}{rr}.t = Rci{1}{rr}.t;
+                if isfield(Rci{1}{rr},'f')
+                    Rsai{ii+1}{rr}.f = Rci{1}{rr}.f; 
                 end
             end
             % Si_all{end+1} = Si{ii+1};
@@ -397,10 +391,6 @@ while ii <= Ni && ~specF && ~TolX_achieved
 				Ti.rho{ii}{kk} = 0.0;
 			end
 			
-			% Ti.rho{ii}
-			% Ti.Deltan{ii}
-            % Nn
-%             keyboard
             Ti.sk{ii} = xin{ii+1}-xin{ii};
             if Ti.rho{ii}{kk} >= eta2
                 TRsuccess = 1;
@@ -454,9 +444,8 @@ Ri.Rsa = Rsai;  % Surrogate before optimization, just after alignment at end of 
 
 Pi = xi;
 
-plotIterations(true, xin, Ti.Deltan, 'Normalised');
-plotIterations(true, xi, Ti.Delta, 'De-normalised');
-% TODO_DWW: indicate OPT min and max. 
+plotIterations(true, xin, Ti.Deltan, false, 'Normalised');
+plotIterations(true, xi, Ti.Delta, OPTopts, 'De-normalised/globalised/universalised');
 Ci.costS = costS;
 Ci.costF = costF;
 
@@ -508,96 +497,7 @@ function enforceFineModelLimits()
 	end
 end %enforceFineModelLimits
 
-
 end % SMmain
-
-
-function plotModels(plotFlag, itNum, Rci, Rfi, Rsi, Rsai, OPTopts)
-    if plotFlag
-        figure(itNum)
-		Nr = length(OPTopts.Rtype); % Number of responses requested
-        for rr = 1:Nr
-            subplot(Nr,1,rr)
-            if isfield(Rci{itNum}{rr},'f')
-                plot(Rci{itNum}{rr}.f,Rfi{itNum}{rr}.r,'k'), grid on, hold on
-                plot(Rci{itNum}{rr}.f,Rci{itNum}{rr}.r,'r'), grid on, hold on
-                plot(Rsi{itNum}{rr}.f,Rsi{itNum}{rr}.r,'b')
-                plot(Rsai{itNum}{rr}.f,Rsai{itNum}{rr}.r,'g--')
-                xlabel('Frequency')
-                % Plot the specs...
-            else
-                plot(Rfi{itNum}{rr}.r,'k'), grid on, hold on
-                plot(Rci{itNum}{rr}.r,'r'), grid on, hold on
-                plot(Rsi{itNum}{rr}.r,'b')
-                plot(Rsai{itNum}{rr}.r,'g')
-                xlabel('Index')
-                % Plot the specs...
-            end
-            ylabel(OPTopts.Rtype{rr})
-            title(['Iteration ',num2str(itNum)])
-            legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate')
-        end
-
-    end
-end % plotModels
-
-
-function plotIterations(plotFlag, xi, Delta, caption)
-    if plotFlag
-        markerstr = 'xso+*d.^v><ph';
-        colourstr = 'kbrgmcy';
-
-        % Manipulate data format and ensure that everything has the same dimensions
-        Ni = length(xi);
-        Nx = length(xi{1});
-        transXi = transpose(cell2mat(xi));
-        Ndi = length(Delta);
-        Ndx = length(Delta{1});
-        if (Ni > Ndi)
-            % Handle the case of the no TR is available - returned from tollerance or something 
-            Delta{end+1} = zeros(Ndx,1);
-        end
-        transDelta = transpose(cell2mat(Delta));
-
-        figure()
-        % For two dimensional plot the two parameters against each other 
-        if (Nx == 2 )
-            axis equal
-            for ii = 1:Ni
-                plot(xi{ii}(1),xi{ii}(2),strcat(markerstr(1),colourstr(ii)),'LineWidth',2,'MarkerSize',5*ii), grid on, hold on
-                % Plot the TR radius by setting up the rectangle
-                if (Ndx > 1)
-                    transDDelta = [transDelta];
-                else
-                    transDDelta = [transDelta,transDelta];
-                end
-                transMerge = [transXi-transDDelta,transDDelta*2];
-                % Only plot radius if it is valid
-                if (transMerge(ii,3) > 0)
-                    rectangle('Position',transMerge(ii,1:4), 'EdgeColor',colourstr(ii),'LineWidth',2)
-                end
-            end
-            axis equal
-            xlabel('x1 value')
-            ylabel('x2 value')
-            title({strcat('Values at each iteration ploted against each other with trust region radius - ', caption)})
-        else
-            for ii = 1:Nx
-                plot(transXi(:,ii), strcat(markerstr(ii),colourstr(ii)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-                xOffset = transpose(1:Ni)+(ii*0.07);
-                if (Ndx > 1)
-                    errorbar(xOffset, transXi(:,ii), transDelta(:,ii), strcat('.',colourstr(ii)),'LineWidth',1.5,'MarkerSize',10 ), grid on, hold on                 
-                else
-                    errorbar(xOffset, transXi(:,ii), transDelta(:), strcat('.',colourstr(ii)),'LineWidth',1.5,'MarkerSize',10 ), grid on, hold on                    
-                end
-            end
-            xlabel('Iteration')
-            ylabel('Value')
-            title({strcat('Values per iteration with trust region radius - ', caption)})
-        end
-        legend()
-    end
-end
 
 
 function Rf = fineMod(M,xi)
