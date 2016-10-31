@@ -45,9 +45,9 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
-.sublime-workspace
-.sublime-project
-.asv
+*.sublime-workspace
+*.sublime-project
+*.asv
 SM_MATLABtest.asv
 SMmain.asv
 
