@@ -20,7 +20,6 @@ opts.optsFminS = optimset('display','none');
 % x_init = [0.5,1.5,0.03]';
 % CRC_TestEnabled: using values from previously testrun known c 
 x_init = [0.964612260448512, 0.930319809324020, 0.865129843255812]';
-
 % x_init = [0.5,1.5]';
 xp_init = [2,1]';
 
@@ -100,7 +99,7 @@ OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
 OPTopts.DeltaInit = 0.25;
 OPTopts.TREnabled = true;
-OPTopts.testEnabled = 1;
+OPTopts.testEnabled = true;
 % OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
 
 
@@ -166,8 +165,8 @@ end
 %% Run the main loop
 [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(x_init,Sinit,SMopts,Mf,Mc,OPTopts);
 
-
-plotIterations(true, Pi, Ti.Delta, OPTopts, 'universalised -- _A');
+plotNomalised = false;
+plotIterations(true, Pi, Ti.Delta, OPTopts, plotNomalised, 'universalised -- _A');
 keyboard;
 
 
