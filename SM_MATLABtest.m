@@ -17,8 +17,8 @@ opts.optsFminS = optimset('display','none');
 
 
 % x_init = [0.5,1.5,0.03,0.5,0.5]';
-% x_init = [0.5,1.5,0.03]';
-x_init = [0.5,1.5]';
+x_init = [0.5,1.5,0.03]';
+% x_init = [0.5,1.5]';
 xp_init = [2,1]';
 
 Nn = length(x_init);
@@ -74,6 +74,7 @@ OPTopts.ximin = Mf.ximin;
 OPTopts.ximax = Mf.ximax;
 OPTopts.Ni = 5;
 OPTopts.TRNi = OPTopts.Ni*2;
+% OPTopts.TRNi = 1;
 OPTopts.Rtype = {'Gen'};
 % OPTopts.globOpt = 1;
 OPTopts.globOpt = 0;
@@ -94,7 +95,6 @@ OPTopts.eta1 = 0.05;
 OPTopts.eta2 = 0.9;
 OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
-OPTopts.TREnabled = true;
 OPTopts.testEnabled = 0;
 % OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
 

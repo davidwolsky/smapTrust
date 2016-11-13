@@ -11,7 +11,7 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   path:   Full path to file
 %   name:   File name of file (without extension)
 %   solver:     'CST'/'FEKO'/'MATLAB' (for now)
-%   params:     Cell array of paramater names - same order as xinit {Nn,1}
+%   params:     Cell array of parameter names - same order as xinit {Nn,1}
 %   The following (2) limits are only for warning generation - not used in optimization
 %   ximin:  Vector of minimum values to limit the parameters [Nn,1] 
 %   ximax:  Vector of maximum values to limit the parameters [Nn,1]
@@ -20,7 +20,7 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   path:   Full path to file
 %   name:   File name of file (without extension)
 %   solver:     'FEKO'/'MATLAB' (for now)
-%   params:     Cell array of paramater names - same order as xinit {Nn,1}
+%   params:     Cell array of parameter names - same order as xinit {Nn,1}
 %   The following (2) limits are only for warning generation - not used in optimization
 %   ximin:  Vector of minimum values to limit the parameters [Nn,1]
 %   ximax:  Vector of maximum values to limit the parameters [Nn,1]
@@ -37,7 +37,8 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %               'S11complex'
 %               'Gen' - generic case for use with MATLAB models 
 %   Ni:         Maximum number of iterations
-%   TRNi:       Maximum number of iterations for the Trust region loop
+%   TRNi:       Maximum number of iterations for the Trust region loop.
+%               To turn the TR off use TRNi=1.
 %   globOpt:    Flag to run PBIL (1 for only first iteration, 2 for all iterations) (default 0)
 %   M_PBIL:     Vector of bits for the global search variables (see PBILreal.m)
 %   globOptSM:  Flag to run PBIL during the PE process (1 for only first iteration, 2 for all iterations) (default 0)
@@ -69,7 +70,7 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   alp1:       A factor used by the TR to define the rate at which the radius grows with a very successful run.
 %   alp2:       A factor used by the TR to define the rate at which the radius shrinks for divergent fine and surrogate runs.
 %   DeltaInit:  The initial trust region radius.
-%   TREnabled:  Is the trust region approach enabled
+% TODO_DWW: Implement this as the next feature for refactoring.  
 
 % Returns:
 % Ri:   Structure containing the responses at each iteration
@@ -110,7 +111,7 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 % 2016-08-21: Re-factored the main loop to get fine model evaluation at the end and first iteration setup before loop.
 % 2016-10-17: Introduced the basic trust region (BTR) based on Trust-Region Methods by A. R. Conn, N. I. M. Gould and P. L. Toint   
 % 2016-10-17: Create a test suite that is relatively deterministic for a mathematical model. 
-% 2016-11-01: Allow the trust region limits to be turned off. 
+% 2016-11-13: Allow the TR to be turned off using TRNi=1.
 
 % Set defaults
 Ni = 10;    % Maximum number of iterations
@@ -128,11 +129,6 @@ alp1 = 2.5;
 alp2 = 0.25;
 testEnabled = 0;
 DeltaInit = 0.25;
-TREnabled = true;
-Ti = {};
-Ti.Delta = {};
-Ti.Deltan = {};
-Ti.rho = {};
 
 if isfield(OPTopts,'Ni'), Ni = OPTopts.Ni; end
 if isfield(OPTopts,'TRNi'), TRNi = OPTopts.TRNi; end
@@ -149,7 +145,6 @@ if isfield(OPTopts,'eta2'), eta2 = OPTopts.eta2; end
 if isfield(OPTopts,'alp1'), alp1 = OPTopts.alp1; end
 if isfield(OPTopts,'alp2'), alp2 = OPTopts.alp2; end
 if isfield(OPTopts,'DeltaInit'), DeltaInit = OPTopts.DeltaInit; end
-if isfield(OPTopts,'TREnabled'), TREnabled = OPTopts.TREnabled; end
 if isfield(OPTopts,'testEnabled'), testEnabled = OPTopts.testEnabled; end
 
 
@@ -221,7 +216,7 @@ end
 %   1)  Test for convergence.
 %       2)  Use TR to set up bounds for the optimiser.
 %       3)  Optimize the current model Si{ii} to find the next xi (xi{ii+1}).
-%       Evaluation are placed forward into the next (ii+1) iteration placeholder. 
+%       Evaluation are placed forward into the next (ii+1) iteration place-holder. 
 %       This is over-written if the runs is not successful, i.e. the surrogate and fine models diverge. 
 %       4)  Evaluate the fine model at next position (Rfi{ii+1}).
 %       5)  Get the response of the current iteration surrogate (Rsi{ii}) and at the next step (Rsi{ii+1}). 
@@ -231,9 +226,9 @@ end
 %       7)  Align the model at the next step to get Rsai.
 %       8)  Calculate the costs change for the fine model and the surrogates (between ii and ii+1). 
 %           The difference is stored in rho{ii} and clipped to zero if one, or both, costs get worse.
-%       8)  Calculate the step (sk{ii}) between the current and next paremater.
+%       8)  Calculate the step (sk{ii}) between the current and next parameter.
 %       9)  Decide if this step is successful.
-%      10)  Depending on how successful either keep the current normaised radius (Deltan{ii}) or grow it. 
+%      10)  Depending on how successful either keep the current normalised radius (Deltan{ii}) or grow it. 
 %           If it is unsuccessful (the costs diverge) then shrink the radius and try this step again 
 %           (increase kk but not ii).
 %      11)  If successful then clean up the extra fine models that were kept.
@@ -249,6 +244,9 @@ ii = 1;
 ximinn = OPTopts.ximin - OPTopts.ximin;
 ximaxn = OPTopts.ximax./OPTopts.ximax;
 xinitn = (xinit - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
+% The initial trust region radius
+Ti.Deltan{1} = DeltaInit;
+Ti.Delta{1} = DeltaInit.*(OPTopts.ximax - OPTopts.ximin);
 
 if ~testEnabled
     % Optimize coarse model to find initial alignment position
@@ -261,9 +259,12 @@ if ~testEnabled
     nonLcon = [];
     [xin{1}, costS{1}] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
 else
-    xin{1} = xinitn;
-    costS{1} = costSurr(xinitn,Sinit,OPTopts);
+    testEnabled
+    xinitn
+    xin{1} = xinitn
+    costS{1} = costSurr(xinitn,Sinit,OPTopts)
 end
+
 
 % De-normalize input vector
 xi{1} = xin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
@@ -279,9 +280,14 @@ for rr = 1:Nr
     Rsai{1}{rr} = Rsi{1}{rr};
 end
 
-if TREnabled
-    setTRDefaults();
-end
+% TODO: DWW: rename
+% count_all = 1;
+Ti.xi_all{1} = xi{1};
+% xin_all{1} = xin{1};
+Ti.Rfi_all{1} = Rfi{1};
+% Si_all{1} = Si{1};
+% costS_all{1} = costS{1};
+
 
 % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
 plotModels(plotIter, 1, Rci, Rfi, Rsi, Rsai, OPTopts);
@@ -292,25 +298,150 @@ costF_all{1} = costF{1};
     
 while ii <= Ni && ~specF && ~TolX_achieved
 %Coming into this iteration as ii now with the fine model run here already and responses available. 
+
     % Exit if spec is reached (will typically not work for eq and never for minimax, and bw is explicitly excluded)
     if costF{ii} == 0 && isempty(find(ismember(OPTopts.goalType,'bw'),1))
         specF = 1;
     else
         specF = 0;
-        if TREnabled
-            runTRLoop();
-        else
-            % TODO_DWW: Need a better name for this.
-            runWithoutTR();
+        
+        % TR
+        TRsuccess = 0;
+        kk = 1;
+        while ~TRsuccess && kk <= TRNi && ~TolX_achieved
+            % Set up TR boundaries or remove them if TR is not to be used.
+            if ( TRNi == 1 )
+                ximinnTR = ximinn;
+                ximaxnTR = ximaxn;
+            else
+                ximinnTR = max((xin{ii} - Ti.Deltan{ii}),ximinn);
+                ximaxnTR = min((xin{ii} + Ti.Deltan{ii}),ximaxn);
+            end
+
+            % Do optimization
+            if globOpt == 2
+                [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinnTR,ximaxnTR,M_PBIL,optsPBIL);
+                xinitn = reshape(xinitn,Nn,1);
+            end
+            LHSmat = [];
+            RHSvect = [];
+            nonLcon = [];
+            [xin{ii+1}, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xinitn,ximinnTR,ximaxnTR,LHSmat,RHSvect,nonLcon,optsFminS);
+            % De-normalize input vector. The new input vector that is.
+            xi{ii+1} = xin{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
+            
+            % L2 norm describing the parameter space distance between the points
+            TolXnorm = norm((xin{ii+1} - xin{ii}),2);
+            TolX_achieved = TolXnorm < TolX;
+            
+            enforceFineModelLimits();
+            
+            if ( plotIter )
+                Rci{ii+1} = coarseMod(Mc,xi{ii+1},Sinit.xp,fc);
+            end
+            Rfi{ii+1} = fineMod(Mf,xi{ii+1});
+
+            Ti.xi_all{end+1}  = xi{ii+1};
+			% xin_all{end+1} = xin{ii+1};
+            Ti.Rfi_all{end+1} = Rfi{ii+1};
+            
+            for rr = 1:Nr
+                % Get the surrogate response after previous iteration
+                % optimization - thus at current iteration position
+                % TODO_DWW: comment a bit more and clean up. Explain ii +-1
+                Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1-1}{rr});
+                Rsi{ii+1}{rr}.t = Rci{1}{rr}.t;
+                if isfield(Rci{1}{rr},'f')
+                    Rsi{ii+1}{rr}.f = Rci{1}{rr}.f; 
+                end
+                if globOptSM < 2, SMopts.globOpt = 0; end
+                if ~useAllFine
+                    % Re-evaluate the surrogate at the new point. 
+                    Si{ii}{rr}   = buildSurr(xi{ii},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
+                    Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
+                else
+                    for iii = 1:length(Ti.Rfi_all)
+                        r{iii} = Ti.Rfi_all{iii}{rr}.r;
+                    end
+                    % Re-evaluate the surrogate at the new point. 
+                    Si{ii}{rr}   = buildSurr(Ti.xi_all,r,Si{ii+1-1}{rr},SMopts);
+                    Si{ii+1}{rr} = buildSurr(Ti.xi_all,r,Si{ii+1-1}{rr},SMopts);
+                end
+                % Also get the currently aligned surrogate for comparison
+                Rsai{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1}{rr});
+                Rsai{ii+1}{rr}.t = Rci{1}{rr}.t;
+                if isfield(Rci{1}{rr},'f')
+                    Rsai{ii+1}{rr}.f = Rci{1}{rr}.f; 
+                end
+            end
+            % Si_all{end+1} = Si{ii+1};
+            
+            % Test fine model response
+            costF{ii+1} = costFunc(Rfi{ii+1},OPTopts);
+			costF_all{end+1} = costF{ii+1};
+			
+            % TODO_DWW: Comment here about needing to compare the last and current surrogates
+            costS{ii}   = costSurr(xin{ii},Si{ii+1}{:},OPTopts);
+            costS{ii+1} = costSurr(xin{ii+1},Si{ii+1}{:},OPTopts);
+			% costS_all{end+1} = costS{ii+1};
+			
+            % Evaluate results and adjust radius for next iteration
+			costChangeF = (costF{ii} - costF{ii+1});
+			costChangeS = (costS{ii} - costS{ii+1});
+			if ( costChangeF > 0 && costChangeS > 0 && abs(costChangeS) > TolX )
+				Ti.rho{ii}{kk} = (costChangeF)./(costChangeS);
+			else
+				Ti.rho{ii}{kk} = 0.0;
+			end
+			
+            Ti.sk{ii} = xin{ii+1}-xin{ii};
+            if Ti.rho{ii}{kk} >= eta2
+                TRsuccess = 1;
+                Ti.Deltan{ii+1} = max(alp1.*norm(Ti.sk{ii}),Ti.Deltan{ii});
+                Ti.Delta{ii+1} = Ti.Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin);
+            elseif Ti.rho{ii}{kk} > eta1
+                TRsuccess = 1;
+                Ti.Deltan{ii+1} = Ti.Deltan{ii};
+                Ti.Delta{ii+1} = Ti.Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin);
+            else
+                TRsuccess = 0;
+                Ti.Deltan{ii} = alp2*norm(Ti.sk{ii}); % Shrink current Delta
+                Ti.Delta{ii} = Ti.Deltan{ii}.*(OPTopts.ximax - OPTopts.ximin);
+                % Keep next iteration clean in-case we are not using the TR
+                % or if we encounter a tolerance problem before the next
+                % iteration.
+                Ti.Deltan{ii+1} = 0;
+                Ti.Delta{ii+1} = 0.*(OPTopts.ximax - OPTopts.ximin); 
+            end
+            
+            kk = kk+1;
+            % count_all = count_all+1;
+
+            % Remove any additional fine model runs and clean up rest of iteration lasting variables.
+            if TRsuccess
+                %  TODO_DWW: comment about this.
+                for count = 1:kk-2
+                    Ti.xi_all(length(Ti.xi_all)-1) = [];
+                    % xin_all(length(xin_all)-1) = [];
+                    Ti.Rfi_all(length(Ti.Rfi_all)-1) = [];
+                    % Si_all(length(Si_all)-1) = [];
+                    % costS_all(length(costS_all)-1) = [];
+                    costF_all(length(costF_all)-1) = [];
+				end
+            end
         end
+        
         % Make a (crude) log file
         %     save SMlog ii xi Rci Rfi Rsi Si costS costF limF limC limS
         save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c Ti
         
         % Plot the fine, coarse, optimised surrogate and aligned surrogate
         plotModels(plotIter, ii+1, Rci, Rfi, Rsi, Rsai, OPTopts);
+        
     end
+    
     ii = ii+1;
+    
 end % Main while loop
 
 % Handle output structures
@@ -321,10 +452,9 @@ Ri.Rsa = Rsai;  % Surrogate before optimization, just after alignment at end of 
 
 Pi = xi;
 
-plotNomalised = true;
-plotIterations(true, xi, Ti.Deltan, OPTopts, plotNomalised, 'Normalised');
-plotNomalised = false;
-plotIterations(true, xi, Ti.Delta, OPTopts, plotNomalised, 'De-normalised/globalised/universalised');
+plotNormalised = true;
+plotIterations(true, xi, Ti.Delta, OPTopts, plotNormalised, 'Normalised');
+plotIterations(true, xi, Ti.Delta, OPTopts, ~plotNormalised, 'De-normalised/globalised/universalised');
 Ci.costS = costS;
 Ci.costF = costF;
 
@@ -375,261 +505,6 @@ function enforceFineModelLimits()
 		end
 	end
 end %enforceFineModelLimits
-
-function setTRDefaults()
-    % TODO_DWW: Move this to runTR function rather... if not used elsewhere.  
-    % The initial trust region radius
-    % TODO_DWW: make it possible to not use TR
-    Ti.Deltan{1} = DeltaInit;
-    Ti.Delta{1} = DeltaInit.*(OPTopts.ximax - OPTopts.ximin);
-
-    % TODO_DWW: Move this to runTR function rather... if not used elsewhere.
-    % TODO: DWW: rename
-    % count_all = 1;
-    Ti.xi_all{1} = xi{1};
-    % xin_all{1} = xin{1};
-    Ti.Rfi_all{1} = Rfi{1};
-    % Si_all{1} = Si{1};
-    % costS_all{1} = costS{1};
-end % setTRDefaults
-
-function runTRLoop()
-    print('runTRLoop()')
-    TRsuccess = 0;
-    kk = 1;
-
-    while ~TRsuccess && kk < TRNi && ~TolX_achieved
-        % Set up TR boundaries
-        ximinnTR = max((xin{ii} - Ti.Deltan{ii}),ximinn);
-        ximaxnTR = min((xin{ii} + Ti.Deltan{ii}),ximaxn);
-        
-        % Do optimization
-        if globOpt == 2
-            [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinnTR,ximaxnTR,M_PBIL,optsPBIL);
-            xinitn = reshape(xinitn,Nn,1);
-        end
-        LHSmat = [];
-        RHSvect = [];
-        nonLcon = [];
-        [xin{ii+1}, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xinitn,ximinnTR,ximaxnTR,LHSmat,RHSvect,nonLcon,optsFminS);
-        % De-normalize input vector. The new input vector that is.
-        xi{ii+1} = xin{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
-        
-        % L2 norm describing the parameter space distance between the points
-        TolXnorm = norm((xin{ii+1} - xin{ii}),2);
-        TolX_achieved = TolXnorm < TolX;
-        
-        enforceFineModelLimits();
-        
-        if ( plotIter )
-            Rci{ii+1} = coarseMod(Mc,xi{ii+1},Sinit.xp,fc);
-        end
-        Rfi{ii+1} = fineMod(Mf,xi{ii+1});
-
-        Ti.xi_all{end+1}  = xi{ii+1};
-        % xin_all{end+1} = xin{ii+1};
-        Ti.Rfi_all{end+1} = Rfi{ii+1};
-        
-        for rr = 1:Nr
-            % Get the surrogate response after previous iteration
-            % optimization - thus at current iteration position
-            % TODO_DWW: comment a bit more and clean up. Explain ii +-1
-            Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1-1}{rr});
-            Rsi{ii+1}{rr}.t = Rci{1}{rr}.t;
-            if isfield(Rci{1}{rr},'f')
-                Rsi{ii+1}{rr}.f = Rci{1}{rr}.f; 
-            end
-            if globOptSM < 2, SMopts.globOpt = 0; end
-            if ~useAllFine
-                % Re-evaluate the surrogate at the new point. 
-                Si{ii}{rr}   = buildSurr(xi{ii},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
-                Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
-            else
-                for iii = 1:length(Ti.Rfi_all)
-                    r{iii} = Ti.Rfi_all{iii}{rr}.r;
-                end
-                % Re-evaluate the surrogate at the new point. 
-                Si{ii}{rr}   = buildSurr(Ti.xi_all,r,Si{ii+1-1}{rr},SMopts);
-                Si{ii+1}{rr} = buildSurr(Ti.xi_all,r,Si{ii+1-1}{rr},SMopts);
-            end
-            % Also get the currently aligned surrogate for comparison
-            Rsai{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1}{rr});
-            Rsai{ii+1}{rr}.t = Rci{1}{rr}.t;
-            if isfield(Rci{1}{rr},'f')
-                Rsai{ii+1}{rr}.f = Rci{1}{rr}.f; 
-            end
-        end
-        % Si_all{end+1} = Si{ii+1};
-        
-        % Test fine model response
-        costF{ii+1} = costFunc(Rfi{ii+1},OPTopts);
-        costF_all{end+1} = costF{ii+1};
-        
-        % TODO_DWW: Comment here about needing to compare the last and current surrogates
-        costS{ii}   = costSurr(xin{ii},Si{ii+1}{:},OPTopts);
-        costS{ii+1} = costSurr(xin{ii+1},Si{ii+1}{:},OPTopts);
-        % costS_all{end+1} = costS{ii+1};
-        
-        % Evaluate results and adjust radius for next iteration
-        costChangeF = (costF{ii} - costF{ii+1});
-        costChangeS = (costS{ii} - costS{ii+1});
-        if ( costChangeF > 0 && costChangeS > 0 && abs(costChangeS) > TolX )
-            Ti.rho{ii}{kk} = (costChangeF)./(costChangeS);
-        else
-            Ti.rho{ii}{kk} = 0.0;
-        end
-        
-        Ti.sk{ii} = xin{ii+1}-xin{ii};
-        if Ti.rho{ii}{kk} >= eta2
-            TRsuccess = 1;
-            Ti.Deltan{ii+1} = max(alp1.*norm(Ti.sk{ii}),Ti.Deltan{ii});
-            Ti.Delta{ii+1} = Ti.Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin);
-        elseif Ti.rho{ii}{kk} > eta1
-            TRsuccess = 1;
-            Ti.Deltan{ii+1} = Ti.Deltan{ii};
-            Ti.Delta{ii+1} = Ti.Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin);
-        else
-            TRsuccess = 0;
-            Ti.Deltan{ii} = alp2*norm(Ti.sk{ii}); % Shrink current Delta
-            Ti.Delta{ii} = Ti.Deltan{ii}.*(OPTopts.ximax - OPTopts.ximin);
-        end
-        
-        kk = kk+1;
-        % count_all = count_all+1;
-
-        % Remove any additional fine model runs and clean up rest of iteration lasting variables.
-        if TRsuccess
-            %  TODO_DWW: comment about this.
-            for count = 1:kk-2
-                Ti.xi_all(length(Ti.xi_all)-1) = [];
-                % xin_all(length(xin_all)-1) = [];
-                Ti.Rfi_all(length(Ti.Rfi_all)-1) = [];
-                % Si_all(length(Si_all)-1) = [];
-                % costS_all(length(costS_all)-1) = [];
-                costF_all(length(costF_all)-1) = [];
-            end
-        end
-    end % while
-end % runTRLoop
-
-function runWithoutTR()
-    print('runWithoutTR()')
-    % TRsuccess = 0;
-    % kk = 1;
-
-    % while ~TRsuccess && kk < TRNi && ~TolX_achieved
-    % % Set up TR boundaries
-    % ximinnTR = max((xin{ii} - Ti.Deltan{ii}),ximinn);
-    % ximaxnTR = min((xin{ii} + Ti.Deltan{ii}),ximaxn);
-
-    % Do optimization
-    if globOpt == 2
-        [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
-        xinitn = reshape(xinitn,Nn,1);
-    end
-    LHSmat = [];
-    RHSvect = [];
-    nonLcon = [];
-    [xin{ii+1}, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
-    % De-normalize input vector. The new input vector that is.
-    xi{ii+1} = xin{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
-
-    % L2 norm describing the parameter space distance between the points
-    TolXnorm = norm((xin{ii+1} - xin{ii}),2);
-    TolX_achieved = TolXnorm < TolX;
-
-    enforceFineModelLimits();
-
-    if plotIter
-        Rci{ii+1} = coarseMod(Mc,xi{ii+1},Sinit.xp,fc);
-    end
-    Rfi{ii+1} = fineMod(Mf,xi{ii+1});
-
-    % Ti.xi_all{end+1}  = xi{ii+1};
-    % % xin_all{end+1} = xin{ii+1};
-    % Ti.Rfi_all{end+1} = Rfi{ii+1};
-
-    for rr = 1:Nr
-        % Get the surrogate response after previous iteration
-        % optimization - thus at current iteration position
-        % TODO_DWW: comment a bit more and clean up. Explain ii +-1
-        Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1-1}{rr});
-        Rsi{ii+1}{rr}.t = Rci{1}{rr}.t;
-        if isfield(Rci{1}{rr},'f')
-            Rsi{ii+1}{rr}.f = Rci{1}{rr}.f; 
-        end
-        if globOptSM < 2, SMopts.globOpt = 0; end
-        if ~useAllFine
-            % Re-evaluate the surrogate at the new point. 
-            Si{ii}{rr}   = buildSurr(xi{ii},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
-            Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
-        else
-            for iii = 1:length(Rfi)
-                r{iii} = Rfi{iii}{rr}.r;
-            end
-            % Re-evaluate the surrogate at the new point. 
-            Si{ii}{rr}   = buildSurr(xi,r,Si{ii+1-1}{rr},SMopts);
-            Si{ii+1}{rr} = buildSurr(xi,r,Si{ii+1-1}{rr},SMopts);
-        end
-        % Also get the currently aligned surrogate for comparison
-        Rsai{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1}{rr});
-        Rsai{ii+1}{rr}.t = Rci{1}{rr}.t;
-        if isfield(Rci{1}{rr},'f')
-            Rsai{ii+1}{rr}.f = Rci{1}{rr}.f; 
-        end
-    end
-    % Si_all{end+1} = Si{ii+1};
-
-    % Test fine model response
-    costF{ii+1} = costFunc(Rfi{ii+1},OPTopts);
-    % costF_all{end+1} = costF{ii+1};
-
-    % TODO_DWW: Comment here about needing to compare the last and current surrogates
-    costS{ii}   = costSurr(xin{ii},Si{ii+1}{:},OPTopts);
-    costS{ii+1} = costSurr(xin{ii+1},Si{ii+1}{:},OPTopts);
-    % costS_all{end+1} = costS{ii+1};
-
-    % Evaluate results and adjust radius for next iteration
-    costChangeF = (costF{ii} - costF{ii+1});
-    costChangeS = (costS{ii} - costS{ii+1});
-    % if ( costChangeF > 0 && costChangeS > 0 && abs(costChangeS) > TolX )
-    %     Ti.rho{ii}{kk} = (costChangeF)./(costChangeS);
-    % else
-    %     Ti.rho{ii}{kk} = 0.0;
-    % end
-
-    % Ti.sk{ii} = xin{ii+1}-xin{ii};
-    % if Ti.rho{ii}{kk} >= eta2
-    %     TRsuccess = 1;
-    %     Ti.Deltan{ii+1} = max(alp1.*norm(Ti.sk{ii}),Ti.Deltan{ii});
-    %     Ti.Delta{ii+1} = Ti.Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin);
-    % elseif Ti.rho{ii}{kk} > eta1
-    %     TRsuccess = 1;
-    %     Ti.Deltan{ii+1} = Ti.Deltan{ii};
-    %     Ti.Delta{ii+1} = Ti.Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin);
-    % else
-    %     TRsuccess = 0;
-    %     Ti.Deltan{ii} = alp2*norm(Ti.sk{ii}); % Shrink current Delta
-    %     Ti.Delta{ii} = Ti.Deltan{ii}.*(OPTopts.ximax - OPTopts.ximin);
-    % end
-
-    % kk = kk+1;
-    % count_all = count_all+1;
-
-    % % Remove any additional fine model runs and clean up rest of iteration lasting variables.
-    % if TRsuccess
-    %     %  TODO_DWW: comment about this.
-    %     for count = 1:kk-2
-    %         Ti.xi_all(length(Ti.xi_all)-1) = [];
-    %         % xin_all(length(xin_all)-1) = [];
-    %         Ti.Rfi_all(length(Ti.Rfi_all)-1) = [];
-    %         % Si_all(length(Si_all)-1) = [];
-    %         % costS_all(length(costS_all)-1) = [];
-    %         costF_all(length(costF_all)-1) = [];
-    %     end
-    % end
-    % end % while
-end % runWithoutTR
 
 end % SMmain
 

@@ -76,6 +76,7 @@ OPTopts.ximin = Mf.ximin;
 OPTopts.ximax = Mf.ximax;
 OPTopts.Ni = 5;
 OPTopts.TRNi = OPTopts.Ni*2;
+% OPTopts.TRNi = 1;
 OPTopts.Rtype = {'Gen'};
 % OPTopts.globOpt = 1;
 OPTopts.globOpt = 0;
@@ -98,7 +99,6 @@ OPTopts.eta2 = 0.9;
 OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
 OPTopts.DeltaInit = 0.25;
-OPTopts.TREnabled = true;
 OPTopts.testEnabled = true;
 % OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
 
@@ -165,8 +165,8 @@ end
 %% Run the main loop
 [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(x_init,Sinit,SMopts,Mf,Mc,OPTopts);
 
-plotNomalised = false;
-plotIterations(true, Pi, Ti.Delta, OPTopts, plotNomalised, 'universalised -- _A');
+plotNormalised = false;
+% plotIterations(true, Pi, Ti.Delta, OPTopts, plotNormalised, 'universalised -- _A');
 keyboard;
 
 
