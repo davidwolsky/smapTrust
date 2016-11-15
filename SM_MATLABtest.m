@@ -17,8 +17,8 @@ opts.optsFminS = optimset('display','none');
 
 
 % x_init = [0.5,1.5,0.03,0.5,0.5]';
-x_init = [0.5,1.5,0.03]';
-% x_init = [0.5,1.5]';
+% x_init = [0.5,1.5,0.03]';
+x_init = [0.5,1.5]';
 xp_init = [2,1]';
 
 Nn = length(x_init);

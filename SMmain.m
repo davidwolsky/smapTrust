@@ -281,12 +281,13 @@ for rr = 1:Nr
 end
 
 % TODO: DWW: rename
-% count_all = 1;
+count_all = 1;
 Ti.xi_all{1} = xi{1};
-% xin_all{1} = xin{1};
 Ti.Rfi_all{1} = Rfi{1};
-% Si_all{1} = Si{1};
-% costS_all{1} = costS{1};
+Ti.successCount = [1];
+Ti.Si_all{1} = Si{1};
+Ti.costS_all{1} = costS{1};
+Ti.rho_all = [];
 
 
 % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
@@ -294,7 +295,7 @@ plotModels(plotIter, 1, Rci, Rfi, Rsi, Rsai, OPTopts);
 
 % Test fine model response
 costF{1} = costFunc(Rfi{1},OPTopts);
-costF_all{1} = costF{1};
+Ti.costF_all{1} = costF{1};
     
 while ii <= Ni && ~specF && ~TolX_achieved
 %Coming into this iteration as ii now with the fine model run here already and responses available. 
@@ -360,9 +361,23 @@ while ii <= Ni && ~specF && ~TolX_achieved
                     Si{ii}{rr}   = buildSurr(xi{ii},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
                     Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
                 else
-                    for iii = 1:length(Ti.Rfi_all)
-                        r{iii} = Ti.Rfi_all{iii}{rr}.r;
+                    % Add prior successful runs
+                    iii = 1;
+                    r = {};
+                    while iii < length(Ti.successCount)
+                        DISP = ['while - ', num2str(iii),' ',num2str(Ti.successCount(iii))];
+                        disp(DISP)
+                        r{iii} = Ti.Rfi_all{Ti.successCount(iii)}{rr}.r;
+                        iii = iii+1;
                     end
+                    % Additionally add the fine model runs since the last successful run to increase 
+                    % data for the surrogate to use.
+                    for iii = Ti.successCount(end):length(Ti.Rfi_all)
+                        DISP = ['for - ', num2str(iii),' ',];
+                        disp(DISP)
+                        r{end+1} = Ti.Rfi_all{iii}{rr}.r;
+                    end
+                    %TODO_DWW: Ti.xi_all should match up with r{}
                     % Re-evaluate the surrogate at the new point. 
                     Si{ii}{rr}   = buildSurr(Ti.xi_all,r,Si{ii+1-1}{rr},SMopts);
                     Si{ii+1}{rr} = buildSurr(Ti.xi_all,r,Si{ii+1-1}{rr},SMopts);
@@ -374,25 +389,26 @@ while ii <= Ni && ~specF && ~TolX_achieved
                     Rsai{ii+1}{rr}.f = Rci{1}{rr}.f; 
                 end
             end
-            % Si_all{end+1} = Si{ii+1};
+            Ti.Si_all{end+1} = Si{ii+1};
             
             % Test fine model response
             costF{ii+1} = costFunc(Rfi{ii+1},OPTopts);
-			costF_all{end+1} = costF{ii+1};
+			Ti.costF_all{end+1} = costF{ii+1};
 			
             % TODO_DWW: Comment here about needing to compare the last and current surrogates
             costS{ii}   = costSurr(xin{ii},Si{ii+1}{:},OPTopts);
             costS{ii+1} = costSurr(xin{ii+1},Si{ii+1}{:},OPTopts);
-			% costS_all{end+1} = costS{ii+1};
+			Ti.costS_all{end+1} = costS{ii+1};
 			
             % Evaluate results and adjust radius for next iteration
 			costChangeF = (costF{ii} - costF{ii+1});
 			costChangeS = (costS{ii} - costS{ii+1});
 			if ( costChangeF > 0 && costChangeS > 0 && abs(costChangeS) > TolX )
 				Ti.rho{ii}{kk} = (costChangeF)./(costChangeS);
-			else
-				Ti.rho{ii}{kk} = 0.0;
-			end
+            else
+                Ti.rho{ii}{kk} = 0.0;
+            end
+            Ti.rho_all(end+1) = Ti.rho{ii}{kk};
 			
             Ti.sk{ii} = xin{ii+1}-xin{ii};
             if Ti.rho{ii}{kk} >= eta2
@@ -415,24 +431,26 @@ while ii <= Ni && ~specF && ~TolX_achieved
             end
             
             kk = kk+1;
-            % count_all = count_all+1;
+            count_all = count_all+1;
 
             % Remove any additional fine model runs and clean up rest of iteration lasting variables.
             if TRsuccess
+                Ti.successCount(end+1) = count_all;
                 %  TODO_DWW: comment about this.
-                for count = 1:kk-2
-                    Ti.xi_all(length(Ti.xi_all)-1) = [];
-                    % xin_all(length(xin_all)-1) = [];
-                    Ti.Rfi_all(length(Ti.Rfi_all)-1) = [];
-                    % Si_all(length(Si_all)-1) = [];
-                    % costS_all(length(costS_all)-1) = [];
-                    costF_all(length(costF_all)-1) = [];
-				end
+                %  TODO_DWW: actually, just remove this.
+    %             for count = 1:kk-2
+    %                 Ti.xi_all(length(Ti.xi_all)-1) = [];
+    %                 % xin_all(length(xin_all)-1) = [];
+    %                 Ti.Rfi_all(length(Ti.Rfi_all)-1) = [];
+    %                 % Ti.Rfi_all(length(Ti.Rfi_all)-1) = [];
+    %                 % Si_all(length(Si_all)-1) = [];
+    %                 % costS_all(length(costS_all)-1) = [];
+    %                 Ti.costF_all(length(Ti.costF_all)-1) = [];
+				% end
             end
         end
         
         % Make a (crude) log file
-        %     save SMlog ii xi Rci Rfi Rsi Si costS costF limF limC limS
         save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c Ti
         
         % Plot the fine, coarse, optimised surrogate and aligned surrogate
