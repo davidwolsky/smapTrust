@@ -349,17 +349,17 @@ while ii <= Ni && ~specF && ~TolX_achieved
             for rr = 1:Nr
                 % Get the surrogate response after previous iteration
                 % optimization - thus at current iteration position
-                % TODO_DWW: comment a bit more and clean up. Explain ii +-1
-                Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1-1}{rr});
+                Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii}{rr});
                 Rsi{ii+1}{rr}.t = Rci{1}{rr}.t;
                 if isfield(Rci{1}{rr},'f')
                     Rsi{ii+1}{rr}.f = Rci{1}{rr}.f; 
                 end
                 if globOptSM < 2, SMopts.globOpt = 0; end
+                % TODO_DWW: feature: want to move the building of the surrogate to the end depending on success or not. 
                 if ~useAllFine
                     % Re-evaluate the surrogate at the new point. 
-                    Si{ii}{rr}   = buildSurr(xi{ii},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
-                    Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii+1-1}{rr},SMopts);
+                    Si{ii}{rr}   = buildSurr(xi{ii},Rfi{ii+1}{rr}.r,Si{ii}{rr},SMopts);
+                    Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii}{rr},SMopts);
                 else
                     % Add prior successful runs
                     iii = 1;
@@ -379,8 +379,10 @@ while ii <= Ni && ~specF && ~TolX_achieved
                     end
                     %TODO_DWW: Ti.xi_all should match up with r{}
                     % Re-evaluate the surrogate at the new point. 
-                    Si{ii}{rr}   = buildSurr(Ti.xi_all,r,Si{ii+1-1}{rr},SMopts);
-                    Si{ii+1}{rr} = buildSurr(Ti.xi_all,r,Si{ii+1-1}{rr},SMopts);
+                    % Si{ii}{rr}   = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
+                    % TODO_DWW: feature: this needs to be done else where!
+                    % Si{ii}{rr}   = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
+                    Si{ii+1}{rr} = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
                 end
                 % Also get the currently aligned surrogate for comparison
                 Rsai{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1}{rr});
@@ -396,13 +398,20 @@ while ii <= Ni && ~specF && ~TolX_achieved
 			Ti.costF_all{end+1} = costF{ii+1};
 			
             % TODO_DWW: Comment here about needing to compare the last and current surrogates
-            costS{ii}   = costSurr(xin{ii},Si{ii+1}{:},OPTopts);
-            costS{ii+1} = costSurr(xin{ii+1},Si{ii+1}{:},OPTopts);
+            % costS{ii}   = costSurr(xin{ii},Si{ii+1}{:},OPTopts);
+            % costS{ii+1} = costSurr(xin{ii+1},Si{ii+1}{:},OPTopts);
+            % TODO_DWW: Costs should be done on the 'current' iteration not the next point. 
+            % costS{ii}   = costSurr(xin{ii},Si{ii}{:},OPTopts);
+            disp('costS{ii}')
+            disp(costS{ii})
+            % TODO_DWW: feature: Surely this is just costSi from the optimisation run?
+            costS{ii+1} = costSurr(xin{ii+1},Si{ii}{:},OPTopts)
 			Ti.costS_all{end+1} = costS{ii+1};
 			
             % Evaluate results and adjust radius for next iteration
-			costChangeF = (costF{ii} - costF{ii+1});
-			costChangeS = (costS{ii} - costS{ii+1});
+			costChangeF = (costF{ii} - costF{ii+1})
+			costChangeS = (costS{ii} - costS{ii+1})
+            keyboard
 			if ( costChangeF > 0 && costChangeS > 0 && abs(costChangeS) > TolX )
 				Ti.rho{ii}{kk} = (costChangeF)./(costChangeS);
             else
@@ -428,8 +437,16 @@ while ii <= Ni && ~specF && ~TolX_achieved
                 % iteration.
                 Ti.Deltan{ii+1} = 0;
                 Ti.Delta{ii+1} = 0.*(OPTopts.ximax - OPTopts.ximin); 
+
+                % TODO_DWW: feature: this needs to be done elsewhere!
+
+                for rr = 1:Nr
+                    % TODO_DWW: feature: Remember to add the useAllFineModel flat if this is where this stays...
+                    disp('Si{ii}{rr}');
+                    Si{ii}{rr} = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts)
+                end
             end
-            
+            keyboard
             kk = kk+1;
             count_all = count_all+1;
 
