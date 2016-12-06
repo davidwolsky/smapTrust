@@ -99,12 +99,12 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 % 2015-05-07: Add limits for x/xp in the cost function
 % 2015-06-26: Update fineMod to rather switch between solvers
 %             Update coarseMod to rather switch between solvers 
-%             Removed costFunc and dependents from function to be used
+%             Removed costFunc and dependants from function to be used
 %             outside as well
 % 2016-02-24: Fix some issues with xp limits if user supplies them and does
 %             not want xp SM included
 % 2016-03-13: Update how search space box limits are handled - they are
-%             compulsary
+%             compulsory
 % 2016-03-14: Add the delta_x exit criterion
 % 2016-05-27: Normalize data for optimization
 % 2016-08-10: Normalization fixed because it was terrible!
@@ -283,10 +283,12 @@ end
 % TODO: DWW: rename
 count_all = 1;
 Ti.xi_all{1} = xi{1};
+Ti.xin_all{1} = xin{1};
 Ti.Rfi_all{1} = Rfi{1};
 Ti.successCount = [1];
 Ti.Si_all{1} = Si{1};
 Ti.costS_all{1} = costS{1};
+Ti.costChangeS{1} =  costS{1}; 
 Ti.rho_all = [];
 
 
@@ -296,7 +298,8 @@ plotModels(plotIter, 1, Rci, Rfi, Rsi, Rsai, OPTopts);
 % Test fine model response
 costF{1} = costFunc(Rfi{1},OPTopts);
 Ti.costF_all{1} = costF{1};
-    
+Ti.costChangeF{1} =  costF{1}; 
+
 while ii <= Ni && ~specF && ~TolX_achieved
 %Coming into this iteration as ii now with the fine model run here already and responses available. 
 
@@ -343,9 +346,10 @@ while ii <= Ni && ~specF && ~TolX_achieved
             Rfi{ii+1} = fineMod(Mf,xi{ii+1});
 
             Ti.xi_all{end+1}  = xi{ii+1};
-			% xin_all{end+1} = xin{ii+1};
+			Ti.xin_all{end+1} = xin{ii+1};
             Ti.Rfi_all{end+1} = Rfi{ii+1};
             
+            r = {};
             for rr = 1:Nr
                 % Get the surrogate response after previous iteration
                 % optimization - thus at current iteration position
@@ -357,31 +361,45 @@ while ii <= Ni && ~specF && ~TolX_achieved
                 if globOptSM < 2, SMopts.globOpt = 0; end
                 % TODO_DWW: feature: want to move the building of the surrogate to the end depending on success or not. 
                 if ~useAllFine
+                    %TODO_DWW: update this
                     % Re-evaluate the surrogate at the new point. 
                     Si{ii}{rr}   = buildSurr(xi{ii},Rfi{ii+1}{rr}.r,Si{ii}{rr},SMopts);
                     Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii}{rr},SMopts);
                 else
                     % Add prior successful runs
-                    iii = 1;
-                    r = {};
-                    while iii < length(Ti.successCount)
-                        DISP = ['while - ', num2str(iii),' ',num2str(Ti.successCount(iii))];
-                        disp(DISP)
-                        r{iii} = Ti.Rfi_all{Ti.successCount(iii)}{rr}.r;
-                        iii = iii+1;
-                    end
-                    % Additionally add the fine model runs since the last successful run to increase 
-                    % data for the surrogate to use.
-                    for iii = Ti.successCount(end):length(Ti.Rfi_all)
+                    % TODO_DWW: DWW: To put this back you'll need to also adjust x!
+                    % iii = 1;
+                    % while iii < length(Ti.successCount)
+                    %     DISP = ['while - ', num2str(iii),' ',num2str(Ti.successCount(iii))];
+                    %     disp(DISP)
+                    %     r{iii} = Ti.Rfi_all{Ti.successCount(iii)}{rr}.r;
+                    %     iii = iii+1;
+                    % end
+                    % % Additionally add the fine model runs since the last successful run to increase 
+                    % % data for the surrogate to use.
+                    % for iii = Ti.successCount(end):length(Ti.Rfi_all)
+                    %     DISP = ['for - ', num2str(iii),' ',];
+                    %     disp(DISP)
+                    %     r{end+1} = Ti.Rfi_all{iii}{rr}.r;
+                    % end
+                    %TODO_DWW: Ti.xi_all should match up with r{}!
+                    % Re-evaluate the surrogate at the new point. 
+                    % Si{ii}{rr}   = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
+                    % TODO_DWW: feature: this needs to be done else where!
+                    % Si{ii}{rr}   =
+                    % buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
+
+
+                    for iii =1:length(Ti.Rfi_all)
                         DISP = ['for - ', num2str(iii),' ',];
                         disp(DISP)
                         r{end+1} = Ti.Rfi_all{iii}{rr}.r;
                     end
-                    %TODO_DWW: Ti.xi_all should match up with r{}
-                    % Re-evaluate the surrogate at the new point. 
-                    % Si{ii}{rr}   = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
-                    % TODO_DWW: feature: this needs to be done else where!
-                    % Si{ii}{rr}   = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
+
+                    length(Ti.xi_all)
+                    length(r)
+
+                    assert(length(Ti.xi_all) == length(r), 'The lengths of xi and responses needs to be the same.')
                     Si{ii+1}{rr} = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
                 end
                 % Also get the currently aligned surrogate for comparison
@@ -411,7 +429,11 @@ while ii <= Ni && ~specF && ~TolX_achieved
             % Evaluate results and adjust radius for next iteration
 			costChangeF = (costF{ii} - costF{ii+1})
 			costChangeS = (costS{ii} - costS{ii+1})
-            keyboard
+            Ti.costChangeF{end+1} =  costChangeF; 
+            Ti.costChangeS{end+1} =  costChangeS; 
+
+
+            % keyboard
 			if ( costChangeF > 0 && costChangeS > 0 && abs(costChangeS) > TolX )
 				Ti.rho{ii}{kk} = (costChangeF)./(costChangeS);
             else
@@ -443,10 +465,15 @@ while ii <= Ni && ~specF && ~TolX_achieved
                 for rr = 1:Nr
                     % TODO_DWW: feature: Remember to add the useAllFineModel flat if this is where this stays...
                     disp('Si{ii}{rr}');
+                    % TODO_DWW: feature: Remember that this r value is floating
+
+                    assert(length(Ti.xi_all) == length(r), 'The lengths of xi and responses needs to be the same.')
                     Si{ii}{rr} = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts)
+                    % CRC_DVV: DWW: not sure if this should be here or not
+                    costS{ii} = costSurr(xin{ii},Si{ii}{:},OPTopts)
                 end
             end
-            keyboard
+            %keyboard
             kk = kk+1;
             count_all = count_all+1;
 
@@ -475,6 +502,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
         
     end
     
+%     keyboard
     ii = ii+1;
     
 end % Main while loop
@@ -506,6 +534,133 @@ Li.limMax_f = limMax_f;
 Li.limMin_c = limMin_c;
 Li.limMax_c = limMax_c;
 
+
+% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
+% ------------ All cost ------------
+% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
+figure()
+markerstr = 'xso+*d^v><ph.';
+colourstr = 'kbrgmcy';
+Ni = length(Ti.xi_all);    % Number of iterations
+Nx = length(Ti.xi_all{1}); % Number of parameters
+costSi = []
+for nn = 1:Ni
+    for cc = 1:Ni
+        costSi1(cc) = costSurr(Ti.xin_all{cc},Ti.Si_all{nn}{:},OPTopts);
+    end
+    plot(costSi1, strcat(markerstr(nn),colourstr(nn)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+end
+legend('show') 
+title('costs')
+
+figure()
+plot(cell2mat(Ti.costChangeS), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+title('cell2mat(Ti.costChangeS) - cost diffs')
+
+%keyboard
+
+% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
+% ------------ reference/surrogate method ------------
+% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
+figure()
+r_ = {}
+x_ = {}
+S_ = {}
+S_obs = {}
+S_ref = {}
+
+% TODO_DWW: DWW: talk about this
+initial_costS_obs = costSurr(xinitn,Sinit,OPTopts)
+xinitn
+initial_S_obs = buildSurr(xinit,Ti.Rfi_all{1}{1}.r,Sinit,SMopts);
+
+S_obs{1}{1} = buildSurr(Ti.xi_all{1},Ti.Rfi_all{1}{1}.r,Sinit,SMopts);
+costS_obs = costSurr(Ti.xin_all{1},S_obs{1},OPTopts)
+
+costS_ref = {}
+costS_diff = []
+plot(costS_obs, strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+
+for iii = 1:Ni
+    x_ = {}
+    r_ = {}
+    for rrr = 1:iii
+        x_{end+1} = Ti.xi_all{rrr};
+        r_{end+1} = Ti.Rfi_all{rrr}{1}.r;
+    end
+
+    length(x_)
+    length(r_)
+    S_ref{iii} = buildSurr(x_,r_,S_obs{1}{1},SMopts); 
+    costS_ref = costSurr(Ti.xin_all{iii},S_obs{1}{:},OPTopts)
+
+    costS_diff(iii) = costS_obs - costS_ref
+    plot(iii, costS_ref, strcat(markerstr(2),colourstr(2)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+end
+title('Costs - reference/observation surrogate method')
+
+figure()
+plot(costS_diff, strcat(markerstr(3),colourstr(3)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+title('CostsS_diffs - reference/observation surrogate method')
+
+% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
+% ------------ what we are doing here method    ------------
+% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
+figure()
+r_ = {}
+x_ = {}
+S_ = {}
+S_obs = {}
+S_ref = {}
+
+% TODO_DWW: DWW: talk about this
+initial_costS_obs = costSurr(xinitn,Sinit,OPTopts)
+xinitn
+initial_S_obs = buildSurr(xinit,Ti.Rfi_all{1}{1}.r,Sinit,SMopts);
+
+S_obs{1}{1} = buildSurr(Ti.xi_all{1},Ti.Rfi_all{1}{1}.r,Sinit,SMopts);
+costS_obs = costSurr(Ti.xin_all{1},S_obs{1},OPTopts)
+
+costS_ref = {}
+costS_diff = []
+plot(costS_obs, strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+
+for iii = 1:Ni
+    x_ = {}
+    r_ = {}
+    for rrr = 1:iii
+        x_{end+1} = Ti.xi_all{rrr};
+        r_{end+1} = Ti.Rfi_all{rrr}{1}.r;
+    end
+
+    length(x_)
+    length(r_)
+    S_ref{iii} = buildSurr(x_,r_,S_obs{end}{1},SMopts); 
+    costS_ref = costSurr(Ti.xin_all{iii},S_obs{1}{:},OPTopts)
+
+    costS_diff(iii) = costS_obs - costS_ref
+    plot(iii, costS_ref, strcat(markerstr(2),colourstr(2)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+
+
+%    S_obs{1}{1} = buildSurr(x_,r_,S_obs{1},SMopts);
+ %   costS_obs = costSurr(Ti.xin_all{1},S_obs{1},OPTopts)
+
+end
+title('Costs - what we are doing here method')
+
+figure()
+plot(costS_diff, strcat(markerstr(3),colourstr(3)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+title('CostsS_diffs - what we are doing here method')
+
+% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
+% ------------  rolling surrogate method    ------------
+% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
+
+% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
+% ------------      ---------------     ------------
+% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
+
+%keyboard
 % CRC_DWW: DWW: I don't like these function methods either. Can't tell from the 
 % function name or statement which iteration we working with, nor do we allow any 
 % reuse. Should be passing stuff in and also fn should be out of this loop later. 
