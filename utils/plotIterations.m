@@ -15,7 +15,7 @@ function plotIterations(plotFlag, xi, Delta, OPTopts, plotNormalised, caption)
 
 if plotFlag
     markerstr = 'xso+*d.^v><ph';
-    colourstr = 'kbrgmcy';
+    colourstr = 'kbrgmcykbrgmc';
 
     % Manipulate data format and ensure that everything has the same dimensions
     Ni = length(xi);    % Number of iterations

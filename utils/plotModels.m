@@ -1,6 +1,6 @@
 
 function plotModels(plotFlag, itNum, Rci, Rfi, Rsi, Rsai, OPTopts)
-    if plotFlag
+    if plotFlag && valuesAreValid()
         figure(itNum)
 		Nr = length(OPTopts.Rtype); % Number of responses requested
         for rr = 1:Nr
@@ -26,4 +26,24 @@ function plotModels(plotFlag, itNum, Rci, Rfi, Rsi, Rsai, OPTopts)
         end
 
     end
+    
+    function [areValid] = valuesAreValid()
+        areValid = true;
+        areValid = areValid & (length(Rci) >= itNum);
+        areValid = areValid & (length(Rfi) >= itNum);
+        areValid = areValid & (length(Rsi) >= itNum);
+        areValid = areValid & (length(Rsai) >= itNum);
+    end % 
+
 end % plotModels
+
+
+
+
+
+
+
+
+
+
+

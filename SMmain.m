@@ -108,10 +108,14 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 % 2016-03-14: Add the delta_x exit criterion
 % 2016-05-27: Normalize data for optimization
 % 2016-08-10: Normalization fixed because it was terrible!
-% 2016-08-21: Re-factored the main loop to get fine model evaluation at the end and first iteration setup before loop.
-% 2016-10-17: Introduced the basic trust region (BTR) based on Trust-Region Methods by A. R. Conn, N. I. M. Gould and P. L. Toint   
+% 2016-08-21: Re-factored the main loop to get fine model evaluation at the end and first 
+%             iteration setup before loop.
+% 2016-10-17: Introduced the basic trust region (BTR) based on Trust-Region Methods by 
+%             A. R. Conn, N. I. M. Gould and P. L. Toint   
 % 2016-10-17: Create a test suite that is relatively deterministic for a mathematical model. 
 % 2016-11-13: Allow the TR to be turned off using TRNi=1.
+% 2017-02-13: Bug fix and restructuring related to correcting the surrogate model being used 
+%             at successive TR iterations.   
 
 % Set defaults
 Ni = 10;    % Maximum number of iterations
@@ -210,28 +214,37 @@ end
 
 % Enter the main loop
 %   0)  Normalise parameters
-%       - Optimise coarse model to find initial alignment position
-%       - Evaluate the fine model at starting position
-%       - Get the initial response
-%   1)  Test for convergence.
-%       2)  Use TR to set up bounds for the optimiser.
-%       3)  Optimize the current model Si{ii} to find the next xi (xi{ii+1}).
-%       Evaluation are placed forward into the next (ii+1) iteration place-holder. 
-%       This is over-written if the runs is not successful, i.e. the surrogate and fine models diverge. 
-%       4)  Evaluate the fine model at next position (Rfi{ii+1}).
-%       5)  Get the response of the current iteration surrogate (Rsi{ii}) and at the next step (Rsi{ii+1}). 
-%       6)  Re-evaluate the current surrogate (Si{ii} with xi{ii}) and that for the next step (Si{ii+1} 
-%           with xi{ii+1}). This is done with the new fine model evaluation included. The re-evaluation 
-%           is also done so that the surrogate costs can be compared correctly.
-%       7)  Align the model at the next step to get Rsai.
-%       8)  Calculate the costs change for the fine model and the surrogates (between ii and ii+1). 
-%           The difference is stored in rho{ii} and clipped to zero if one, or both, costs get worse.
-%       8)  Calculate the step (sk{ii}) between the current and next parameter.
-%       9)  Decide if this step is successful.
-%      10)  Depending on how successful either keep the current normalised radius (Deltan{ii}) or grow it. 
-%           If it is unsuccessful (the costs diverge) then shrink the radius and try this step again 
-%           (increase kk but not ii).
-%      11)  If successful then clean up the extra fine models that were kept.
+%       * Optimise coarse model to find initial alignment position
+%       * Evaluate the fine model at starting position
+%       * Get the initial response
+%   ->  Test for convergence, main loop count limit and tolerance:
+%       1)  Use TR to set up bounds for the optimiser.
+%       ->  Check for TR iteration success, TR count limit and tolerance:
+%           1)  Optimize the current model Si{ii} to find the next test point xi (xi{ii+1}).
+%               Evaluation are placed forward into the next (ii+1) iteration place-holder. 
+%               This is over-written on the next iteration if the runs is not successful 
+%               i.e. the surrogate and fine models diverge. 
+%           2)  Evaluate the fine model at next position (Rfi{ii+1}), this will be overwritten if 
+%               the TR iteration is not successful.
+%           3)  Calculate the costs change for the fine model and the surrogates (between ii and ii+1). 
+%               The difference is stored in rho{ii} and clipped to zero if one, or both, costs get worse.
+%           4)  Calculate the step (sk{ii}) between the current and next parameter.
+%           5)  Decide if this step is successful.
+%           6)  Depending on how successful either keep the current normalised radius (Deltan{ii}) or grow it. 
+%               If it is unsuccessful (the costs diverge) then shrink the radius and try this step again 
+%               (increase kk but not ii).
+%           7)  If this run was successful set the target count to the next position ii+1, else leave it at ii.
+%               This is done to ensure that the surrogate, that is going to be built with the new fine model
+%               evaluation, is placed in the correct place. If the run was not successful then the ii 
+%               position gets updated and the optimisation has more data to use for its next evaluation.
+%           ->  Iterate over the responses: 
+%               *   Get the response Rsi{targetCount} of the current iteration surrogate (Si{ii}) at the new
+%                   test point (xi{ii+1}). 
+%               *   Re-evaluate the current surrogate (Si{ii} with xi{ii}) and that for the next step (Si{ii+1} 
+%                   with xi{ii+1}). This is done with the new fine model evaluation included. The re-evaluation 
+%                   is also done so that the surrogate costs can be compared correctly.
+%               *   Align the model (Rsai) at using the new surrogate at the text point (xi{ii+1}).
+
 
 specF = 0;  % Flag to test if the fine model reached spec
 TolX_achieved = 0;
@@ -259,12 +272,9 @@ if ~testEnabled
     nonLcon = [];
     [xin{1}, costS{1}] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
 else
-    testEnabled
-    xinitn
-    xin{1} = xinitn
-    costS{1} = costSurr(xinitn,Sinit,OPTopts)
+    testEnabled;
+    xin{1} = xinitn;
 end
-
 
 % De-normalize input vector
 xi{1} = xin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
@@ -279,6 +289,7 @@ for rr = 1:Nr
     if isfield(Rci{1}{rr},'f'), Rsi{1}{rr}.f = Rci{1}{rr}.f; end
     Rsai{1}{rr} = Rsi{1}{rr};
 end
+costS{1} = costSurr(xin{1},Si{1}{:},OPTopts);
 
 % TODO: DWW: rename
 count_all = 1;
@@ -291,14 +302,13 @@ Ti.costS_all{1} = costS{1};
 Ti.costChangeS{1} =  costS{1}; 
 Ti.rho_all = [];
 
-
 % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
 plotModels(plotIter, 1, Rci, Rfi, Rsi, Rsai, OPTopts);
 
 % Test fine model response
 costF{1} = costFunc(Rfi{1},OPTopts);
 Ti.costF_all{1} = costF{1};
-Ti.costChangeF{1} =  costF{1}; 
+Ti.costChangeF{1} = costF{1}; 
 
 while ii <= Ni && ~specF && ~TolX_achieved
 %Coming into this iteration as ii now with the fine model run here already and responses available. 
@@ -308,10 +318,9 @@ while ii <= Ni && ~specF && ~TolX_achieved
         specF = 1;
     else
         specF = 0;
-        
-        % TR
         TRsuccess = 0;
-        kk = 1;
+        % TR loop count
+        kk = 1; 
         while ~TRsuccess && kk <= TRNi && ~TolX_achieved
             % Set up TR boundaries or remove them if TR is not to be used.
             if ( TRNi == 1 )
@@ -324,116 +333,46 @@ while ii <= Ni && ~specF && ~TolX_achieved
 
             % Do optimization
             if globOpt == 2
-                [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinnTR,ximaxnTR,M_PBIL,optsPBIL);
-                xinitn = reshape(xinitn,Nn,1);
+                error('TODO_DWW: Test this!');
+                [tempxin,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinnTR,ximaxnTR,M_PBIL,optsPBIL);
+                xin{ii} = reshape(tempxin,Nn,1);
+                % [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinnTR,ximaxnTR,M_PBIL,optsPBIL);
+                % xinitn = reshape(xinitn,Nn,1);
             end
             LHSmat = [];
             RHSvect = [];
             nonLcon = [];
-            [xin{ii+1}, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xinitn,ximinnTR,ximaxnTR,LHSmat,RHSvect,nonLcon,optsFminS);
+            [xin{ii+1}, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xin{ii},ximinnTR,ximaxnTR,LHSmat,RHSvect,nonLcon,optsFminS);
+            assert( costS{ii} >= costSi ); % The cost must have gotten better else chaos!
+			Ti.costS_all{end+1} = costSi;
+
             % De-normalize input vector. The new input vector that is.
             xi{ii+1} = xin{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
+            Ti.xi_all{end+1}  = xi{ii+1};
+            Ti.xin_all{end+1} = xin{ii+1};
             
             % L2 norm describing the parameter space distance between the points
             TolXnorm = norm((xin{ii+1} - xin{ii}),2);
             TolX_achieved = TolXnorm < TolX;
             
             enforceFineModelLimits();
-            
             if ( plotIter )
                 Rci{ii+1} = coarseMod(Mc,xi{ii+1},Sinit.xp,fc);
             end
+
             Rfi{ii+1} = fineMod(Mf,xi{ii+1});
-
-            Ti.xi_all{end+1}  = xi{ii+1};
-			Ti.xin_all{end+1} = xin{ii+1};
             Ti.Rfi_all{end+1} = Rfi{ii+1};
-            
-            r = {};
-            for rr = 1:Nr
-                % Get the surrogate response after previous iteration
-                % optimization - thus at current iteration position
-                Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii}{rr});
-                Rsi{ii+1}{rr}.t = Rci{1}{rr}.t;
-                if isfield(Rci{1}{rr},'f')
-                    Rsi{ii+1}{rr}.f = Rci{1}{rr}.f; 
-                end
-                if globOptSM < 2, SMopts.globOpt = 0; end
-                % TODO_DWW: feature: want to move the building of the surrogate to the end depending on success or not. 
-                if ~useAllFine
-                    %TODO_DWW: update this
-                    % Re-evaluate the surrogate at the new point. 
-                    Si{ii}{rr}   = buildSurr(xi{ii},Rfi{ii+1}{rr}.r,Si{ii}{rr},SMopts);
-                    Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii}{rr},SMopts);
-                else
-                    % Add prior successful runs
-                    % TODO_DWW: DWW: To put this back you'll need to also adjust x!
-                    % iii = 1;
-                    % while iii < length(Ti.successCount)
-                    %     DISP = ['while - ', num2str(iii),' ',num2str(Ti.successCount(iii))];
-                    %     disp(DISP)
-                    %     r{iii} = Ti.Rfi_all{Ti.successCount(iii)}{rr}.r;
-                    %     iii = iii+1;
-                    % end
-                    % % Additionally add the fine model runs since the last successful run to increase 
-                    % % data for the surrogate to use.
-                    % for iii = Ti.successCount(end):length(Ti.Rfi_all)
-                    %     DISP = ['for - ', num2str(iii),' ',];
-                    %     disp(DISP)
-                    %     r{end+1} = Ti.Rfi_all{iii}{rr}.r;
-                    % end
-                    %TODO_DWW: Ti.xi_all should match up with r{}!
-                    % Re-evaluate the surrogate at the new point. 
-                    % Si{ii}{rr}   = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
-                    % TODO_DWW: feature: this needs to be done else where!
-                    % Si{ii}{rr}   =
-                    % buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
-
-
-                    for iii =1:length(Ti.Rfi_all)
-                        DISP = ['for - ', num2str(iii),' ',];
-                        disp(DISP)
-                        r{end+1} = Ti.Rfi_all{iii}{rr}.r;
-                    end
-
-                    length(Ti.xi_all)
-                    length(r)
-
-                    assert(length(Ti.xi_all) == length(r), 'The lengths of xi and responses needs to be the same.')
-                    Si{ii+1}{rr} = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
-                end
-                % Also get the currently aligned surrogate for comparison
-                Rsai{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii+1}{rr});
-                Rsai{ii+1}{rr}.t = Rci{1}{rr}.t;
-                if isfield(Rci{1}{rr},'f')
-                    Rsai{ii+1}{rr}.f = Rci{1}{rr}.f; 
-                end
-            end
-            Ti.Si_all{end+1} = Si{ii+1};
             
             % Test fine model response
             costF{ii+1} = costFunc(Rfi{ii+1},OPTopts);
-			Ti.costF_all{end+1} = costF{ii+1};
-			
-            % TODO_DWW: Comment here about needing to compare the last and current surrogates
-            % costS{ii}   = costSurr(xin{ii},Si{ii+1}{:},OPTopts);
-            % costS{ii+1} = costSurr(xin{ii+1},Si{ii+1}{:},OPTopts);
-            % TODO_DWW: Costs should be done on the 'current' iteration not the next point. 
-            % costS{ii}   = costSurr(xin{ii},Si{ii}{:},OPTopts);
-            disp('costS{ii}')
-            disp(costS{ii})
-            % TODO_DWW: feature: Surely this is just costSi from the optimisation run?
-            costS{ii+1} = costSurr(xin{ii+1},Si{ii}{:},OPTopts)
-			Ti.costS_all{end+1} = costS{ii+1};
-			
+            Ti.costF_all{end+1} = costF{ii+1};
+            
             % Evaluate results and adjust radius for next iteration
-			costChangeF = (costF{ii} - costF{ii+1})
-			costChangeS = (costS{ii} - costS{ii+1})
-            Ti.costChangeF{end+1} =  costChangeF; 
-            Ti.costChangeS{end+1} =  costChangeS; 
+			costChangeF = (costF{ii} - costF{ii+1});
+			costChangeS = (costS{ii} - costSi);
+            Ti.costChangeF{end+1} = costChangeF; 
+            Ti.costChangeS{end+1} = costChangeS; 
 
-
-            % keyboard
 			if ( costChangeF > 0 && costChangeS > 0 && abs(costChangeS) > TolX )
 				Ti.rho{ii}{kk} = (costChangeF)./(costChangeS);
             else
@@ -458,53 +397,64 @@ while ii <= Ni && ~specF && ~TolX_achieved
                 % or if we encounter a tolerance problem before the next
                 % iteration.
                 Ti.Deltan{ii+1} = 0;
-                Ti.Delta{ii+1} = 0.*(OPTopts.ximax - OPTopts.ximin); 
-
-                % TODO_DWW: feature: this needs to be done elsewhere!
-
-                for rr = 1:Nr
-                    % TODO_DWW: feature: Remember to add the useAllFineModel flat if this is where this stays...
-                    disp('Si{ii}{rr}');
-                    % TODO_DWW: feature: Remember that this r value is floating
-
-                    assert(length(Ti.xi_all) == length(r), 'The lengths of xi and responses needs to be the same.')
-                    Si{ii}{rr} = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts)
-                    % CRC_DVV: DWW: not sure if this should be here or not
-                    costS{ii} = costSurr(xin{ii},Si{ii}{:},OPTopts)
-                end
+                Ti.Delta{ii+1} = 0.*(OPTopts.ximax - OPTopts.ximin);
             end
             %keyboard
-            kk = kk+1;
-            count_all = count_all+1;
 
-            % Remove any additional fine model runs and clean up rest of iteration lasting variables.
-            if TRsuccess
-                Ti.successCount(end+1) = count_all;
-                %  TODO_DWW: comment about this.
-                %  TODO_DWW: actually, just remove this.
-    %             for count = 1:kk-2
-    %                 Ti.xi_all(length(Ti.xi_all)-1) = [];
-    %                 % xin_all(length(xin_all)-1) = [];
-    %                 Ti.Rfi_all(length(Ti.Rfi_all)-1) = [];
-    %                 % Ti.Rfi_all(length(Ti.Rfi_all)-1) = [];
-    %                 % Si_all(length(Si_all)-1) = [];
-    %                 % costS_all(length(costS_all)-1) = [];
-    %                 Ti.costF_all(length(Ti.costF_all)-1) = [];
-				% end
+            targetCount = ii;
+            if ( TRsuccess || (kk == TRNi) || TolX_achieved)
+                targetCount = ii + 1;
             end
-        end
+            r = {};
+            for rr = 1:Nr
+                % Get the surrogate response after previous iteration
+                % optimization - thus at current iteration position
+                % CRC_DDV: Not sure about which count to use here...
+                Rsi{targetCount}{rr}.r = evalSurr(xi{ii+1},Si{ii}{rr});
+                Rsi{targetCount}{rr}.t = Rci{1}{rr}.t;
+                if isfield(Rci{1}{rr},'f')
+                    Rsi{targetCount}{rr}.f = Rci{1}{rr}.f; 
+                end
+                if globOptSM < 2, SMopts.globOpt = 0; end
+                if ~useAllFine
+                    % Re-evaluate the surrogate at the new point. 
+                    Si{targetCount}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii}{rr},SMopts);
+                else
+                    for iii =1:length(Ti.Rfi_all)
+                        % DISP = ['for - ', num2str(iii),' ',];
+                        % disp(DISP)
+                        r{end+1} = Ti.Rfi_all{iii}{rr}.r;
+                    end
+                    % TODO_DWW: decide if we putting this back in
+                    % length(Ti.xi_all)
+                    % length(r)
+                    % assert(length(Ti.xi_all) == length(r), 'The lengths of xi and responses needs to be the same.')
+                    Si{targetCount}{rr} = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
+                end
+                % Also get the currently aligned surrogate for comparison
+                Rsai{targetCount}{rr}.r = evalSurr(xi{ii+1},Si{targetCount}{rr});
+                Rsai{targetCount}{rr}.t = Rci{1}{rr}.t;
+                if isfield(Rci{1}{rr},'f')
+                    Rsai{targetCount}{rr}.f = Rci{1}{rr}.f; 
+                end
+            end % for rr
+
+            Ti.Si_all{end+1} = Si{targetCount};
+            costS{targetCount} = costSurr(xin{targetCount},Si{targetCount}{:},OPTopts);
+            
+            kk = kk+1;  % Increase TR loop count
+            % count_all = count_all+1;
+        end % while ~TRsuccess
         
         % Make a (crude) log file
         save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c Ti
         
         % Plot the fine, coarse, optimised surrogate and aligned surrogate
         plotModels(plotIter, ii+1, Rci, Rfi, Rsi, Rsai, OPTopts);
-        
     end
     
-%     keyboard
-    ii = ii+1;
-    
+    % keyboard
+    ii = ii+1;  % Increase main loop count
 end % Main while loop
 
 % Handle output structures
@@ -528,142 +478,14 @@ Oi.Ni = ii;
 Oi.rho = Ti.rho;
 Oi.Delta = Ti.Delta;
 
-
 Li.limMin_f = limMin_f;
 Li.limMax_f = limMax_f;
 Li.limMin_c = limMin_c;
 Li.limMax_c = limMax_c;
 
+plotCosts(Ti, OPTopts, costS, costF)
 
-% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
-% ------------ All cost ------------
-% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
-figure()
-markerstr = 'xso+*d^v><ph.';
-colourstr = 'kbrgmcy';
-Ni = length(Ti.xi_all);    % Number of iterations
-Nx = length(Ti.xi_all{1}); % Number of parameters
-costSi = []
-for nn = 1:Ni
-    for cc = 1:Ni
-        costSi1(cc) = costSurr(Ti.xin_all{cc},Ti.Si_all{nn}{:},OPTopts);
-    end
-    plot(costSi1, strcat(markerstr(nn),colourstr(nn)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-end
-legend('show') 
-title('costs')
-
-figure()
-plot(cell2mat(Ti.costChangeS), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-title('cell2mat(Ti.costChangeS) - cost diffs')
-
-%keyboard
-
-% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
-% ------------ reference/surrogate method ------------
-% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
-figure()
-r_ = {}
-x_ = {}
-S_ = {}
-S_obs = {}
-S_ref = {}
-
-% TODO_DWW: DWW: talk about this
-initial_costS_obs = costSurr(xinitn,Sinit,OPTopts)
-xinitn
-initial_S_obs = buildSurr(xinit,Ti.Rfi_all{1}{1}.r,Sinit,SMopts);
-
-S_obs{1}{1} = buildSurr(Ti.xi_all{1},Ti.Rfi_all{1}{1}.r,Sinit,SMopts);
-costS_obs = costSurr(Ti.xin_all{1},S_obs{1},OPTopts)
-
-costS_ref = {}
-costS_diff = []
-plot(costS_obs, strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-
-for iii = 1:Ni
-    x_ = {}
-    r_ = {}
-    for rrr = 1:iii
-        x_{end+1} = Ti.xi_all{rrr};
-        r_{end+1} = Ti.Rfi_all{rrr}{1}.r;
-    end
-
-    length(x_)
-    length(r_)
-    S_ref{iii} = buildSurr(x_,r_,S_obs{1}{1},SMopts); 
-    costS_ref = costSurr(Ti.xin_all{iii},S_obs{1}{:},OPTopts)
-
-    costS_diff(iii) = costS_obs - costS_ref
-    plot(iii, costS_ref, strcat(markerstr(2),colourstr(2)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-end
-title('Costs - reference/observation surrogate method')
-
-figure()
-plot(costS_diff, strcat(markerstr(3),colourstr(3)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-title('CostsS_diffs - reference/observation surrogate method')
-
-% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
-% ------------ what we are doing here method    ------------
-% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
-figure()
-r_ = {}
-x_ = {}
-S_ = {}
-S_obs = {}
-S_ref = {}
-
-% TODO_DWW: DWW: talk about this
-initial_costS_obs = costSurr(xinitn,Sinit,OPTopts)
-xinitn
-initial_S_obs = buildSurr(xinit,Ti.Rfi_all{1}{1}.r,Sinit,SMopts);
-
-S_obs{1}{1} = buildSurr(Ti.xi_all{1},Ti.Rfi_all{1}{1}.r,Sinit,SMopts);
-costS_obs = costSurr(Ti.xin_all{1},S_obs{1},OPTopts)
-
-costS_ref = {}
-costS_diff = []
-plot(costS_obs, strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-
-for iii = 1:Ni
-    x_ = {}
-    r_ = {}
-    for rrr = 1:iii
-        x_{end+1} = Ti.xi_all{rrr};
-        r_{end+1} = Ti.Rfi_all{rrr}{1}.r;
-    end
-
-    length(x_)
-    length(r_)
-    S_ref{iii} = buildSurr(x_,r_,S_obs{end}{1},SMopts); 
-    costS_ref = costSurr(Ti.xin_all{iii},S_obs{1}{:},OPTopts)
-
-    costS_diff(iii) = costS_obs - costS_ref
-    plot(iii, costS_ref, strcat(markerstr(2),colourstr(2)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-
-
-%    S_obs{1}{1} = buildSurr(x_,r_,S_obs{1},SMopts);
- %   costS_obs = costSurr(Ti.xin_all{1},S_obs{1},OPTopts)
-
-end
-title('Costs - what we are doing here method')
-
-figure()
-plot(costS_diff, strcat(markerstr(3),colourstr(3)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-title('CostsS_diffs - what we are doing here method')
-
-% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
-% ------------  rolling surrogate method    ------------
-% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
-
-% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
-% ------------      ---------------     ------------
-% ------------      ---------------     ------------    ---------------     ------------    ---------------     ------------    
-
-%keyboard
-% CRC_DWW: DWW: I don't like these function methods either. Can't tell from the 
-% function name or statement which iteration we working with, nor do we allow any 
-% reuse. Should be passing stuff in and also fn should be out of this loop later. 
+% ----- Helper functions -----
 function enforceFineModelLimits()
 	% Check if fine model is limited 
 	if isfield(Mf,'ximin')
@@ -874,7 +696,7 @@ switch M.solver
         error(['M.solver unknown for fine model evaluation'])
 end
 
-end
+end % fineMod
 
 function Rc = coarseMod(M,xi,xp,f)
 
@@ -1021,7 +843,7 @@ switch M.solver
     otherwise
         error(['M.solver unknown for coarse model evaluation'])
 end
-end
+end % coarseMod
 
 function cost = costSurr(xin,S,OPTopts)
 
@@ -1046,6 +868,44 @@ for rr = 1:Nr
 end
 cost = costFunc(Rs,OPTopts);
 
+end % costSurr
+
+function plotCosts(Ti, OPTopts, costS, costF)
+markerstr = 'xso+*d^v><ph.xso+*d^v><ph.';
+colourstr = 'kbrgmcykbrgmckbrgmcykbrgmc';
+
+figure()
+Ni = length(Ti.xi_all);    % Number of iterations
+costSi1 = [];
+for nn = 1:Ni
+    for cc = 1:Ni
+        costSi1(cc) = costSurr(Ti.xin_all{cc},Ti.Si_all{nn}{:},OPTopts);
+    end
+    subplot(2,2,1)
+    plot(costSi1, strcat(markerstr(nn),colourstr(nn)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+    ylabel('costSi')
+    xlabel('Iterations all')
 end
+legend('show') 
+title('costs')
 
+subplot(2,2,2)
+plot(cell2mat(Ti.costF_all), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+ylabel('Ti.costF\_all')
+xlabel('Iterations all')
+title('Ti.costF\_all')
 
+% Meaningless!!!
+subplot(2,2,3)
+plot(cell2mat(costS), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+ylabel('costS')
+xlabel('Iterations success points')
+title('costS - fairly meaningless')
+
+subplot(2,2,4)
+plot(cell2mat(costF), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+ylabel('costF')
+xlabel('Iterations success points')
+title('costF')
+
+end

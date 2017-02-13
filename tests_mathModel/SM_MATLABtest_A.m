@@ -74,9 +74,9 @@ SMopts.wk = 1.0;
 % Set up the optimization
 OPTopts.ximin = Mf.ximin;
 OPTopts.ximax = Mf.ximax;
-OPTopts.Ni = 5;
-OPTopts.TRNi = OPTopts.Ni*2;
-% OPTopts.TRNi = 1;
+OPTopts.Ni = 15;
+%OPTopts.TRNi = OPTopts.Ni*2;
+OPTopts.TRNi = 1;
 OPTopts.Rtype = {'Gen'};
 % OPTopts.globOpt = 1;
 OPTopts.globOpt = 0;
@@ -168,13 +168,6 @@ end
 plotNormalised = false;
 % plotIterations(true, Pi, Ti.Delta, OPTopts, plotNormalised, 'universalised -- _A');
 keyboard;
-
-
-
-
-
-
-
 
 
 
