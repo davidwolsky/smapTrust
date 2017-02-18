@@ -11,7 +11,7 @@ opts.getG = 0;
 opts.getxp = 0;
 opts.getF = 0;
 opts.getd = 0;
-opts.getE = 0;
+opts.getE = 1;
 
 opts.optsFminS = optimset('display','none');
 
@@ -75,8 +75,8 @@ SMopts.wk = 1.0;
 OPTopts.ximin = Mf.ximin;
 OPTopts.ximax = Mf.ximax;
 OPTopts.Ni = 15;
-%OPTopts.TRNi = OPTopts.Ni*2;
-OPTopts.TRNi = 1;
+OPTopts.TRNi = OPTopts.Ni*2;
+% OPTopts.TRNi = 1;
 OPTopts.Rtype = {'Gen'};
 % OPTopts.globOpt = 1;
 OPTopts.globOpt = 0;

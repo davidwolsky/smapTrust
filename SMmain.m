@@ -58,7 +58,7 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   goalWeight: Vector of goal weights [1,Ng]
 %   goalStart:  Cell array of start of valid goal domain {1,Ng}
 %   goalStop:   Cell array of stop of valid goal domain {1,Ng}
-%   goalCent:   Cell array of center point of goal domain {1,Ng} (used by the 'bw' goalType) (optional)
+%   goalCent:   Cell array of centre point of goal domain {1,Ng} (used by the 'bw' goalType) (optional)
 %   errNorm:    Cell array of type of error norms to use for optimization {1,Ng}
 %               Valid types: (1,2,inf)
 %   TolX:       Termination tolerance on X [ positive scalar - default 10^-2]
@@ -116,6 +116,13 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 % 2016-11-13: Allow the TR to be turned off using TRNi=1.
 % 2017-02-13: Bug fix and restructuring related to correcting the surrogate model being used 
 %             at successive TR iterations.   
+
+% ===== ToDo =====
+% - Check ToDo and CRC_ in the code
+% - Check why aligned and previous surrogate are much the same. 
+% - Check that the correct/newest buildSurr and evalSurr are saved here on github
+% =====      =====
+
 
 % Set defaults
 Ni = 10;    % Maximum number of iterations
@@ -245,7 +252,7 @@ end
 %                   is also done so that the surrogate costs can be compared correctly.
 %               *   Align the model (Rsai) at using the new surrogate at the text point (xi{ii+1}).
 
-
+% keyboard;
 specF = 0;  % Flag to test if the fine model reached spec
 TolX_achieved = 0;
 
@@ -281,6 +288,9 @@ xi{1} = xin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
 
 Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
 Rfi{1} = fineMod(Mf,xi{1});
+
+
+
 for rr = 1:Nr
     if globOptSM > 0, SMopts.globOpt = 1; end
     Si{1}{rr} = buildSurr(xi{1},Rfi{1}{rr}.r,Sinit,SMopts);
@@ -314,6 +324,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
 %Coming into this iteration as ii now with the fine model run here already and responses available. 
 
     % Exit if spec is reached (will typically not work for eq and never for minimax, and bw is explicitly excluded)
+    % CRC_DDV: DWW: Think there should be some basic specF calculations.  
     if costF{ii} == 0 && isempty(find(ismember(OPTopts.goalType,'bw'),1))
         specF = 1;
     else
@@ -410,15 +421,15 @@ while ii <= Ni && ~specF && ~TolX_achieved
                 % Get the surrogate response after previous iteration
                 % optimization - thus at current iteration position
                 % CRC_DDV: Not sure about which count to use here...
-                Rsi{targetCount}{rr}.r = evalSurr(xi{ii+1},Si{ii}{rr});
-                Rsi{targetCount}{rr}.t = Rci{1}{rr}.t;
+                Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii}{rr});
+                Rsi{ii+1}{rr}.t = Rci{1}{rr}.t;
                 if isfield(Rci{1}{rr},'f')
-                    Rsi{targetCount}{rr}.f = Rci{1}{rr}.f; 
+                    Rsi{ii+1}{rr}.f = Rci{1}{rr}.f; 
                 end
                 if globOptSM < 2, SMopts.globOpt = 0; end
                 if ~useAllFine
                     % Re-evaluate the surrogate at the new point. 
-                    Si{targetCount}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii}{rr},SMopts);
+                    Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii}{rr},SMopts);
                 else
                     for iii =1:length(Ti.Rfi_all)
                         % DISP = ['for - ', num2str(iii),' ',];
@@ -442,7 +453,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
             Ti.Si_all{end+1} = Si{targetCount};
             costS{targetCount} = costSurr(xin{targetCount},Si{targetCount}{:},OPTopts);
             
-            kk = kk+1;  % Increase TR loop count
+            kk = kk+1  % Increase TR loop count
             % count_all = count_all+1;
         end % while ~TRsuccess
         
@@ -454,7 +465,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
     end
     
     % keyboard
-    ii = ii+1;  % Increase main loop count
+    ii = ii+1  % Increase main loop count
 end % Main while loop
 
 % Handle output structures
@@ -891,6 +902,7 @@ title('costs')
 
 subplot(2,2,2)
 plot(cell2mat(Ti.costF_all), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+plotGoals()
 ylabel('Ti.costF\_all')
 xlabel('Iterations all')
 title('Ti.costF\_all')
@@ -904,8 +916,17 @@ title('costS - fairly meaningless')
 
 subplot(2,2,4)
 plot(cell2mat(costF), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+plotGoals()
 ylabel('costF')
 xlabel('Iterations success points')
 title('costF')
 
-end
+function plotGoals()
+if ( isfield(OPTopts, 'goalVal') ) %&& isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
+    Ng = length(OPTopts.goalVal)
+    for gg = 1:Ng
+        plot([1, Ni], OPTopts.goalVal{gg}*ones(1,2), 'm', 'LineWidth',2)
+    end
+end % if validation
+end % plotGoals
+end % plotCosts
