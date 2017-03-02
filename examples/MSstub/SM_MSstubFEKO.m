@@ -88,8 +88,9 @@ SMopts.xpmax = Mc.xpmax;
 SMopts.optsFminS = optimset('display','iter');
 SMopts.optsPBIL.display =  'iter';
 SMopts.optsPBIL.Nfeval = 5000;
+SMopts.errNorm = 2;
 % DWW: equal weighting
-SMopts.wk = 1;
+SMopts.wk = 10;
 
 % Set up the optimization
 OPTopts.ximin = Mf.ximin;
@@ -103,7 +104,7 @@ OPTopts.goalType = {'minimax'};
 OPTopts.goalResType = {'S11dB'};
 OPTopts.goalVal = {-20};
 OPTopts.goalWeight = {1};
-OPTopts.goalStart = {1.40e9};
+OPTopts.goalStart = {1.30e9};
 OPTopts.goalStop = {1.45e9};
 OPTopts.errNorm = {'L1'};
 OPTopts.optsPBIL.display =  'iter'; 
@@ -122,7 +123,7 @@ OPTopts.DeltaInit = 0.25;
 OPTopts.testEnabled = true;
 
 %% Run the main loop
-[Ri,Si,Pi,Oi,Ci,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts);
+[Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts);
 
 keyboard;
 %% Plot some results

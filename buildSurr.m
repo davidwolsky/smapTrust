@@ -213,6 +213,12 @@ errW = 1;
 if isfield(opts,'wk') 
     wk = opts.wk;
     if length(wk) == 1
+        % if wk == 0
+        %     Nparams = TODO_DWW;
+        %     if Nc > Nparams
+        %     wk = ones(1,Nc);
+        %     wk(1:(Nc -Nparams)) = 0;
+        % want to actually use the number of values based on the A B c e values... 
         wk = wk.^[1:Nc];
     end
 else
@@ -279,6 +285,7 @@ if getA
 %         % Have to run the coarse model to find the response size
 %         Rc = evalSurr(xi{Nc},S);
 %         [Nm,Np] = size(Rc);
+%   want to take the number of paramaters requried as the number of actual values used. 
         lenA = Nm;
         if isfield(S,'A')
             A_init = S.A;
