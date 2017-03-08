@@ -89,8 +89,8 @@ SMopts.optsFminS = optimset('display','iter');
 SMopts.optsPBIL.display =  'iter';
 SMopts.optsPBIL.Nfeval = 5000;
 SMopts.errNorm = 2;
-% DWW: equal weighting
-SMopts.wk = 10;
+% SMopts.wk = 10;
+SMopts.wk = 0;
 
 % Set up the optimization
 OPTopts.ximin = Mf.ximin;

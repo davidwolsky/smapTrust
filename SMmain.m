@@ -115,12 +115,12 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 % 2016-10-17: Create a test suite that is relatively deterministic for a mathematical model. 
 % 2016-11-13: Allow the TR to be turned off using TRNi=1.
 % 2017-02-13: Bug fix and restructuring related to correcting the surrogate model being used 
-%             at successive TR iterations.   
+%             at successive TR iterations.
+% 2017-03-01: Introduced a TRterminate flag to ensure that an unsuccessful run is not plotted 
+%             and that counts are not incremented incorrectly in this case.
 
 % ===== ToDo =====
 % - Check ToDo and CRC_ in the code
-% - Check why aligned and previous surrogate are much the same. 
-% - Check that the correct/newest buildSurr and evalSurr are saved here on github
 % =====      =====
 
 
@@ -255,6 +255,7 @@ end
 % keyboard;
 specF = 0;  % Flag to test if the fine model reached spec
 TolX_achieved = 0;
+TRterminate = 0;
 
 [limMin_f{1},limMax_f{1},limMin_c{1},limMax_c{1}] = deal(zeros(size(xi{1})));
 
@@ -279,17 +280,15 @@ if ~testEnabled
     nonLcon = [];
     [xin{1}, costS{1}] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
 else
-    testEnabled;
+    testEnabled
     xin{1} = xinitn;
 end
-
+% keyboard
 % De-normalize input vector
 xi{1} = xin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
 
 Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
 Rfi{1} = fineMod(Mf,xi{1});
-
-
 
 for rr = 1:Nr
     if globOptSM > 0, SMopts.globOpt = 1; end
@@ -320,7 +319,7 @@ costF{1} = costFunc(Rfi{1},OPTopts);
 Ti.costF_all{1} = costF{1};
 Ti.costChangeF{1} = costF{1}; 
 
-while ii <= Ni && ~specF && ~TolX_achieved
+while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
 %Coming into this iteration as ii now with the fine model run here already and responses available. 
 
     % Exit if spec is reached (will typically not work for eq and never for minimax, and bw is explicitly excluded)
@@ -332,7 +331,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
         TRsuccess = 0;
         % TR loop count
         kk = 1; 
-        while ~TRsuccess && kk <= TRNi && ~TolX_achieved
+        while ~TRsuccess && kk <= TRNi && ~TolX_achieved && ~TRterminate
             % Set up TR boundaries or remove them if TR is not to be used.
             if ( TRNi == 1 )
                 ximinnTR = ximinn;
@@ -353,6 +352,8 @@ while ii <= Ni && ~specF && ~TolX_achieved
             LHSmat = [];
             RHSvect = [];
             nonLcon = [];
+            
+            % keyboard
             [xin{ii+1}, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xin{ii},ximinnTR,ximaxnTR,LHSmat,RHSvect,nonLcon,optsFminS);
             assert( costS{ii} >= costSi ); % The cost must have gotten better else chaos!
 			Ti.costS_all{end+1} = costSi;
@@ -413,7 +414,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
             %keyboard
 
             targetCount = ii;
-            if ( TRsuccess || (kk == TRNi) || TolX_achieved)
+            if ( TRsuccess || (kk == TRNi) || TolX_achieved )
                 targetCount = ii + 1;
             end
             r = {};
@@ -429,6 +430,7 @@ while ii <= Ni && ~specF && ~TolX_achieved
                 if globOptSM < 2, SMopts.globOpt = 0; end
                 if ~useAllFine
                     % Re-evaluate the surrogate at the new point. 
+                    % CRC_DDV: Not sure about which count to use here...
                     Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii}{rr},SMopts);
                 else
                     for iii =1:length(Ti.Rfi_all)
@@ -453,19 +455,39 @@ while ii <= Ni && ~specF && ~TolX_achieved
             Ti.Si_all{end+1} = Si{targetCount};
             costS{targetCount} = costSurr(xin{targetCount},Si{targetCount}{:},OPTopts);
             
-            kk = kk+1  % Increase TR loop count
+            kk = kk+1;  % Increase TR loop count
+            
+            TRterminate = ~TRsuccess && ( (kk > TRNi) || TolX_achieved )
+            % Remove ii+1 entry because it didn't succeed
+            if TRterminate
+                xi = xi(1:end-1);
+                xin = xin(1:end-1);
+                Rfi = Rfi(1:end-1);
+                costF = costF(1:end-1);
+                Rci = Rci(1:end-1);
+                Ti.Delta = Ti.Delta(1:end-1);
+                Ti.Deltan = Ti.Deltan(1:end-1);
+
+                Rsi = Rsi(1:end-1);
+                Rsai = Rsai(1:end-1);
+            end
+
             % count_all = count_all+1;
         end % while ~TRsuccess
         
-        % Make a (crude) log file
-        save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c Ti
-        
-        % Plot the fine, coarse, optimised surrogate and aligned surrogate
-        plotModels(plotIter, ii+1, Rci, Rfi, Rsi, Rsai, OPTopts);
+        if (~TRterminate)
+            % Make a (crude) log file
+            save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c TolX_achieved Ti TRterminate
+
+            % Plot the fine, coarse, optimised surrogate and aligned surrogate
+            plotModels(plotIter, ii+1, Rci, Rfi, Rsi, Rsai, OPTopts);
+        end
     end
     
     % keyboard
-    ii = ii+1  % Increase main loop count
+    if (~TRterminate)
+        ii = ii+1;  % Increase main loop count
+    end
 end % Main while loop
 
 % Handle output structures
@@ -923,7 +945,7 @@ title('costF')
 
 function plotGoals()
 if ( isfield(OPTopts, 'goalVal') ) %&& isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
-    Ng = length(OPTopts.goalVal)
+    Ng = length(OPTopts.goalVal);
     for gg = 1:Ng
         plot([1, Ni], OPTopts.goalVal{gg}*ones(1,2), 'm', 'LineWidth',2)
     end

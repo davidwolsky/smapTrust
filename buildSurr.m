@@ -50,16 +50,21 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %   getE - flag to get first order OSM (0)
 %   getF - flag to get frequency mapping (0)
 %   wk - weights to determine the error function in the model fitting when
-%        more than one fine point is included.  Can be the same length 
-%        as the number of cells in xi and Rfi.  Default all (1). See eq
+%        more than one fine point is included. Can be the same length 
+%        as the number of cells in xi and Rfi. Default all (1). See eq
 %        (11) in the reference. If length(xi) > 1 and length(wk) == 1 then
 %        wk will be generated internally as an exponential function,
 %        growing by the factor wk ie: wk.^[1:length(xi)]
+%        Additional option added for wk == 0 with length(xi) == 1. This option
+%        uses the number of SM types requested (implying the number of unknowns)
+%        to keep track of how many fine model points to include. Ones are used for
+%        the weight of the number of SM types for the most recent fine points 
+%        and a zero weight is applied to all previous entries.
 %   vk - weights to determine the error function in the Jacobian fitting when
-%        more than one fine point is included.  Can be the same length 
-%        as the number of cells in xi and Rfi.  Default all (0). See eq
+%        more than one fine point is included. Can be the same length 
+%        as the number of cells in xi and Rfi. Default all (0). See eq
 %        (11) in the reference. If length(xi) > 1 and length(vk) == 1 then
-%        wk will be generated internally as an exponential function,
+%        vk will be generated internally as an exponential function,
 %        growing by the factor vk ie: vk.^[1:length(xi)]
 %   ximin - vector of minimum values for xi to constrain the search space [Nn,1]
 %   ximax - vector of maximum values for xi to constrain the search space [Nn,1]
@@ -149,6 +154,9 @@ function Si = buildSurr(xi,Rfi,S,opts)
 % 2016-03-07: Continue with new bounds design - change standard workflow to
 %             always include all the types of SM in the S model.  Keep defaults if not
 %             requested in PE.
+% 2017-03-08: Introduced a wk == 0  option that used the number of SM types to determine how
+%             how many of the most recent fine points to use when calculating the error function
+%             for model fitting. 
 
 % ToDo: Impliment E (first order OSM)
 % ToDo: Jacobian fitting in error functions (vk)
@@ -203,6 +211,19 @@ if isfield(S,'f')
     Fmax = [inf,inf]';
 end
 
+% Get user SM type request
+if isfield(opts,'getA'), getA = opts.getA; end
+if isfield(opts,'getB'), getB = opts.getB; end
+if isfield(opts,'getc'), getc = opts.getc; end
+if isfield(opts,'getG'), getG = opts.getG; end
+if isfield(opts,'getxp'), getxp = opts.getxp; end
+if isfield(opts,'getd'), getd = opts.getd; end
+if isfield(opts,'getE'), getE = opts.getE; end
+if isfield(opts,'getF'), getF = opts.getF; end
+
+% The number of SM request types represent the number of unknowns that need to be solved. 
+NSMtypes = sum([getA,getB,getc,getG,getxp,getd,getE,getF]);
+
 % Default optimization parameters
 optsFminS = optimset('display','none');
 globOpt = 0;
@@ -213,35 +234,30 @@ errW = 1;
 if isfield(opts,'wk') 
     wk = opts.wk;
     if length(wk) == 1
-        % if wk == 0
-        %     Nparams = TODO_DWW;
-        %     if Nc > Nparams
-        %     wk = ones(1,Nc);
-        %     wk(1:(Nc -Nparams)) = 0;
-        % want to actually use the number of values based on the A B c e values... 
-        wk = wk.^[1:Nc];
+        if (wk == 0) 
+            wk = ones(1,Nc);
+            % If the error function for the model fitting becomes overdetermined and can give a skewed model.
+            if (Nc > NSMtypes)
+                wk(1:end-NSMtypes) = 0;
+            end
+        else
+            wk = wk.^[1:Nc];
+        end
     end
 else
     wk = ones(1,Nc);
 end
+
 if isfield(opts,'vk') 
+    % CRC_DDV: DWW: Should the weighting for model fitting be applied to this Jacobian fitting too?
     vk = opts.vk;
     if length(vk) == 1
         vk = vk.^[1:Nc];
     end
 else
+    % CRC_DDV: DWW: The documentation says that this should be zeros by default?
     vk = ones(1,Nc);
 end
-
-% Get user SM type request
-if isfield(opts,'getA'), getA = opts.getA; end
-if isfield(opts,'getB'), getB = opts.getB; end
-if isfield(opts,'getc'), getc = opts.getc; end
-if isfield(opts,'getG'), getG = opts.getG; end
-if isfield(opts,'getxp'), getxp = opts.getxp; end
-if isfield(opts,'getd'), getd = opts.getd; end
-if isfield(opts,'getE'), getE = opts.getE; end
-if isfield(opts,'getF'), getF = opts.getF; end
 
 % Get user constraints
 if isfield(opts,'ximin'), ximin = opts.ximin; end

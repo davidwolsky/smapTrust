@@ -67,13 +67,15 @@ SMopts.xpmin = Mc.xpmin;
 SMopts.xpmax = Mc.xpmax;
 SMopts.optsFminS = optimset('display','none','TolX',1e-6,'TolFun',1e-6);
 SMopts.optsPBIL.Nfeval = 5000;
-SMopts.wk = 1.0;
+% SMopts.wk = 10;
+SMopts.wk = 0;
 
 % Set up the optimization
 OPTopts.ximin = Mf.ximin;
 OPTopts.ximax = Mf.ximax;
 OPTopts.Ni = 2;
-OPTopts.TRNi = OPTopts.Ni;
+% OPTopts.TRNi = OPTopts.Ni;
+OPTopts.TRNi = 2*OPTopts.Ni;
 % OPTopts.TRNi = 1;
 OPTopts.Rtype = {'Gen'};
 % OPTopts.globOpt = 1;

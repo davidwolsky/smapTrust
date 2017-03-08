@@ -28,7 +28,7 @@ end % if validation
 
 function plotGoals()
 if ( isfield(OPTopts, 'goalVal') && isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
-    Ng = length(OPTopts.goalVal)
+    Ng = length(OPTopts.goalVal);
     for gg = 1:Ng
         plot([OPTopts.goalStart{gg}, OPTopts.goalStop{gg}], OPTopts.goalVal{gg}*ones(1,2), 'm', 'LineWidth',3)
     end
