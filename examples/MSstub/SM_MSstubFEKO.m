@@ -24,10 +24,10 @@ Mf.path = 'C:\Users\19718330\Documents\GitHub\masters\ws_smap\smapTrust\examples
 Mf.name = 'MSstubOpen';
 Mf.solver = 'FEKO';
 Mf.params = {'ls'};
-Mf.ximin = [0]';
-Mf.ximax = [1]';
-% Mf.ximin = [50e-3]';
-% Mf.ximax = [90e-3]';
+% Mf.ximin = [0]';
+% Mf.ximax = [1]';
+Mf.ximin = [50e-3]';
+Mf.ximax = [90e-3]';
 Mf.freq = reshape(linspace(fmin,fmax,Nf),Nf,1);
     
 % Set up coarse model (MATLAB)
@@ -37,8 +37,10 @@ Mc.solver = 'MATLAB';
 Mc.params = {'x';'xp';'f'}; % Must be this order (and names) for MATLAB sims.  Can omit xp or f though...
 Mc.ximin = Mf.ximin;
 Mc.ximax = Mf.ximax;
-Mc.xpmin = [2]';
-Mc.xpmax = [2.2]';
+Mc.xpmin = [1.8]';
+Mc.xpmax = [3.0]';
+% Mc.xpmin = [2]';
+% Mc.xpmax = [2.2]';
 Mc.freq = reshape(linspace(fmin,fmax,Nf),Nf,1);
 
 % % Set up coarse model (FEKO)
@@ -76,7 +78,7 @@ SMopts.getA = 0;
 SMopts.getB = 0;
 SMopts.getc = 1;
 SMopts.getG = 0;
-SMopts.getxp = 0;
+SMopts.getxp = 1;
 SMopts.getF = 0;
 SMopts.getE = 0;
 SMopts.getd = 0;
@@ -89,18 +91,20 @@ SMopts.optsFminS = optimset('display','iter');
 SMopts.optsPBIL.display =  'iter';
 SMopts.optsPBIL.Nfeval = 5000;
 SMopts.errNorm = 2;
-% SMopts.wk = 10;
+% SMopts.wk = 5;
 SMopts.wk = 0;
 
 % Set up the optimization
 OPTopts.ximin = Mf.ximin;
 OPTopts.ximax = Mf.ximax;
-OPTopts.Ni = 5;
-OPTopts.TRNi = OPTopts.Ni*2;
+OPTopts.Ni = 3;
+% OPTopts.TRNi = OPTopts.Ni*2;
+OPTopts.TRNi = OPTopts.Ni;
 OPTopts.Rtype = {'S11dB'};
 OPTopts.globOpt = 0;
 OPTopts.globOptSM = 1;
 OPTopts.goalType = {'minimax'};
+% OPTopts.goalType = {'lt'};
 OPTopts.goalResType = {'S11dB'};
 OPTopts.goalVal = {-20};
 OPTopts.goalWeight = {1};
@@ -114,7 +118,7 @@ OPTopts.M_PBIL = 6;
 OPTopts.optsFminS = optimset('display','iter');
 % OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
 OPTopts.plotIter = 1;
-OPTopts.TolX = 10e-4;
+OPTopts.TolX = 10e-2;
 OPTopts.eta1 = 0.05;
 OPTopts.eta2 = 0.9;
 OPTopts.alp1 = 2.5;
@@ -126,5 +130,4 @@ OPTopts.testEnabled = true;
 [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts);
 
 keyboard;
-%% Plot some results
 

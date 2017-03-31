@@ -11,7 +11,7 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %
 % In general the extraction performs best when all input variables,
 % including implicit variables, are of the degree 1.  This is because the
-% internal optimizer attemps to optimize additive as well as multiplicative
+% internal optimizer attempts to optimize additive as well as multiplicative
 % variables - the latter typically normalized to 1 - at the same time.
 %
 % Inputs:
@@ -27,17 +27,18 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %          the implicit (pre-assigned) parameters.
 %  S.xp - Optional pre-assigned variables (depending on the coarse model [Nq,1]
 %  S.f - Optional frequency vector where the responses are calculated [Nm,1] (must be included for FSM)
-% opts: User options structure - mostly flags to specifiy type of SM (defaults)
-%   getA - flag to get multiplicative OSM (set to 2 to get M factors), typically 1 to force single factor for all outputs which is much faster and often works well (0)
+% opts: User options structure - mostly flags to specify type of SM (defaults)
+%   getA - flag to get multiplicative OSM (set to 2 to get M factors), typically 1 to force 
+%          single factor for all outputs which is much faster and often works well (0).
 %   getB - flag to get multiplicative input SM (0)
 %          If getB == 1 the full matrix will be extracted
 %          If getB == 2 only diagonal entries will be extracted (uncoupled system)
 %          If getB is a boolean vector of length Nn, only the 'true'
 %          entries on the diagonal will be extracted.  This is an uncoupled
-%          system with only a subset of the paramaters allowed to have
+%          system with only a subset of the parameters allowed to have
 %          a linear variation.
 %   getc - flag to get additive input SM (1)
-%   getG - flag to get multiplicative ISM (0)
+%   getG - flag to get multiplicative part of ISM (0)
 %          If getG == 1 the full matrix will be extracted
 %          If getG is a boolean vector of length Nn, only the 'true'
 %          columns be extracted.  This can be used to remove dependence on
@@ -45,7 +46,7 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %          If getG is a boolean Matrix of size [Nq,Nn], only the 'true'
 %          entries will be optimized.  This allow the user full control of
 %          dependencies between optimization and implicit parameters
-%   getxp- flag to optimize additive ISM (0)
+%   getxp- flag to optimize additive part of ISM (0) 
 %   getd - flag to get additive OSM (0)
 %   getE - flag to get first order OSM (0)
 %   getF - flag to get frequency mapping (0)
@@ -100,7 +101,7 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %          the implicit (pre-assigned) parameters.
 % A:       Multiplicative OSM factor diag[Nm,Nm]
 % B:       Multiplicative input SM factor [Nn,Nn]
-% c:       Additative input SM term [Nn,1]
+% c:       Additive input SM term [Nn,1]
 % G:       Multiplicative ISM factor [Nq,Nm]
 % xp:      Pre-assigned parameters [Nq,1]
 % d:       Additive zeroth order OSM term [Nm,1]
@@ -115,7 +116,7 @@ function Si = buildSurr(xi,Rfi,S,opts)
 % Updates:
 % 2014-11-09: Write function shell and basic functionality
 % 2014-11-10: Fix constraints of input SM (case 1), cases 2 - 5
-% 2014-11-11: Impliment add OSM (d), Fix B to diagonal matrix
+% 2014-11-11: Implement add OSM (d), Fix B to diagonal matrix
 % 2014-11-13: Add some more 2 variable cases. Include global search flag
 %             and constraint flags. Add global search to case 5.
 % 2014-11-14: Add error norm and error weight options
@@ -149,7 +150,7 @@ function Si = buildSurr(xi,Rfi,S,opts)
 % 2016-02-26: Fixed serious issue with FSM
 % 2016-02-29: Start redesign to include the bounds while using
 %             fminsearchcon
-% 2016-03-01: Continue redisign to handle bounds properly - get rid of
+% 2016-03-01: Continue redesign to handle bounds properly - get rid of
 %             globOpt option for now
 % 2016-03-07: Continue with new bounds design - change standard workflow to
 %             always include all the types of SM in the S model.  Keep defaults if not
@@ -158,9 +159,9 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %             how many of the most recent fine points to use when calculating the error function
 %             for model fitting. 
 
-% ToDo: Impliment E (first order OSM)
+% ToDo: Implement E (first order OSM)
 % ToDo: Jacobian fitting in error functions (vk)
-% ToDo: Re-indtroduce globOpt option
+% ToDo: Re-introduce globOpt option
 % ToDo: Include more optimizer options - start with fmincon
 
 % Preassign some variables
@@ -179,8 +180,8 @@ else     % Force only first point to be used, and make cell arrays
 end
 
 % Get vector sizes
-Nn = length(xi{Nc});
-Nm = length(Rfi{1});
+Nn = length(xi{Nc});    % Number of input parameters
+Nm = length(Rfi{1});    % Number of responses
 
 % Default SM type requests
 getA = 0;
@@ -221,8 +222,7 @@ if isfield(opts,'getd'), getd = opts.getd; end
 if isfield(opts,'getE'), getE = opts.getE; end
 if isfield(opts,'getF'), getF = opts.getF; end
 
-% The number of SM request types represent the number of unknowns that need to be solved. 
-NSMtypes = sum([getA,getB,getc,getG,getxp,getd,getE,getF]);
+NSMUnknowns = getNSMUnknowns();
 
 % Default optimization parameters
 optsFminS = optimset('display','none');
@@ -236,9 +236,10 @@ if isfield(opts,'wk')
     if length(wk) == 1
         if (wk == 0) 
             wk = ones(1,Nc);
-            % If the error function for the model fitting becomes overdetermined and can give a skewed model.
-            if (Nc > NSMtypes)
-                wk(1:end-NSMtypes) = 0;
+            % If the error function for the model fitting becomes overdetermined 
+            % and can give a skewed model.
+            if (Nc > NSMUnknowns)
+                wk(1:end-NSMUnknowns) = 0;
             end
         else
             wk = wk.^[1:Nc];
@@ -627,7 +628,64 @@ Si.d = d;
 
 % Additive first order OSM - ToDo
 
-end
+function NSMUnknowns = getNSMUnknowns()    
+% NSMUnknowns - The number of SM request types represent the number of unknowns that need to be solved. 
+    NSMUnknowns = 0;
+    % --- getA ---
+    if getA == 1
+        % Diagonal
+        NSMUnknowns = NSMUnknowns + 1;
+    elseif getA == 2
+        % Single factor
+        NSMUnknowns = NSMUnknowns + 1*Nm;
+    end
+
+    % --- getB ---
+    if getB == 1
+        % Full
+        NSMUnknowns = NSMUnknowns + Nn*Nn;
+    elseif getB == 2
+        % Diagonal
+        NSMUnknowns = NSMUnknowns + Nn*1;
+    else
+        % Custom diagonal
+        NSMUnknowns = NSMUnknowns + sum(getB);
+    end
+
+    % --- getc --- Additive SM
+    if getc == 1
+        NSMUnknowns = NSMUnknowns + Nn*1;
+    end
+
+    % --- getG --- Multiplicative ISM
+    if getG == 1
+        % Full
+        NSMUnknowns = NSMUnknowns + Nq*Nn;
+    else
+        % Custom diagonal
+        NSMUnknowns = NSMUnknowns + (sum(getB)*Nq);
+    end
+
+    % --- getxp --- Explicit
+    if getxp == 1
+        NSMUnknowns = NSMUnknowns + Nq;
+    end
+
+    % --- getd ---
+    if getd == 1
+        NSMUnknowns = NSMUnknowns + Nm*1;
+    end
+
+    % --- getE ---
+    % Do nothing yet
+
+    % --- getF ---
+    if getd == 1
+        NSMUnknowns = NSMUnknowns + 1;
+    end
+end % end getNSMUnknowns
+
+end % end buildSurr
 
 
 % Error function for optimization

@@ -323,7 +323,8 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
 %Coming into this iteration as ii now with the fine model run here already and responses available. 
 
     % Exit if spec is reached (will typically not work for eq and never for minimax, and bw is explicitly excluded)
-    % CRC_DDV: DWW: Think there should be some basic specF calculations.  
+    % CRC_DDV: DWW: Think there should be some basic specF calculations. 
+    % No use different goal less than 
     if costF{ii} == 0 && isempty(find(ismember(OPTopts.goalType,'bw'),1))
         specF = 1;
     else
@@ -457,7 +458,7 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
             
             kk = kk+1;  % Increase TR loop count
             
-            TRterminate = ~TRsuccess && ( (kk > TRNi) || TolX_achieved )
+            TRterminate = ~TRsuccess && ( (kk > TRNi) || TolX_achieved );
             % Remove ii+1 entry because it didn't succeed
             if TRterminate
                 xi = xi(1:end-1);
@@ -499,8 +500,8 @@ Ri.Rsa = Rsai;  % Surrogate before optimization, just after alignment at end of 
 Pi = xi;
 
 plotNormalised = true;
-plotIterations(true, xi, Ti.Delta, OPTopts, plotNormalised, 'Normalised');
-plotIterations(true, xi, Ti.Delta, OPTopts, ~plotNormalised, 'De-normalised/globalised/universalised');
+plotIterations(true, xi, Ti.Delta, OPTopts, SMopts, Si, plotNormalised, 'Normalised');
+plotIterations(true, xi, Ti.Delta, OPTopts, SMopts, Si, ~plotNormalised, 'De-normalised/globalised/universalised');
 Ci.costS = costS;
 Ci.costF = costF;
 
@@ -517,6 +518,7 @@ Li.limMin_c = limMin_c;
 Li.limMax_c = limMax_c;
 
 plotCosts(Ti, OPTopts, costS, costF)
+% keyboard
 
 % ----- Helper functions -----
 function enforceFineModelLimits()
@@ -574,9 +576,9 @@ if isfield(M,'ximin')
             mat2str(M.ximin), ', xi = ', mat2str(xi)) )
     end
     
-%   params:     Cell array of paramater names - same order as xinit {Nn,1}
-%   ximin:  Vector of minimum values to limit the parameters [Nn,1]
-%   ximax:  Vector of maximum values to limit the parameters [Nn,1]
+%   params:     Cell array of parameter names - same order as xinit {Nn,1}
+%   ximin:      Vector of minimum values to limit the parameters [Nn,1]
+%   ximax:      Vector of maximum values to limit the parameters [Nn,1]
 %   freq:       Array of simulation frequencies [Nm,1] (optional)
 %   Rtype:      Type of response (cell array if more than one needed)
 %               Valid types:
@@ -601,8 +603,17 @@ Nr = length(Rtype);
 Rf = cell(1,Nr);
 
 % Call the correct solver
+% TODO_DWW: Make into nice neat functions.
 switch M.solver
     
+    case 'AWR'
+        case 'AWR'
+        error('AWR solver not implemented yet for fine model evaluations')
+        % Start AWR activeX
+        % awr = actxserver('AWR.MWOffice');
+        % awr.Project.GlobalDefinitionDocuments.Item(1).Equations.Item(1).Expression
+        % awr.project.simulator.invoke('Analyze');
+
     case 'CST'
         % Start CST activeX
         cst = actxserver('CSTSTUDIO.Application');
@@ -742,7 +753,7 @@ function Rc = coarseMod(M,xi,xp,f)
 %   path:   Full path to file
 %   name:   File name of file (without extension)
 %   solver:     'CST'/'FEKO'/'MATLAB' (for now)
-%   params:     Cell array of paramater names - same order as xinit {Nn,1}
+%   params:     Cell array of parameter names - same order as xinit {Nn,1}
 %   ximin:  Vector of minimum values to limit the parameters [Nn,1]
 %   ximax:  Vector of maximum values to limit the parameters [Nn,1]
 %   xpmin:  Vector of minimum values to limit the implicit parameters [Nq,1]
@@ -840,10 +851,10 @@ switch M.solver
             end
             Rc{rr}.t = Rtype{rr};
         end
-        
+
     case 'AWR'
         error('AWR solver not implemented yet for coarse model evaluations')
-        
+
     case 'ADS'
         error('ADS solver not implemented yet for coarse model evaluations')
         
