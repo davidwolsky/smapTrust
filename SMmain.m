@@ -123,7 +123,6 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 % - Check ToDo and CRC_ in the code
 % =====      =====
 
-
 % Set defaults
 Ni = 10;    % Maximum number of iterations
 TRNi = Ni;  % Maximum number of iterations for the Trust region loop
@@ -250,9 +249,8 @@ end
 %               *   Re-evaluate the current surrogate (Si{ii} with xi{ii}) and that for the next step (Si{ii+1} 
 %                   with xi{ii+1}). This is done with the new fine model evaluation included. The re-evaluation 
 %                   is also done so that the surrogate costs can be compared correctly.
-%               *   Align the model (Rsai) at using the new surrogate at the text point (xi{ii+1}).
+%               *   Align the model (Rsai) at using the new surrogate at the next point (xi{ii+1}).
 
-% keyboard;
 specF = 0;  % Flag to test if the fine model reached spec
 TolX_achieved = 0;
 TRterminate = 0;
@@ -283,7 +281,7 @@ else
     testEnabled
     xin{1} = xinitn;
 end
-% keyboard
+
 % De-normalize input vector
 xi{1} = xin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
 
@@ -300,8 +298,6 @@ for rr = 1:Nr
 end
 costS{1} = costSurr(xin{1},Si{1}{:},OPTopts);
 
-% TODO: DWW: rename
-count_all = 1;
 Ti.xi_all{1} = xi{1};
 Ti.xin_all{1} = xin{1};
 Ti.Rfi_all{1} = Rfi{1};
@@ -321,7 +317,6 @@ Ti.costChangeF{1} = costF{1};
 
 while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
 %Coming into this iteration as ii now with the fine model run here already and responses available. 
-
     % Exit if spec is reached (will typically not work for eq and never for minimax, and bw is explicitly excluded)
     % CRC_DDV: DWW: Think there should be some basic specF calculations. 
     % No use different goal less than 
@@ -354,7 +349,6 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
             RHSvect = [];
             nonLcon = [];
             
-            % keyboard
             [xin{ii+1}, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xin{ii},ximinnTR,ximaxnTR,LHSmat,RHSvect,nonLcon,optsFminS);
             assert( costS{ii} >= costSi ); % The cost must have gotten better else chaos!
 			Ti.costS_all{end+1} = costSi;
@@ -412,7 +406,6 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                 Ti.Deltan{ii+1} = 0;
                 Ti.Delta{ii+1} = 0.*(OPTopts.ximax - OPTopts.ximin);
             end
-            %keyboard
 
             targetCount = ii;
             if ( TRsuccess || (kk == TRNi) || TolX_achieved )
@@ -422,7 +415,6 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
             for rr = 1:Nr
                 % Get the surrogate response after previous iteration
                 % optimization - thus at current iteration position
-                % CRC_DDV: Not sure about which count to use here...
                 Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii}{rr});
                 Rsi{ii+1}{rr}.t = Rci{1}{rr}.t;
                 if isfield(Rci{1}{rr},'f')
@@ -473,7 +465,6 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                 Rsai = Rsai(1:end-1);
             end
 
-            % count_all = count_all+1;
         end % while ~TRsuccess
         
         if (~TRterminate)
@@ -518,7 +509,6 @@ Li.limMin_c = limMin_c;
 Li.limMax_c = limMax_c;
 
 plotCosts(Ti, OPTopts, costS, costF)
-% keyboard
 
 % ----- Helper functions -----
 function enforceFineModelLimits()
@@ -603,16 +593,11 @@ Nr = length(Rtype);
 Rf = cell(1,Nr);
 
 % Call the correct solver
-% TODO_DWW: Make into nice neat functions.
 switch M.solver
     
     case 'AWR'
         case 'AWR'
         error('AWR solver not implemented yet for fine model evaluations')
-        % Start AWR activeX
-        % awr = actxserver('AWR.MWOffice');
-        % awr.Project.GlobalDefinitionDocuments.Item(1).Equations.Item(1).Expression
-        % awr.project.simulator.invoke('Analyze');
 
     case 'CST'
         % Start CST activeX
@@ -801,6 +786,7 @@ end
 
 Nn = length(xi);
 Nq = length(xp);
+Nm = length(f);
 % Get number of responses requested
 if length(M.Rtype) == 1 && ~iscell(M.Rtype)
     Rtype = {M.Rtype};  % Special case - make a cell
@@ -853,7 +839,77 @@ switch M.solver
         end
 
     case 'AWR'
-        error('AWR solver not implemented yet for coarse model evaluations')
+        % Ensure that NI AWR is open and that all projects have been closed.
+        awr = actxserver('AWR.MWOffice');
+        % pause(0.001);
+        if ( awr.ProjectOpen() )
+            proj = awr.Project;
+        else
+            awr.invoke('Open', [M.path,M.name,'.emp']);
+            proj = awr.Project;
+            proj.Frequencies.Clear();
+            for mm = 1:Nm
+                awr.Project.Frequencies.Add(M.freq(mm));
+            end
+        end
+
+        eqns = proj.GlobalDefinitionDocuments.Item(1).Equations;
+
+        for nn = 1:Nn
+            if ~eqns.Exists(M.params{nn}) 
+                error(strcat('AWR parameter not found: ', M.params{nn}))
+            end
+            parStr = [M.params{nn},'=',num2str(xi(nn))];
+            eqns.Item(M.params{nn}).Expression = parStr;
+        end
+        % Also include possible implicit parameters
+        for qq = 1:Nq
+            if ~eqns.Exists(M.Iparams{qq}) 
+                error(['AWR parameter not found: ', M.Iparams{qq}])
+            end
+            parStr = [M.Iparams{qq},'=',num2str(xp(qq))];
+            eqns.Item(M.Iparams{qq}).Expression = parStr;
+        end
+
+        % Generate output
+        for rr = 1:Nr
+            if strcmp(Rtype{rr},'S11dB')
+                % Adding a graph and measurement 
+                graphs = proj.Graphs;
+                if graphs.Exists('S11_DB Graph')
+                    graph = graphs.Item('S11_DB Graph');
+                else
+                    graph = graphs.Add('S11_DB Graph','mwGT_Rectangular');
+                end
+                measurement_S11 = graph.Measurements.Add(M.name,'DB(|S(1,1)|)');
+
+                proj.Simulator.Analyze;
+
+                nRead = measurement_S11.XPointCount;
+                [fin,S11in] = deal(zeros(nRead,1));
+                fin = measurement_S11.XValues;
+                for nn = 1:nRead
+                    S11in(nn) = measurement_S11.YValue(nn,1);
+                end
+                
+                if isfield(M,'freq')
+                    Rc{rr}.r = reshape(interp1(fin,S11in,M.freq,'spline'),Nm,1);
+                    Rc{rr}.f = M.freq;
+                else
+                    Nm = nRead;
+                    Rc{rr}.r = S11in;
+                    Rc{rr}.f = fin;
+                end
+                Rc{rr}.t = Rtype{rr};
+
+            else
+                error(['Request not found: ', Rtype{rr}, ' for AWR coarse model evaluation.'])
+            end
+        end
+
+        % awr.Project.Close(false)
+        % awr.Quit()
+        release(awr)
 
     case 'ADS'
         error('ADS solver not implemented yet for coarse model evaluations')
@@ -920,18 +976,18 @@ colourstr = 'kbrgmcykbrgmckbrgmcykbrgmc';
 
 figure()
 Ni = length(Ti.xi_all);    % Number of iterations
-costSi1 = [];
-for nn = 1:Ni
-    for cc = 1:Ni
-        costSi1(cc) = costSurr(Ti.xin_all{cc},Ti.Si_all{nn}{:},OPTopts);
-    end
-    subplot(2,2,1)
-    plot(costSi1, strcat(markerstr(nn),colourstr(nn)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-    ylabel('costSi')
-    xlabel('Iterations all')
-end
-legend('show') 
-title('costs')
+% costSi1 = [];
+% for nn = 1:Ni
+%     for cc = 1:Ni
+%         costSi1(cc) = costSurr(Ti.xin_all{cc},Ti.Si_all{nn}{:},OPTopts);
+%     end
+%     subplot(2,2,1)
+%     plot(costSi1, strcat(markerstr(nn),colourstr(nn)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+%     ylabel('costSi')
+%     xlabel('Iterations all')
+% end
+% legend('show') 
+% title('costs')
 
 subplot(2,2,2)
 plot(cell2mat(Ti.costF_all), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on

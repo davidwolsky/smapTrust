@@ -70,3 +70,7 @@ SMmain.asv
 *.s1p
 *.lock
 *tmp_machfile*
+
+# AWR
+# =========================
+*.TEMP

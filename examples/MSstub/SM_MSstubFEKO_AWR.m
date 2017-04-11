@@ -10,7 +10,7 @@ format compact
 % Frequencies 
 fmin = 1e9;
 fmax = 2e9;  
-Nf = 41;
+Nm = 41;	% Number of frequencies
 
 % Initial input parameters 
 xinit = [70e-3]';  % Initial input parameters (only ls in this case)
@@ -28,32 +28,36 @@ Mf.params = {'ls'};
 % Mf.ximax = [1]';
 Mf.ximin = [50e-3]';
 Mf.ximax = [90e-3]';
-Mf.freq = reshape(linspace(fmin,fmax,Nf),Nf,1);
+Mf.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
     
-% Set up coarse model (MATLAB)
-Mc.path = [pwd,'\'];
-Mc.name = @MSstubCoarse;  % Must pass a function handle if MATLAB is the simulator...
-Mc.solver = 'MATLAB';
-Mc.params = {'x';'xp';'f'}; % Must be this order (and names) for MATLAB sims.  Can omit xp or f though...
+% % Set up coarse model (MATLAB)
+% Mc.path = [pwd,'\'];
+% Mc.path = 'C:\Users\19718330\Documents\GitHub\masters\ws_smap\smapTrust\examples\MSstub\AWR\';
+% Mc.name = @MSstubCoarse;  % Must pass a function handle if MATLAB is the simulator...
+% Mc.solver = 'MATLAB';
+% Mc.params = {'x';'xp';'f'}; % Must be this order (and names) for MATLAB sims.  Can omit xp or f though...
+% Mc.ximin = Mf.ximin;
+% Mc.ximax = Mf.ximax;
+% Mc.xpmin = [1.8]';
+% Mc.xpmax = [3.0]';
+% % Mc.xpmin = [2]';
+% % Mc.xpmax = [2.2]';
+% Mc.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
+
+% Set up coarse model (AWR)
+Mc.path = 'C:\Users\19718330\Documents\GitHub\masters\ws_smap\smapTrust\examples\MSstub\AWR\';
+Mc.name = 'MSstubCoarse';
+Mc.solver = 'AWR';
+Mc.params = {'ls'};
+Mc.Iparams = {'eps_r'};
 Mc.ximin = Mf.ximin;
 Mc.ximax = Mf.ximax;
+% TODO_DWW: test this
 Mc.xpmin = [1.8]';
 Mc.xpmax = [3.0]';
 % Mc.xpmin = [2]';
 % Mc.xpmax = [2.2]';
-Mc.freq = reshape(linspace(fmin,fmax,Nf),Nf,1);
-
-% % Set up coarse model (FEKO)
-% Mc.path = 'c:\Users\ddv\Dropbox\Work\MATLAB\SpaceMapping\examples\MSstub\FEKO\';
-% Mc.name = 'MSstubOpenCoarse';
-% Mc.solver = 'FEKO';
-% Mc.params = {'ls'}; 
-% Mc.ximin = Mf.ximin;
-% Mc.ximax = Mf.ximax;
-% Mc.Iparams = {'eps_r'};
-% Mc.xpmin = [2]';
-% Mc.xpmax = [2.2]';
-% Mc.freq = reshape(linspace(fmin,fmax,Nf),Nf,1);
+Mc.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 
 % Set up coarse model (FEKO)
 % Mc.path = 'c:\Users\ddv\Dropbox\Work\MATLAB\SpaceMapping\examples\MSstub\FEKO\';
@@ -66,7 +70,7 @@ Mc.freq = reshape(linspace(fmin,fmax,Nf),Nf,1);
 % Mc.Iparams = {'eps_r'};
 % Mc.xpmin = [2]';
 % Mc.xpmax = [2.2]';
-% Mc.freq = reshape(linspace(fmin,fmax,Nf),Nf,1);
+% Mc.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 
 
 % Set up the SM
@@ -78,7 +82,7 @@ SMopts.getA = 0;
 SMopts.getB = 0;
 SMopts.getc = 1;
 SMopts.getG = 0;
-SMopts.getxp = 1;
+SMopts.getxp = 0;
 SMopts.getF = 0;
 SMopts.getE = 0;
 SMopts.getd = 0;
@@ -90,7 +94,7 @@ SMopts.xpmax = Mc.xpmax;
 SMopts.optsFminS = optimset('display','iter');
 SMopts.optsPBIL.display =  'iter';
 SMopts.optsPBIL.Nfeval = 5000;
-SMopts.errNorm = 2;
+SMopts.errNorm = 1;
 % SMopts.wk = 5;
 SMopts.wk = 0;
 
