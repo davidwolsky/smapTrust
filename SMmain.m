@@ -287,7 +287,7 @@ xi{1} = xin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
 
 Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
 Rfi{1} = fineMod(Mf,xi{1});
-
+keyboard
 for rr = 1:Nr
     if globOptSM > 0, SMopts.globOpt = 1; end
     Si{1}{rr} = buildSurr(xi{1},Rfi{1}{rr}.r,Sinit,SMopts);
@@ -637,7 +637,7 @@ switch M.solver
                 release(result);
             elseif strcmp(Rtype{rr},'S11complex')
                 resultA = invoke(mws,'Result1D','a1(1)1(1)');    % amplitude of S11
-                resultP = invoke(mws,'Result1D','p1(1)1(1)');    % amplitude of S11
+                resultP = invoke(mws,'Result1D','p1(1)1(1)');    % phase of S11
                 % Get nr of frequency points in the plots
                 nRead = invoke(resultA,'GetN');
                 [fin,S11in] = deal(zeros(nRead,1));
@@ -901,12 +901,51 @@ switch M.solver
                     Rc{rr}.f = fin;
                 end
                 Rc{rr}.t = Rtype{rr};
+            end
 
-            else
-                error(['Request not found: ', Rtype{rr}, ' for AWR coarse model evaluation.'])
+            if strcmp(Rtype{rr},'S11complex')
+                % Adding a graph and measurement 
+                graphs = proj.Graphs;
+                if graphs.Exists('S11_Mag Graph')
+                    graph = graphs.Item('S11_Mag Graph');
+                else
+                    graph = graphs.Add('S11_Mag Graph','mwGT_Rectangular');
+                end
+                measurement_S11_Mag = graph.Measurements.Add(M.name,'|S(1,1)|');
+
+                if graphs.Exists('S11_Ang Graph')
+                    graph = graphs.Item('S11_Ang Graph');
+                else
+                    graph = graphs.Add('S11_Ang Graph','mwGT_Rectangular');
+                end
+                measurement_S11_Ang = graph.Measurements.Add(M.name,'Ang(S(1,1))');
+
+                proj.Simulator.Analyze;
+
+                nRead = measurement_S11_Mag.XPointCount;
+                [fin,S11in] = deal(zeros(nRead,1));
+                fin = measurement_S11_Mag.XValues;
+
+                for nn = 1:nRead
+                    amp = measurement_S11_Mag.YValue(nn,1);
+                    phase = measurement_S11_Ang.YValue(nn,1);
+                    S11in(nn) = amp.*exp(1i*phase);
+                end
+
+                if isfield(M,'freq')
+                    Nm = length(M.freq);
+                    Rreal = reshape(interp1(fin,real(S11in),M.freq,'spline'),Nm,1);
+                    Rimag = reshape(interp1(fin,imag(S11in),M.freq,'spline'),Nm,1);
+                    Rf{rr}.r = Rreal + 1i*Rimag;
+                    Rf{rr}.f = M.freq;
+                else
+                    Nm = nRead;
+                    Rf{rr}.r = S11in;
+                    Rf{rr}.f = fin;
+                end
+                Rf{rr}.t = Rtype{rr};
             end
         end
-
         % awr.Project.Close(false)
         % awr.Quit()
         release(awr)
