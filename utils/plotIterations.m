@@ -93,6 +93,7 @@ function doPlotForTwoDesignVariables()
     end
 end % doPlotForTwoDesignVariables
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function doGeneralPlotForDesignVariables()
     for ii = 1:Nx
         plot(transXi(:,ii), strcat(markerstr(ii),colourstr(ii)),'LineWidth',2,'MarkerSize',10), grid on, hold on
@@ -120,6 +121,7 @@ end % doGeneralPlotForDesignVariables
 
 end % plotIterations
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function doGeneralPlotForImplicitVariables(SMopts, Si, plotNormalised)
 
     markerstr = 'v><phxso+*d.^';

@@ -33,9 +33,8 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   ximax:      Vector of maximum values to limit the parameters [Nn,1] (Compulsory)
 %   Rtype:      Type of response (cell array if more than one needed)
 %               Valid types (so far):
-%               'S11dB'
-%               'S11complex'
-%               'Gen' - generic case for use with MATLAB models 
+%               'S11' - s-parameters are handled internally using both real and imaginary parts.
+%               'Gen' - generic case for use with MATLAB models.
 %   Ni:         Maximum number of iterations
 %   TRNi:       Maximum number of iterations for the Trust region loop.
 %               To turn the TR off use TRNi=1.
@@ -287,7 +286,6 @@ xi{1} = xin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
 
 Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
 Rfi{1} = fineMod(Mf,xi{1});
-keyboard
 for rr = 1:Nr
     if globOptSM > 0, SMopts.globOpt = 1; end
     Si{1}{rr} = buildSurr(xi{1},Rfi{1}{rr}.r,Sinit,SMopts);
@@ -683,18 +681,21 @@ switch M.solver
         cd(curDir)
         % Generate output
         for rr = 1:Nr
-            if strncmp(Rtype{rr},'S11',3)
+            % TODO_DWW: Clean up 
+            % if strncmp(Rtype{rr},'S11',3)
                 % Read the S11 touchstone file - must be exported by the FEKO
                 % file with the correct name - Name_S11.s1p!
                 [Spar,freq] = touchread([M.path,M.name,'_S11.s1p'],1);
                 S11 = reshape(Spar(1,1,:),length(freq),1);
                 Rf{rr}.f = freq;
-            end
-            if strcmp(Rtype{rr},'S11dB')
-                Rf{rr}.r = dB20(S11);
-            elseif strcmp(Rtype{rr},'S11complex')
-                Rf{rr}.r = S11;
-            end
+            % end
+            % if strcmp(Rtype{rr},'S11dB')
+            %     Rf{rr}.r = dB20(S11);
+            % elseif strcmp(Rtype{rr},'S11complex')
+            %     Rf{rr}.r = S11;
+            % end
+
+            Rf{rr}.r = S11;
             Rf{rr}.t = Rtype{rr};
         end
         
@@ -823,18 +824,20 @@ switch M.solver
         cd(curDir)
         % Generate output
         for rr = 1:Nr
-            if strncmp(Rtype{rr},'S11',3)
+            % TODO_DWW: Clean up 
+            % if strncmp(Rtype{rr},'S11',3)
                 % Read the S11 touchstone file - must be exported by the FEKO
                 % file with the correct name - Name_S11.s1p!
                 [Spar,freq] = touchread([M.path,M.name,'_S11.s1p'],1);
                 S11 = reshape(Spar(1,1,:),length(freq),1);
                 Rc{rr}.f = freq;
-            end
-            if strcmp(Rtype{rr},'S11dB')
-                Rc{rr}.r = dB20(S11);
-            elseif strcmp(Rtype{rr},'S11complex')
-                Rc{rr}.r = S11;
-            end
+            % end
+            % if strcmp(Rtype{rr},'S11dB')
+            %     Rc{rr}.r = dB20(S11);
+            % elseif strcmp(Rtype{rr},'S11complex')
+            %     Rc{rr}.r = S11;
+            % end
+            Rc{rr}.r = S11;
             Rc{rr}.t = Rtype{rr};
         end
 
@@ -873,37 +876,39 @@ switch M.solver
 
         % Generate output
         for rr = 1:Nr
-            if strcmp(Rtype{rr},'S11dB')
-                % Adding a graph and measurement 
-                graphs = proj.Graphs;
-                if graphs.Exists('S11_DB Graph')
-                    graph = graphs.Item('S11_DB Graph');
-                else
-                    graph = graphs.Add('S11_DB Graph','mwGT_Rectangular');
-                end
-                measurement_S11 = graph.Measurements.Add(M.name,'DB(|S(1,1)|)');
+            % TODO_DWW: Clean up 
+            % if strcmp(Rtype{rr},'S11dB')
+            %     % Adding a graph and measurement 
+            %     graphs = proj.Graphs;
+            %     if graphs.Exists('S11_DB Graph')
+            %         graph = graphs.Item('S11_DB Graph');
+            %     else
+            %         graph = graphs.Add('S11_DB Graph','mwGT_Rectangular');
+            %     end
+            %     measurement_S11 = graph.Measurements.Add(M.name,'DB(|S(1,1)|)');
 
-                proj.Simulator.Analyze;
+            %     proj.Simulator.Analyze;
 
-                nRead = measurement_S11.XPointCount;
-                [fin,S11in] = deal(zeros(nRead,1));
-                fin = measurement_S11.XValues;
-                for nn = 1:nRead
-                    S11in(nn) = measurement_S11.YValue(nn,1);
-                end
+            %     nRead = measurement_S11.XPointCount;
+            %     [fin,S11in] = deal(zeros(nRead,1));
+            %     fin = measurement_S11.XValues;
+            %     for nn = 1:nRead
+            %         S11in(nn) = measurement_S11.YValue(nn,1);
+            %     end
                 
-                if isfield(M,'freq')
-                    Rc{rr}.r = reshape(interp1(fin,S11in,M.freq,'spline'),Nm,1);
-                    Rc{rr}.f = M.freq;
-                else
-                    Nm = nRead;
-                    Rc{rr}.r = S11in;
-                    Rc{rr}.f = fin;
-                end
-                Rc{rr}.t = Rtype{rr};
-            end
+            %     if isfield(M,'freq')
+            %         Rc{rr}.r = reshape(interp1(fin,S11in,M.freq,'spline'),Nm,1);
+            %         Rc{rr}.f = M.freq;
+            %     else
+            %         Nm = nRead;
+            %         Rc{rr}.r = S11in;
+            %         Rc{rr}.f = fin;
+            %     end
+            %     Rc{rr}.t = Rtype{rr};
+            % end
 
-            if strcmp(Rtype{rr},'S11complex')
+            % if strcmp(Rtype{rr},'S11complex')
+            if strncmp(Rtype{rr},'S11',3)
                 % Adding a graph and measurement 
                 graphs = proj.Graphs;
                 if graphs.Exists('S11_Mag Graph')
@@ -936,16 +941,18 @@ switch M.solver
                     Nm = length(M.freq);
                     Rreal = reshape(interp1(fin,real(S11in),M.freq,'spline'),Nm,1);
                     Rimag = reshape(interp1(fin,imag(S11in),M.freq,'spline'),Nm,1);
-                    Rf{rr}.r = Rreal + 1i*Rimag;
-                    Rf{rr}.f = M.freq;
+                    Rc{rr}.r = Rreal + 1i*Rimag;
+                    Rc{rr}.f = M.freq;
                 else
                     Nm = nRead;
-                    Rf{rr}.r = S11in;
-                    Rf{rr}.f = fin;
+                    Rc{rr}.r = S11in;
+                    Rc{rr}.f = fin;
                 end
-                Rf{rr}.t = Rtype{rr};
+                Rc{rr}.t = Rtype{rr};
+            else
+                error(['Unrecognised RType request ', Rtype{rr}]);
             end
-        end
+        end % for Nr
         % awr.Project.Close(false)
         % awr.Quit()
         release(awr)
@@ -1028,33 +1035,60 @@ Ni = length(Ti.xi_all);    % Number of iterations
 % legend('show') 
 % title('costs')
 
-subplot(2,2,2)
-plot(cell2mat(Ti.costF_all), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-plotGoals()
+subplot(2,2,[1 2])
+plot(real(cell2mat(Ti.costF_all)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+if ( ~isreal(Ti.costF_all) )
+    plot(imag(cell2mat(Ti.costF_all)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+end % imag part
+plotRealGoals()
+plotImagGoals()
 ylabel('Ti.costF\_all')
 xlabel('Iterations all')
 title('Ti.costF\_all')
+legend('real','imag')
 
 % Meaningless!!!
 subplot(2,2,3)
-plot(cell2mat(costS), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+plot(real(cell2mat(costS)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+if ( ~isreal(costS) )
+    plot(imag(cell2mat(costS)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+end % imag part
 ylabel('costS')
 xlabel('Iterations success points')
 title('costS - fairly meaningless')
+legend('real','imag')
 
 subplot(2,2,4)
-plot(cell2mat(costF), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-plotGoals()
+plot(real(cell2mat(costF)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+if ( ~isreal(costF) )
+    plot(imag(cell2mat(costF)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+end % imag part
+plotRealGoals()
+plotImagGoals()
 ylabel('costF')
 xlabel('Iterations success points')
 title('costF')
+legend('real','imag')
 
-function plotGoals()
-if ( isfield(OPTopts, 'goalVal') ) %&& isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function plotRealGoals()
+if ( isfield(OPTopts, 'goalVal') )%&& isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
     Ng = length(OPTopts.goalVal);
     for gg = 1:Ng
-        plot([1, Ni], OPTopts.goalVal{gg}*ones(1,2), 'm', 'LineWidth',2)
+        plot([1, Ni], real(OPTopts.goalVal{gg})*ones(1,2), 'm', 'LineWidth',2)
     end
 end % if validation
-end % plotGoals
+end % plotRealGoals function
+function plotImagGoals()
+if ( isfield(OPTopts, 'goalVal') )%&& isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
+    Ng = length(OPTopts.goalVal);
+    for gg = 1:Ng
+        if ( ~isreal(OPTopts.goalVal{gg}) )
+            plot([1, Ni], imag(OPTopts.goalVal{gg})*ones(1,2), 'm', 'LineWidth',2)
+        end % imag part
+    end
+end % if validation
+end % plotImagGoals function
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 end % plotCosts

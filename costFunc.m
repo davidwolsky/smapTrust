@@ -57,28 +57,28 @@ for gg = 1:Ng
     if isfield(GOALS,'goalWeight'), G.goalWeight = GOALS.goalWeight{gg}; end
     wSum = wSum + G.goalWeight;
     
-    % Special case for complex and dB S11 goals...
-    if isfield(R{1},'t') && isfield(GOALS,'goalResType') && strcmp(R{1}.t,'S11complex') && strcmp(G.goalResType,'S11dB')
-        Ri = R{1};
-        Ri.r = dB20(R{1}.r);
-    else
-        Ri = R{1};
-    end
+    foundMathingType = false;
     tt = 1;
-    while tt < Nr
-        if strcmp(R{tt}.t,GOALS.goalResType{gg})
+    while tt <= Nr
+        if ( strncmp(R{tt}.t,'S11',3) && strncmp(GOALS.goalResType{gg},'S11',3) ) 
+        % if strcmp(R{tt}.t,GOALS.goalResType{gg})
             Ri = R{tt};
+            foundMathingType = true;
             break;
         end
         % Special case for complex and dB S11 goals...
-        if isfield(R{tt},'t') && isfield(GOALS,'goalResType') && strcmp(R{tt}.t,'S11complex') && strcmp(G.goalResType,'S11dB')
-            Ri = R{1};
-            Ri.r = dB20(R{1}.r);
-            break;
-        end
+        % TODO_DWW: Clean up -> I dont think we are going to handle this case any more.
+        % if isfield(R{tt},'t') && isfield(GOALS,'goalResType') && strcmp(R{tt}.t,'S11complex') && strcmp(G.goalResType,'S11dB')
+        %     Ri = R{tt};
+        %     Ri.r = dB20(R{tt}.r);
+        %     foundMathingType = true;
+        %     break;
+        % end
         tt = tt + 1;
     end
-    
+    assert(foundMathingType, ['No matching result type was found for the specified goalResType.', GOALS.goalResType{gg}, '.  R{:}.t = ', R{:}.t])
+    assert(isfield(GOALS,'goalResType') && ~strcmp(G.goalResType,'S11dB'), 'G.goalResType = S11dB is not supported at this time.')
+
     % Sort out the centre, start and stop positions - use index if no frequency is
     % specified in the response structure
     Nm = length(Ri.r);
