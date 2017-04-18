@@ -13,12 +13,17 @@ function plotModels(plotFlag, itNum, Rci, Rfi, Rsi, Rsai, OPTopts)
 
 if plotFlag && valuesAreValid()
     figure(itNum)
+    
+    % TODO_DWW: Take loop from costFunc to actually sort this nicely with goals associated with a response type
+    %           plotted on the same graph and that the correct form of the R.t is plotted. dB and not complex...
 	Nr = length(OPTopts.Rtype); % Number of responses requested
-    if ( ~checkForComplex() )
+    if ( ~checkForComplexGoalResType() )
         columnCount = 1;
     else
         columnCount = 2;
     end
+
+    % TODO_DWW: Add dB for goal type.
 
     for rr = 1:Nr
         subplot(Nr, columnCount, columnCount*(rr-1) + 1)
@@ -32,18 +37,34 @@ end % if validation
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function plotForRealValuedResponse()
-if isfield(Rci{itNum}{rr},'f')
-    plot(Rci{itNum}{rr}.f,real(Rfi{itNum}{rr}.r),'k','LineWidth',1.5), grid on, hold on
-    plot(Rci{itNum}{rr}.f,real(Rci{itNum}{rr}.r),'r','LineWidth',1.5), grid on, hold on
-    plot(Rsi{itNum}{rr}.f,real(Rsi{itNum}{rr}.r),'b','LineWidth',1.5), grid on, hold on
-    plot(Rsai{itNum}{rr}.f,real(Rsai{itNum}{rr}.r),'g--','LineWidth',2), grid on, hold on
-    xlabel('Frequency')
+if isfield(OPTopts,'goalResType') && strcmp(OPTopts.goalResType,'S11_dB')
+    if isfield(Rci{itNum}{rr},'f')
+        plot(Rci{itNum}{rr}.f,dB20(Rfi{itNum}{rr}.r),'k','LineWidth',1.5), grid on, hold on
+        plot(Rci{itNum}{rr}.f,dB20(Rci{itNum}{rr}.r),'r','LineWidth',1.5), grid on, hold on
+        plot(Rsi{itNum}{rr}.f,dB20(Rsi{itNum}{rr}.r),'b','LineWidth',1.5), grid on, hold on
+        plot(Rsai{itNum}{rr}.f,dB20(Rsai{itNum}{rr}.r),'g--','LineWidth',2), grid on, hold on
+        xlabel('Frequency')
+    else
+        plot(dB20(Rfi{itNum}{rr}.r),'k','LineWidth',1.5), grid on, hold on
+        plot(dB20(Rci{itNum}{rr}.r),'r','LineWidth',1.5), grid on, hold on
+        plot(dB20(Rsi{itNum}{rr}.r),'b','LineWidth',1.5), grid on, hold on
+        plot(dB20(Rsai{itNum}{rr}.r),'g','LineWidth',1.5), grid on, hold on
+        xlabel('Index')
+    end
 else
-    plot(real(Rfi{itNum}{rr}.r),'k','LineWidth',1.5), grid on, hold on
-    plot(real(Rci{itNum}{rr}.r),'r','LineWidth',1.5), grid on, hold on
-    plot(real(Rsi{itNum}{rr}.r),'b','LineWidth',1.5), grid on, hold on
-    plot(real(Rsai{itNum}{rr}.r),'g','LineWidth',1.5), grid on, hold on
-    xlabel('Index')
+    if isfield(Rci{itNum}{rr},'f')
+        plot(Rci{itNum}{rr}.f,real(Rfi{itNum}{rr}.r),'k','LineWidth',1.5), grid on, hold on
+        plot(Rci{itNum}{rr}.f,real(Rci{itNum}{rr}.r),'r','LineWidth',1.5), grid on, hold on
+        plot(Rsi{itNum}{rr}.f,real(Rsi{itNum}{rr}.r),'b','LineWidth',1.5), grid on, hold on
+        plot(Rsai{itNum}{rr}.f,real(Rsai{itNum}{rr}.r),'g--','LineWidth',2), grid on, hold on
+        xlabel('Frequency')
+    else
+        plot(real(Rfi{itNum}{rr}.r),'k','LineWidth',1.5), grid on, hold on
+        plot(real(Rci{itNum}{rr}.r),'r','LineWidth',1.5), grid on, hold on
+        plot(real(Rsi{itNum}{rr}.r),'b','LineWidth',1.5), grid on, hold on
+        plot(real(Rsai{itNum}{rr}.r),'g','LineWidth',1.5), grid on, hold on
+        xlabel('Index')
+    end
 end
 plotRealGoals()
 ylabel(OPTopts.Rtype{rr})
@@ -68,7 +89,8 @@ else
 end
 plotImagGoals()
 ylabel(OPTopts.Rtype{rr})
-title(['Iteration ',num2str(itNum), ' - Complex part'])
+% TODO_DWW: update labels to reflect actual plot type, e.g. dB -> from goalResType
+title(['Iteration ',num2str(itNum), ' - Imag part'])
 legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate')
 end % plotForComplexResponse function
 
@@ -101,13 +123,14 @@ areValid = areValid & (length(Rsai) >= itNum);
 end % valuesAreValid function
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function [hasComplex] = checkForComplex()
+function [hasComplex] = checkForComplexGoalResType()
 hasComplex = false;
 for count = 1:Nr
-    if strncmp(OPTopts.Rtype{count},'S11',3)
+    % TODO_DWW: Use regex split to just grab {"_complex"} generalising to any s-param
+    if strcmp(OPTopts.goalResType{count},'S11_complex')
         hasComplex = true;
         break
-    end % if S11
+    end
 end % for Nr
 end % valuesAreValid function
 

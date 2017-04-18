@@ -87,16 +87,6 @@ SMopts.getF = 0;
 SMopts.getE = 0;
 SMopts.getd = 0;
 
-SMopts.ximin = Mc.ximin;
-SMopts.ximax = Mc.ximax;
-SMopts.xpmin = Mc.xpmin;
-SMopts.xpmax = Mc.xpmax;
-SMopts.optsFminS = optimset('display','iter');
-SMopts.optsPBIL.display =  'iter';
-SMopts.optsPBIL.Nfeval = 5000;
-SMopts.errNorm = 2;
-% SMopts.wk = 5;
-SMopts.wk = 0;
 
 % Set up the optimization
 OPTopts.ximin = Mf.ximin;
@@ -109,10 +99,10 @@ OPTopts.globOpt = 0;
 OPTopts.globOptSM = 1;
 OPTopts.goalType = {'minimax'};
 % OPTopts.goalType = {'lt'};
-OPTopts.goalResType = {'S11complex'};
-% OPTopts.goalResType = {'S11dB'};
-OPTopts.goalVal = {0.1};
-% OPTopts.goalVal = {-20};
+% OPTopts.goalResType = {'S11_complex'};
+OPTopts.goalResType = {'S11_dB'};
+% OPTopts.goalVal = {0.1};
+OPTopts.goalVal = {-20};
 OPTopts.goalWeight = {1};
 OPTopts.goalStart = {1.30e9};
 OPTopts.goalStop = {1.45e9};
@@ -131,6 +121,21 @@ OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
 OPTopts.DeltaInit = 0.25;
 OPTopts.testEnabled = true;
+
+SMopts.ximin = Mc.ximin;
+SMopts.ximax = Mc.ximax;
+SMopts.xpmin = Mc.xpmin;
+SMopts.xpmax = Mc.xpmax;
+SMopts.optsFminS = optimset('display','iter');
+SMopts.optsPBIL.display =  'iter';
+SMopts.optsPBIL.Nfeval = 5000;
+SMopts.errNorm = 1;
+errW = ones(size(Mf.freq));
+errW(Mf.freq < OPTopts.goalStart{1} | Mf.freq > OPTopts.goalStop{1}) = 0;
+SMopts.errW = errW;
+% SMopts.wk = 5;
+SMopts.wk = 0;
+
 
 %% Run the main loop
 [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts);

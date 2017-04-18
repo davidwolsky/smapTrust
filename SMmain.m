@@ -43,8 +43,8 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   globOptSM:  Flag to run PBIL during the PE process (1 for only first iteration, 2 for all iterations) (default 0)
 %   goalResType:Cell array of response names to consider for the different goals {1,Ng}
 %               Valid types:
-%               'S11dB'
-%               'S11complex'
+%               'S11_dB'
+%               'S11_complex'
 %               'Gen' - general            
 %   goalType:   Cell array of goal types {1,Ng}
 %               Valid types:
@@ -553,7 +553,7 @@ function Rf = fineMod(M,xi)
 %   path:   Full path to file
 %   name:   File name of file (without extension)
 %   solver:     'CST'/'MATLAB'/'FEKO' (for now)
-%               'S11dB' - obvious!
+%               'S11_dB' - obvious!
 
 % Limit the inputs
 if isfield(M,'ximin')
@@ -613,7 +613,7 @@ switch M.solver
         
         % Generate output
         for rr = 1:Nr
-            if strcmp(Rtype{rr},'S11dB')
+            if strcmp(Rtype{rr},'S11_dB')
                 result = invoke(mws,'Result1D','d1(1)1(1)');    % S11 in dB
                 % Get nr of frequency points in the plot
                 nRead = invoke(result,'GetN');
@@ -633,7 +633,7 @@ switch M.solver
                 end
                 Rf{rr}.t = Rtype{rr};
                 release(result);
-            elseif strcmp(Rtype{rr},'S11complex')
+            elseif strcmp(Rtype{rr},'S11_complex')
                 resultA = invoke(mws,'Result1D','a1(1)1(1)');    % amplitude of S11
                 resultP = invoke(mws,'Result1D','p1(1)1(1)');    % phase of S11
                 % Get nr of frequency points in the plots
@@ -689,9 +689,9 @@ switch M.solver
                 S11 = reshape(Spar(1,1,:),length(freq),1);
                 Rf{rr}.f = freq;
             % end
-            % if strcmp(Rtype{rr},'S11dB')
+            % if strcmp(Rtype{rr},'S11_dB')
             %     Rf{rr}.r = dB20(S11);
-            % elseif strcmp(Rtype{rr},'S11complex')
+            % elseif strcmp(Rtype{rr},'S11_complex')
             %     Rf{rr}.r = S11;
             % end
 
@@ -747,8 +747,8 @@ function Rc = coarseMod(M,xi,xp,f)
 %   freq:       Array of simulation frequencies [Nm,1] (optional)
 %   Rtype:      Type of response (cell array if more than one needed)
 %               Valid types:
-%               'S11dB'
-%               'S11complex'
+%               'S11_dB'
+%               'S11_complex'
 %               'Gen'
 
 % Limit the inputs - this should really never happen...
@@ -832,9 +832,9 @@ switch M.solver
                 S11 = reshape(Spar(1,1,:),length(freq),1);
                 Rc{rr}.f = freq;
             % end
-            % if strcmp(Rtype{rr},'S11dB')
+            % if strcmp(Rtype{rr},'S11_dB')
             %     Rc{rr}.r = dB20(S11);
-            % elseif strcmp(Rtype{rr},'S11complex')
+            % elseif strcmp(Rtype{rr},'S11_complex')
             %     Rc{rr}.r = S11;
             % end
             Rc{rr}.r = S11;
@@ -877,7 +877,7 @@ switch M.solver
         % Generate output
         for rr = 1:Nr
             % TODO_DWW: Clean up 
-            % if strcmp(Rtype{rr},'S11dB')
+            % if strcmp(Rtype{rr},'S11_dB')
             %     % Adding a graph and measurement 
             %     graphs = proj.Graphs;
             %     if graphs.Exists('S11_DB Graph')
@@ -907,7 +907,7 @@ switch M.solver
             %     Rc{rr}.t = Rtype{rr};
             % end
 
-            % if strcmp(Rtype{rr},'S11complex')
+            % if strcmp(Rtype{rr},'S11_complex')
             if strncmp(Rtype{rr},'S11',3)
                 % Adding a graph and measurement 
                 graphs = proj.Graphs;
@@ -1036,39 +1036,56 @@ Ni = length(Ti.xi_all);    % Number of iterations
 % title('costs')
 
 subplot(2,2,[1 2])
-plot(real(cell2mat(Ti.costF_all)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-if ( ~isreal(Ti.costF_all) )
+if strcmp(OPTopts.goalResType{1},'S11_dB')
+    plot(cell2mat(Ti.costF_all), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+elseif strcmp(OPTopts.goalResType{1},'S11_complex')
+    plot(real(cell2mat(Ti.costF_all)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+else
+    error('goalResType not found')
+end
+% if ( ~isreal(Ti.costF_all) )
+%  TODO_DWW: Update this to also use the loop from costFunc and the plotModels... 
+if strcmp(OPTopts.goalResType{1},'S11_complex')
     plot(imag(cell2mat(Ti.costF_all)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+    legend('real','imag')
 end % imag part
 plotRealGoals()
 plotImagGoals()
 ylabel('Ti.costF\_all')
 xlabel('Iterations all')
 title('Ti.costF\_all')
-legend('real','imag')
 
-% Meaningless!!!
+% Meaningless -> just for debugging
 subplot(2,2,3)
-plot(real(cell2mat(costS)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-if ( ~isreal(costS) )
+if strcmp(OPTopts.goalResType{1},'S11_dB')
+    plot(cell2mat(costS), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+elseif strcmp(OPTopts.goalResType{1},'S11_complex')
+    plot(real(cell2mat(costS)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+end
+if strcmp(OPTopts.goalResType{1},'S11_complex')
     plot(imag(cell2mat(costS)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+    legend('real','imag')
 end % imag part
 ylabel('costS')
 xlabel('Iterations success points')
 title('costS - fairly meaningless')
-legend('real','imag')
 
 subplot(2,2,4)
-plot(real(cell2mat(costF)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-if ( ~isreal(costF) )
+
+if strcmp(OPTopts.goalResType{1},'S11_dB')
+    plot(cell2mat(costF), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+elseif strcmp(OPTopts.goalResType{1},'S11_complex')
+    plot(real(cell2mat(costF)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+end
+if strcmp(OPTopts.goalResType{1},'S11_complex')
     plot(imag(cell2mat(costF)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+    legend('real','imag')
 end % imag part
 plotRealGoals()
 plotImagGoals()
 ylabel('costF')
 xlabel('Iterations success points')
 title('costF')
-legend('real','imag')
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function plotRealGoals()
@@ -1080,6 +1097,7 @@ if ( isfield(OPTopts, 'goalVal') )%&& isfield(OPTopts, 'goalStart') && isfield(O
 end % if validation
 end % plotRealGoals function
 function plotImagGoals()
+% TODO_DWW: Update this to use goalResType and not this isReal stuff
 if ( isfield(OPTopts, 'goalVal') )%&& isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
     Ng = length(OPTopts.goalVal);
     for gg = 1:Ng
