@@ -43,8 +43,13 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   globOptSM:  Flag to run PBIL during the PE process (1 for only first iteration, 2 for all iterations) (default 0)
 %   goalResType:Cell array of response names to consider for the different goals {1,Ng}
 %               Valid types:
-%               'S11_dB'
 %               'S11_complex'
+%               'S11_real'
+%               'S11_imag'
+%               'S11_dB'
+%               'S11_abs'
+%               'S11_angle'
+%               'S11_deg' - degrees
 %               'Gen' - general            
 %   goalType:   Cell array of goal types {1,Ng}
 %               Valid types:
@@ -126,6 +131,7 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 Ni = 10;    % Maximum number of iterations
 TRNi = Ni;  % Maximum number of iterations for the Trust region loop
 TolX = 10^-2;
+TolXnorm = 0;
 globOpt = 0;
 M_PBIL = 8;
 globOptSM = 0;
@@ -302,7 +308,8 @@ Ti.Rfi_all{1} = Rfi{1};
 Ti.successCount = [1];
 Ti.Si_all{1} = Si{1};
 Ti.costS_all{1} = costS{1};
-Ti.costChangeS{1} =  costS{1}; 
+Ti.costChangeS{1} = costS{1};
+Ti.rho = [];
 Ti.rho_all = [];
 
 % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
@@ -824,20 +831,20 @@ switch M.solver
         cd(curDir)
         % Generate output
         for rr = 1:Nr
-            % TODO_DWW: Clean up 
-            % if strncmp(Rtype{rr},'S11',3)
+            if strncmp(Rtype{rr},'S',1)
+                portA = (Rtype{rr}(2));
+                portA_num = str2doulbe(Rtype{rr}(2));
+                portB = (Rtype{rr}(3));
+                portB_num = str2doulbe(Rtype{rr}(3));
+                maxPort = max(portA_num, portB_num)
                 % Read the S11 touchstone file - must be exported by the FEKO
                 % file with the correct name - Name_S11.s1p!
-                [Spar,freq] = touchread([M.path,M.name,'_S11.s1p'],1);
-                S11 = reshape(Spar(1,1,:),length(freq),1);
+                file = [M.path,M.name,'_S',portA,portB,'.s',maxPort,'p']
+                [Spar,freq] = touchread(file,maxPort);
+                Sxx = reshape(Spar(portA_num,portB_num,:),length(freq),1);
                 Rc{rr}.f = freq;
-            % end
-            % if strcmp(Rtype{rr},'S11_dB')
-            %     Rc{rr}.r = dB20(S11);
-            % elseif strcmp(Rtype{rr},'S11_complex')
-            %     Rc{rr}.r = S11;
-            % end
-            Rc{rr}.r = S11;
+            end
+            Rc{rr}.r = Sxx;
             Rc{rr}.t = Rtype{rr};
         end
 
@@ -876,76 +883,46 @@ switch M.solver
 
         % Generate output
         for rr = 1:Nr
-            % TODO_DWW: Clean up 
-            % if strcmp(Rtype{rr},'S11_dB')
-            %     % Adding a graph and measurement 
-            %     graphs = proj.Graphs;
-            %     if graphs.Exists('S11_DB Graph')
-            %         graph = graphs.Item('S11_DB Graph');
-            %     else
-            %         graph = graphs.Add('S11_DB Graph','mwGT_Rectangular');
-            %     end
-            %     measurement_S11 = graph.Measurements.Add(M.name,'DB(|S(1,1)|)');
-
-            %     proj.Simulator.Analyze;
-
-            %     nRead = measurement_S11.XPointCount;
-            %     [fin,S11in] = deal(zeros(nRead,1));
-            %     fin = measurement_S11.XValues;
-            %     for nn = 1:nRead
-            %         S11in(nn) = measurement_S11.YValue(nn,1);
-            %     end
-                
-            %     if isfield(M,'freq')
-            %         Rc{rr}.r = reshape(interp1(fin,S11in,M.freq,'spline'),Nm,1);
-            %         Rc{rr}.f = M.freq;
-            %     else
-            %         Nm = nRead;
-            %         Rc{rr}.r = S11in;
-            %         Rc{rr}.f = fin;
-            %     end
-            %     Rc{rr}.t = Rtype{rr};
-            % end
-
-            % if strcmp(Rtype{rr},'S11_complex')
-            if strncmp(Rtype{rr},'S11',3)
+            if strncmp(Rtype{rr},'S',1)
+                portA = (Rtype{rr}(2));
+                portB = (Rtype{rr}(3));
                 % Adding a graph and measurement 
                 graphs = proj.Graphs;
-                if graphs.Exists('S11_Mag Graph')
-                    graph = graphs.Item('S11_Mag Graph');
+                if graphs.Exists(['S', portA, portB,'_Mag Graph'])
+                    graph = graphs.Item(['S', portA, portB,'_Mag Graph']);
                 else
-                    graph = graphs.Add('S11_Mag Graph','mwGT_Rectangular');
+                    graph = graphs.Add(['S', portA, portB,'_Mag Graph'],'mwGT_Rectangular');
                 end
-                measurement_S11_Mag = graph.Measurements.Add(M.name,'|S(1,1)|');
+                measurement_Sxx_Mag = graph.Measurements.Add(M.name,['|S(', portA,',', portB, ')|']);
 
-                if graphs.Exists('S11_Ang Graph')
-                    graph = graphs.Item('S11_Ang Graph');
+                if graphs.Exists(['S', portA, portB,'_Ang Graph'])
+                    graph = graphs.Item(['S', portA, portB,'_Ang Graph']);
                 else
-                    graph = graphs.Add('S11_Ang Graph','mwGT_Rectangular');
+                    graph = graphs.Add(['S', portA, portB,'_Ang Graph'],'mwGT_Rectangular');
                 end
-                measurement_S11_Ang = graph.Measurements.Add(M.name,'Ang(S(1,1))');
+                measurement_Sxx_Ang = graph.Measurements.Add(M.name,['Ang(S(', portA,',', portB, '))']);
 
                 proj.Simulator.Analyze;
 
-                nRead = measurement_S11_Mag.XPointCount;
-                [fin,S11in] = deal(zeros(nRead,1));
-                fin = measurement_S11_Mag.XValues;
+                nRead = measurement_Sxx_Mag.XPointCount;
+                [fin,Sxxin] = deal(zeros(nRead,1));
+                fin = measurement_Sxx_Mag.XValues;
 
                 for nn = 1:nRead
-                    amp = measurement_S11_Mag.YValue(nn,1);
-                    phase = measurement_S11_Ang.YValue(nn,1);
-                    S11in(nn) = amp.*exp(1i*phase);
+                    amp = measurement_Sxx_Mag.YValue(nn,1);
+                    phase = measurement_Sxx_Ang.YValue(nn,1);
+                    Sxxin(nn) = amp.*exp(1i*phase);
                 end
 
                 if isfield(M,'freq')
                     Nm = length(M.freq);
-                    Rreal = reshape(interp1(fin,real(S11in),M.freq,'spline'),Nm,1);
-                    Rimag = reshape(interp1(fin,imag(S11in),M.freq,'spline'),Nm,1);
+                    Rreal = reshape(interp1(fin,real(Sxxin),M.freq,'spline'),Nm,1);
+                    Rimag = reshape(interp1(fin,imag(Sxxin),M.freq,'spline'),Nm,1);
                     Rc{rr}.r = Rreal + 1i*Rimag;
                     Rc{rr}.f = M.freq;
                 else
                     Nm = nRead;
-                    Rc{rr}.r = S11in;
+                    Rc{rr}.r = Sxxin;
                     Rc{rr}.f = fin;
                 end
                 Rc{rr}.t = Rtype{rr};
@@ -1038,19 +1015,16 @@ Ni = length(Ti.xi_all);    % Number of iterations
 subplot(2,2,[1 2])
 if strcmp(OPTopts.goalResType{1},'S11_dB')
     plot(cell2mat(Ti.costF_all), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+    plotGoals()
 elseif strcmp(OPTopts.goalResType{1},'S11_complex')
     plot(real(cell2mat(Ti.costF_all)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-else
-    error('goalResType not found')
-end
-% if ( ~isreal(Ti.costF_all) )
-%  TODO_DWW: Update this to also use the loop from costFunc and the plotModels... 
-if strcmp(OPTopts.goalResType{1},'S11_complex')
     plot(imag(cell2mat(Ti.costF_all)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-    legend('real','imag')
-end % imag part
-plotRealGoals()
-plotImagGoals()
+    legend('real','imag');
+    plotRealGoals()
+    plotImagGoals()
+else
+    error(['goalResType (', OPTopts.goalResType{1}, ')not found']);
+end
 ylabel('Ti.costF\_all')
 xlabel('Iterations all')
 title('Ti.costF\_all')
@@ -1061,33 +1035,42 @@ if strcmp(OPTopts.goalResType{1},'S11_dB')
     plot(cell2mat(costS), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
 elseif strcmp(OPTopts.goalResType{1},'S11_complex')
     plot(real(cell2mat(costS)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-end
-if strcmp(OPTopts.goalResType{1},'S11_complex')
     plot(imag(cell2mat(costS)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     legend('real','imag')
-end % imag part
+else
+    error(['goalResType (', OPTopts.goalResType{1}, ')not found']);
+end
 ylabel('costS')
 xlabel('Iterations success points')
 title('costS - fairly meaningless')
 
 subplot(2,2,4)
-
 if strcmp(OPTopts.goalResType{1},'S11_dB')
     plot(cell2mat(costF), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+    plotGoals()
 elseif strcmp(OPTopts.goalResType{1},'S11_complex')
     plot(real(cell2mat(costF)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-end
-if strcmp(OPTopts.goalResType{1},'S11_complex')
     plot(imag(cell2mat(costF)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     legend('real','imag')
-end % imag part
-plotRealGoals()
-plotImagGoals()
+    plotRealGoals()
+    plotImagGoals()
+else
+    error(['goalResType (', OPTopts.goalResType{1}, ')not found']);
+end
 ylabel('costF')
 xlabel('Iterations success points')
 title('costF')
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function plotGoals()
+if ( isfield(OPTopts, 'goalVal') )%&& isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
+    Ng = length(OPTopts.goalVal);
+    for gg = 1:Ng
+        plot([1, Ni], (OPTopts.goalVal{gg})*ones(1,2), 'm', 'LineWidth',2)
+    end
+end % if validation
+end % plotGoals function
+
 function plotRealGoals()
 if ( isfield(OPTopts, 'goalVal') )%&& isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
     Ng = length(OPTopts.goalVal);
@@ -1096,13 +1079,14 @@ if ( isfield(OPTopts, 'goalVal') )%&& isfield(OPTopts, 'goalStart') && isfield(O
     end
 end % if validation
 end % plotRealGoals function
+
 function plotImagGoals()
 % TODO_DWW: Update this to use goalResType and not this isReal stuff
 if ( isfield(OPTopts, 'goalVal') )%&& isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
     Ng = length(OPTopts.goalVal);
     for gg = 1:Ng
         if ( ~isreal(OPTopts.goalVal{gg}) )
-            plot([1, Ni], imag(OPTopts.goalVal{gg})*ones(1,2), 'm', 'LineWidth',2)
+            plot([1, Ni], imag(OPTopts.goalVal{gg})*ones(1,2), 'c', 'LineWidth',2)
         end % imag part
     end
 end % if validation

@@ -1,6 +1,7 @@
 function plotModels(plotFlag, itNum, Rci, Rfi, Rsi, Rsai, OPTopts)
 
-% Plot the initial fine, coarse, optimised surrogate and aligned surrogate
+% Plot the goals and the responses for the initial fine, coarse, 
+% optimised surrogate and aligned surrogate.
 
 % Inputs:
 %   plotFlag:   If false then no plots are made.
@@ -13,125 +14,90 @@ function plotModels(plotFlag, itNum, Rci, Rfi, Rsi, Rsai, OPTopts)
 
 if plotFlag && valuesAreValid()
     figure(itNum)
-    
-    % TODO_DWW: Take loop from costFunc to actually sort this nicely with goals associated with a response type
-    %           plotted on the same graph and that the correct form of the R.t is plotted. dB and not complex...
-	Nr = length(OPTopts.Rtype); % Number of responses requested
-    if ( ~checkForComplexGoalResType() )
-        columnCount = 1;
-    else
-        columnCount = 2;
-    end
 
-    % TODO_DWW: Add dB for goal type.
-
-    for rr = 1:Nr
-        subplot(Nr, columnCount, columnCount*(rr-1) + 1)
-        plotForRealValuedResponse();
-        if ( columnCount == 2 )
-            subplot(Nr, columnCount, columnCount*(rr-1) + 2)
-            plotForComplexResponse();
+    Ng = length(OPTopts.goalType);
+    for gg = 1:Ng
+        goalType = OPTopts.goalType{gg};
+        splits = regexp(OPTopts.goalResType{gg}, '\_', 'split');
+        assert(length(splits) == 2, ['Expecting two parts to the goalResType, found: ', cell2mat(splits), ' from: ', OPTopts.goalResType]);
+        
+        if strcmp(splits{2},'complex')
+            subplot(Ng, 2, gg*2-1)
+            plotResponse([splits{1}, '_real']);
+            plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, real(OPTopts.goalVal{gg}), goalType)
+            subplot(Ng, 2, gg*2)
+            legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
+            plotResponse([splits{1}, '_imag']);
+            plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, imag(OPTopts.goalVal{gg}), goalType)
+            
+            legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
+        else
+            subplot(Ng, 2, [gg*2-1, gg*2])
+            plotResponse(OPTopts.goalResType{gg});
+            plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, OPTopts.goalVal{gg}, goalType)
+            
+            legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', goalType)
         end
-    end % for Nr
+    end % for Ng
 end % if validation
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function plotForRealValuedResponse()
-if isfield(OPTopts,'goalResType') && strcmp(OPTopts.goalResType,'S11_dB')
-    if isfield(Rci{itNum}{rr},'f')
-        plot(Rci{itNum}{rr}.f,dB20(Rfi{itNum}{rr}.r),'k','LineWidth',1.5), grid on, hold on
-        plot(Rci{itNum}{rr}.f,dB20(Rci{itNum}{rr}.r),'r','LineWidth',1.5), grid on, hold on
-        plot(Rsi{itNum}{rr}.f,dB20(Rsi{itNum}{rr}.r),'b','LineWidth',1.5), grid on, hold on
-        plot(Rsai{itNum}{rr}.f,dB20(Rsai{itNum}{rr}.r),'g--','LineWidth',2), grid on, hold on
-        xlabel('Frequency')
-    else
-        plot(dB20(Rfi{itNum}{rr}.r),'k','LineWidth',1.5), grid on, hold on
-        plot(dB20(Rci{itNum}{rr}.r),'r','LineWidth',1.5), grid on, hold on
-        plot(dB20(Rsi{itNum}{rr}.r),'b','LineWidth',1.5), grid on, hold on
-        plot(dB20(Rsai{itNum}{rr}.r),'g','LineWidth',1.5), grid on, hold on
-        xlabel('Index')
-    end
+function plotResponse(goalResType)
+% Find and convert responses to the particular goal type for plotting
+RfiMatch = findResponseFor(Rfi{itNum}, goalResType);
+RciMatch = findResponseFor(Rci{itNum}, goalResType);
+RsiMatch = findResponseFor(Rsi{itNum}, goalResType);
+RsaiMatch = findResponseFor(Rsai{itNum}, goalResType);
+
+% Assuming all responses are based off the same freq
+if isfield(RciMatch,'f')
+    freq = RciMatch.f;
+    plot(freq, RfiMatch.r,'k','LineWidth',1.5), grid on, hold on
+    plot(freq, RciMatch.r,'r','LineWidth',1.5), grid on, hold on
+    plot(freq, RsiMatch.r,'b','LineWidth',1.5), grid on, hold on
+    plot(freq, RsaiMatch.r,'g--','LineWidth',2), grid on, hold on
+    xlabel('Frequency')
 else
-    if isfield(Rci{itNum}{rr},'f')
-        plot(Rci{itNum}{rr}.f,real(Rfi{itNum}{rr}.r),'k','LineWidth',1.5), grid on, hold on
-        plot(Rci{itNum}{rr}.f,real(Rci{itNum}{rr}.r),'r','LineWidth',1.5), grid on, hold on
-        plot(Rsi{itNum}{rr}.f,real(Rsi{itNum}{rr}.r),'b','LineWidth',1.5), grid on, hold on
-        plot(Rsai{itNum}{rr}.f,real(Rsai{itNum}{rr}.r),'g--','LineWidth',2), grid on, hold on
-        xlabel('Frequency')
-    else
-        plot(real(Rfi{itNum}{rr}.r),'k','LineWidth',1.5), grid on, hold on
-        plot(real(Rci{itNum}{rr}.r),'r','LineWidth',1.5), grid on, hold on
-        plot(real(Rsi{itNum}{rr}.r),'b','LineWidth',1.5), grid on, hold on
-        plot(real(Rsai{itNum}{rr}.r),'g','LineWidth',1.5), grid on, hold on
-        xlabel('Index')
-    end
+    plot(RfiMatch.r,'k','LineWidth',1.5), grid on, hold on
+    plot(RciMatch.r,'r','LineWidth',1.5), grid on, hold on
+    plot(RsiMatch.r,'b','LineWidth',1.5), grid on, hold on
+    plot(RsaiMatch.r,'g--','LineWidth',2), grid on, hold on
+    xlabel('Index')
 end
-plotRealGoals()
-ylabel(OPTopts.Rtype{rr})
-title(['Iteration ',num2str(itNum)])
-legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate')
+ylabel(goalResType)
+title(['Iteration: ',num2str(itNum), ', goal of result type : ', goalResType])
 end % plotForRealValuedResponse function
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function plotForComplexResponse()
-if isfield(Rci{itNum}{rr},'f')
-    plot(Rci{itNum}{rr}.f,imag(Rfi{itNum}{rr}.r),'k','LineWidth',1.5), grid on, hold on
-    plot(Rci{itNum}{rr}.f,imag(Rci{itNum}{rr}.r),'r','LineWidth',1.5), grid on, hold on
-    plot(Rsi{itNum}{rr}.f,imag(Rsi{itNum}{rr}.r),'b','LineWidth',1.5), grid on, hold on
-    plot(Rsai{itNum}{rr}.f,imag(Rsai{itNum}{rr}.r),'g--','LineWidth',2), grid on, hold on
-    xlabel('Frequency')
-else
-    plot(imag(Rfi{itNum}{rr}.r),'k','LineWidth',1.5), grid on, hold on
-    plot(imag(Rci{itNum}{rr}.r),'r','LineWidth',1.5), grid on, hold on
-    plot(imag(Rsi{itNum}{rr}.r),'b','LineWidth',1.5), grid on, hold on
-    plot(imag(Rsai{itNum}{rr}.r),'g','LineWidth',1.5), grid on, hold on
-    xlabel('Index')
+function plotGoal(goalStart, goalStop, goalValue, goalType)
+switch goalType
+case 'lt'
+    colour = 'c';
+case 'gt'
+    colour = 'm';
+case 'eq'
+    colour = 'g';
+case 'minimax'
+    colour = 'y';
+case 'bw'
+    colour = 'b';
+otherwise
+    error(['Unknows goalType found. OPTopts.goalType = ', goalType])
 end
-plotImagGoals()
-ylabel(OPTopts.Rtype{rr})
-% TODO_DWW: update labels to reflect actual plot type, e.g. dB -> from goalResType
-title(['Iteration ',num2str(itNum), ' - Imag part'])
-legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate')
-end % plotForComplexResponse function
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function plotRealGoals()
-if ( isfield(OPTopts, 'goalVal') && isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
-    Ng = length(OPTopts.goalVal);
-    for gg = 1:Ng
-        plot([OPTopts.goalStart{gg}, OPTopts.goalStop{gg}], real(OPTopts.goalVal{gg})*ones(1,2), 'm', 'LineWidth',3)
-    end
-end % if validation
-end % plotRealGoals function
-function plotImagGoals()
-if ( isfield(OPTopts, 'goalVal') && isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
-    Ng = length(OPTopts.goalVal);
-    for gg = 1:Ng
-        if ( ~isreal(OPTopts.goalVal{gg}) )
-            plot([OPTopts.goalStart{gg}, OPTopts.goalStop{gg}], imag(OPTopts.goalVal{gg})*ones(1,2), 'm', 'LineWidth',3)
-        end % imag part
-    end
-end % if validation
-end % plotImagGoals function
+if ( isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
+    plot([goalStart, goalStop], (goalValue)*ones(1,2), colour, 'LineWidth',3)
+end
+end % plotGoal function
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [areValid] = valuesAreValid()
 areValid = true;
+areValid = areValid & isfield(OPTopts,'goalResType');
 areValid = areValid & (length(Rci) >= itNum);
 areValid = areValid & (length(Rfi) >= itNum);
 areValid = areValid & (length(Rsi) >= itNum);
 areValid = areValid & (length(Rsai) >= itNum);
-end % valuesAreValid function
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function [hasComplex] = checkForComplexGoalResType()
-hasComplex = false;
-for count = 1:Nr
-    % TODO_DWW: Use regex split to just grab {"_complex"} generalising to any s-param
-    if strcmp(OPTopts.goalResType{count},'S11_complex')
-        hasComplex = true;
-        break
-    end
-end % for Nr
 end % valuesAreValid function
 
 end % plotModels function

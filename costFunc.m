@@ -9,9 +9,14 @@ function cost = costFunc(R,GOALS)
 % GOALS can contain (typically a subset of OPTopts used in the main function):
 %   goalResType:Cell array of response names to consider for the different goals {1,Ng}
 %               Valid types:
-%               'S11_dB' 
-%               'S11_complex' - ToDo?
-%               'Gen' - Ignored (default)
+%               'S11_complex'
+%               'S11_real'
+%               'S11_imag'
+%               'S11_dB'
+%               'S11_abs'
+%               'S11_angle'
+%               'S11_deg' - degrees
+%               'Gen' - general 
 %   goalType:   Cell array of goal types {1,Ng}
 %               Valid types:
 %                   'lt' (Less than)
@@ -29,10 +34,10 @@ function cost = costFunc(R,GOALS)
 %                   
 % Date created: 2015-06-26
 % Dirk de Villiers 
-% Last Modified: 2015-06-26
+% Last Modified: 2017-04-24
 % Updates:
 % 2015-06-26: Write function shell and basic functionality from SMmain.m migration
-
+% 2017-04-24: Introduced findResponseFor function to share code to find a response matching the goal in question.
 
 % Make R a structure if only a vector is passed
 if ~isstruct(R) && ~iscell(R), R.r = R; end;
@@ -57,29 +62,7 @@ for gg = 1:Ng
     if isfield(GOALS,'goalWeight'), G.goalWeight = GOALS.goalWeight{gg}; end
     wSum = wSum + G.goalWeight;
     
-    foundMathingType = false;
-    tt = 1;
-    % TODO_DWW: Move this finding loop to a function and share with plotModels
-    while tt <= Nr
-        % Special case for complex and dB S11 goals...
-        % TODO_DWW: Clean up -> I dont think we are going to handle this case any more.
-        % if isfield(R{tt},'t') && isfield(GOALS,'goalResType') && strcmp(R{tt}.t,'S11') && strcmp(G.goalResType,'S11_dB')
-        if isfield(R{tt},'t') && isfield(GOALS,'goalResType') && strncmp(GOALS.goalResType{gg},R{tt}.t,3)
-            Ri = convertResponse(R{tt}, GOALS.goalResType{gg});
-            % Ri.r = dB20(R{tt}.r);
-            foundMathingType = true;
-            break;
-        end
-        % else if ( strncmp(R{tt}.t,'S11',3) && strncmp(GOALS.goalResType{gg},'S11',3) ) 
-        % if strcmp(R{tt}.t,GOALS.goalResType{gg})
-            % Ri = R{tt};
-            % foundMathingType = true;
-            % break;
-        % end
-        tt = tt + 1;
-    end
-    assert(foundMathingType, ['No matching result type was found for the specified goalResType.', GOALS.goalResType{gg}, '.  R{:}.t = ', R{:}.t])
-    % assert(isfield(GOALS,'goalResType') && ~strcmp(G.goalResType,'S11_dB'), 'G.goalResType = S11_dB is not supported at this time.')
+    Ri = findResponseFor(R, GOALS.goalResType{gg});
 
     % Sort out the centre, start and stop positions - use index if no frequency is
     % specified in the response structure
