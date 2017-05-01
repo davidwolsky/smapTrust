@@ -52,7 +52,6 @@ Mc.params = {'ls'};
 Mc.Iparams = {'eps_r'};
 Mc.ximin = Mf.ximin;
 Mc.ximax = Mf.ximax;
-% TODO_DWW: test this
 Mc.xpmin = [1.8]';
 Mc.xpmax = [3.0]';
 % Mc.xpmin = [2]';
@@ -97,16 +96,23 @@ OPTopts.TRNi = OPTopts.Ni;
 OPTopts.Rtype = {'S11'};
 OPTopts.globOpt = 0;
 OPTopts.globOptSM = 1;
+%
 % OPTopts.goalType = {'minimax'};
-OPTopts.goalType = {'lt', 'gt'};
 % OPTopts.goalResType = {'S11_complex'};
-OPTopts.goalResType = {'S11_dB', 'S11_dB'};
 % OPTopts.goalVal = {0.1-1j*0.2};
+% OPTopts.goalWeight = {1};
+% OPTopts.goalStart = {1.30e9};
+% OPTopts.goalStop = {1.45e9};
+% OPTopts.errNorm = {1};
+%
+OPTopts.goalType = {'lt', 'gt'};
+OPTopts.goalResType = {'S11_dB', 'S11_dB'};
 OPTopts.goalVal = {-20, -10};
 OPTopts.goalWeight = {1, 1};
-OPTopts.goalStart = {1.30e9, 1.60e9};
+OPTopts.goalStart = {1.40e9, 1.60e9};
 OPTopts.goalStop = {1.45e9, 1.75e9};
-OPTopts.errNorm = {1, 1};
+OPTopts.errNorm = {1,1};
+%
 OPTopts.optsPBIL.display =  'iter'; 
 OPTopts.optsPBIL.Nfeval = 5000;
 OPTopts.optsPBIL.Nbest = 10; % DOM
@@ -130,10 +136,10 @@ SMopts.optsFminS = optimset('display','iter');
 SMopts.optsPBIL.display =  'iter';
 SMopts.optsPBIL.Nfeval = 5000;
 SMopts.errNorm = 1;
-errW = zeros(size(Mf.freq))
-errW(Mf.freq > OPTopts.goalStart{1} & Mf.freq < OPTopts.goalStop{1}) = 1
-errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1
-SMopts.errW = errW
+errW = zeros(size(Mf.freq));
+errW(Mf.freq > OPTopts.goalStart{1} & Mf.freq < OPTopts.goalStop{1}) = 1;
+% errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1
+SMopts.errW = errW;
 % SMopts.wk = 5;
 SMopts.wk = 0;
 

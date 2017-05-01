@@ -56,7 +56,7 @@ for gg = 1:Ng
     if isfield(GOALS,'goalStart'), G.goalStart = GOALS.goalStart{gg}; end
     if isfield(GOALS,'goalStop'), G.goalStop = GOALS.goalStop{gg}; end
     if isfield(GOALS,'goalCent'), G.goalCent = GOALS.goalCent{gg}; end
-    G.errNorm = 'L1';
+    G.errNorm = 1;
     if isfield(GOALS,'errNorm'), G.errNorm = GOALS.errNorm{gg}; end
     G.goalWeight = 1;
     if isfield(GOALS,'goalWeight'), G.goalWeight = GOALS.goalWeight{gg}; end
@@ -140,7 +140,7 @@ for gg = 1:Ng
                   c0 = -min(i2-iCent,iCent-i1) +  beta*norm(yi,2);
             end
         otherwise
-            error('Unknown goalType');
+            error(['Unknown goalType',G.goalType]);
     end
     
     cSum = cSum + G.goalWeight*c0;

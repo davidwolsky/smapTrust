@@ -174,8 +174,8 @@ function Si = buildSurr(xi,Rfi,S,opts)
 if iscell(xi) && iscell(Rfi) && (length(xi) == length(Rfi))   % Basic error checking - if any issue here only first point will be used
     Nc = length(xi);  % Number of input point cells
 else     % Force only first point to be used, and make cell arrays
-    if ~iscell(xi), xi = mat2cell(xi); end 
-    if ~iscell(Rfi), Rfi = mat2cell(Rfi); end 
+    if ~iscell(xi), xi = {xi}; end 
+    if ~iscell(Rfi), Rfi = {Rfi}; end 
     Nc = 1;
 end
 

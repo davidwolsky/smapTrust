@@ -884,6 +884,8 @@ switch M.solver
         % Generate output
         for rr = 1:Nr
             if strncmp(Rtype{rr},'S',1)
+                % TODO_DWW: Swap this round t match the theory!
+                % TODO_DWW: Use a Sb,a_ format and update
                 portA = (Rtype{rr}(2));
                 portB = (Rtype{rr}(3));
                 % Adding a graph and measurement 
