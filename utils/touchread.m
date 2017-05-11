@@ -74,7 +74,13 @@ if N > 9
 end
 [M,N] = size(Sfmat);
 lines_port = ceil(NrPorts/4);
-lines_freq = lines_port*NrPorts;
+
+if NrPorts == 2
+    lines_freq = 1;
+else
+    lines_freq = lines_port*NrPorts;
+end
+
 NrFreqs = M/lines_freq;
 
 Sfmat_col1 = Sfmat(:,1);

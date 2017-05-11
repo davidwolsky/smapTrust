@@ -67,11 +67,11 @@ SMopts.wk = 1.15;
 % Set up the optimization
 OPTopts.Ni = 2;
 % CRC_DDV: DWW: This has been updated... 
-OPTopts.Rtype = {'S11'};
+OPTopts.Rtype = {'S1,1'};
 OPTopts.globOpt = 1;
 OPTopts.globOptSM = 2;
 OPTopts.goalType = {'lt'};
-OPTopts.goalResType = {'S11_dB'};
+OPTopts.goalResType = {'S1,1_dB'};
 OPTopts.goalVal = {-20};
 OPTopts.goalWeight = {1};
 OPTopts.goalStart = {9};

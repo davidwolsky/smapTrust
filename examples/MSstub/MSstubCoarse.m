@@ -5,7 +5,7 @@ function R = MSstubCoarse(x,xp,f)
 %   f       - frequency vector [Nm,1]
 %
 % output parameters:
-%   R       - response vector only (no frequency), S11 in dB in this case
+%   R       - response vector only (no frequency), S1,1 in dB in this case
 
 %% test inputs
 % f = linspace(1e9,2e9,41);

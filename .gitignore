@@ -67,10 +67,13 @@ SMmain.asv
 *.out
 *.pre
 *.str
-*.s1p
+*.s*p
 *.lock
 *tmp_machfile*
+*SMlog.mat
 
 # AWR
 # =========================
 *.TEMP
+*MWOffice_ipclog.xml
+*ipc_log_formatter.xsl

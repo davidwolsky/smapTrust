@@ -8,18 +8,18 @@ function Res = convertResponse(Ri, goalResType)
 % A Goal can contain (typically a subset of OPTopts used in the main function):
 %   goalResType:Cell array of response names to consider for the different goals {1,Ng}
 %               Valid types:
-%               'Sxx_complex'
-%               'Sxx_real'
-%               'Sxx_imag'
-%               'Sxx_dB'
-%               'Sxx_abs'
-%               'Sxx_angle'
-%               'Sxx_deg' - degrees
+%               'Sb,a_complex'
+%               'Sb,a_real'
+%               'Sb,a_imag'
+%               'Sb,a_dB'
+%               'Sb,a_abs'
+%               'Sb,a_angle'
+%               'Sb,a_deg' - degrees
 %               'Gen' - general
 
 if ( strcmp(Ri.t, goalResType)  )  % Same type, just return
     Res = Ri;
-elseif ( strncmp(goalResType,Ri.t,3) )  % First three characters preceding an underscore, e.g. S11_dB
+elseif ( strncmp(goalResType,Ri.t,find(goalResType=='_')-1) )
     % Assume that the response is always complex for the response, because 
     % inner workings handle it like this.
     switch extractUnitString(goalResType)

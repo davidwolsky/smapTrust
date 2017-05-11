@@ -19,7 +19,7 @@ xpinit = [2.1]';   % Initial implicit parameters (only eps_r in this case)
 
 % Set up fine model
 %setenv('PATH', [getenv('PATH') ';C:\Program Files\Altair\14.0\feko\bin']);
-Mf.path = 'C:\Users\19718330\Documents\GitHub\masters\ws_smap\smapTrust\examples\MSstub\FEKO\';
+Mf.path = 'C:\Users\19718330\Documents\GitHub\masters\ws_smap_various\smapTrust\examples\MSstub\FEKO\';
 %Mf.path = '/home/rib/Documents/masters/smap/smap/examples/MSstub/FEKO/';
 Mf.name = 'MSstubOpen';
 Mf.solver = 'FEKO';
@@ -45,7 +45,8 @@ Mf.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 % Mc.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 
 % Set up coarse model (AWR)
-Mc.path = 'C:\Users\19718330\Documents\GitHub\masters\ws_smap\smapTrust\examples\MSstub\AWR\';
+% TODO_DWW: HAVE TO MAKE THIS USE pwd or something!?!?!?!??!
+Mc.path = 'C:\Users\19718330\Documents\GitHub\masters\ws_smap_various\smapTrust\examples\MSstub\AWR\';
 Mc.name = 'MSstubCoarse';
 Mc.solver = 'AWR';
 Mc.params = {'ls'};
@@ -93,12 +94,14 @@ OPTopts.ximax = Mf.ximax;
 OPTopts.Ni = 3;
 % OPTopts.TRNi = OPTopts.Ni*2;
 OPTopts.TRNi = OPTopts.Ni;
-OPTopts.Rtype = {'S11'};
+OPTopts.Rtype = {'S1,1'};
+% TODO_DWW: name this nicely and follow through with an assertion
+OPTopts.SParamMaxPortNumber = 3;
 OPTopts.globOpt = 0;
 OPTopts.globOptSM = 1;
 %
 % OPTopts.goalType = {'minimax'};
-% OPTopts.goalResType = {'S11_complex'};
+% OPTopts.goalResType = {'S1,1_complex'};
 % OPTopts.goalVal = {0.1-1j*0.2};
 % OPTopts.goalWeight = {1};
 % OPTopts.goalStart = {1.30e9};
@@ -106,7 +109,7 @@ OPTopts.globOptSM = 1;
 % OPTopts.errNorm = {1};
 %
 OPTopts.goalType = {'lt', 'gt'};
-OPTopts.goalResType = {'S11_dB', 'S11_dB'};
+OPTopts.goalResType = {'S1,1_dB', 'S1,1_dB'};
 OPTopts.goalVal = {-20, -10};
 OPTopts.goalWeight = {1, 1};
 OPTopts.goalStart = {1.40e9, 1.60e9};

@@ -9,13 +9,13 @@ function cost = costFunc(R,GOALS)
 % GOALS can contain (typically a subset of OPTopts used in the main function):
 %   goalResType:Cell array of response names to consider for the different goals {1,Ng}
 %               Valid types:
-%               'S11_complex'
-%               'S11_real'
-%               'S11_imag'
-%               'S11_dB'
-%               'S11_abs'
-%               'S11_angle'
-%               'S11_deg' - degrees
+%               'Sb,a_complex'
+%               'Sb,a_real'
+%               'Sb,a_imag'
+%               'Sb,a_dB'
+%               'Sb,a_abs'
+%               'Sb,a_angle'
+%               'Sb,a_deg' - degrees
 %               'Gen' - general 
 %   goalType:   Cell array of goal types {1,Ng}
 %               Valid types:

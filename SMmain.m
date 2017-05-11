@@ -33,7 +33,7 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   ximax:      Vector of maximum values to limit the parameters [Nn,1] (Compulsory)
 %   Rtype:      Type of response (cell array if more than one needed)
 %               Valid types (so far):
-%               'S11' - s-parameters are handled internally using both real and imaginary parts.
+%               'Sb,a' - s-parameters are handled internally using both real and imaginary parts.
 %               'Gen' - generic case for use with MATLAB models.
 %   Ni:         Maximum number of iterations
 %   TRNi:       Maximum number of iterations for the Trust region loop.
@@ -43,13 +43,13 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   globOptSM:  Flag to run PBIL during the PE process (1 for only first iteration, 2 for all iterations) (default 0)
 %   goalResType:Cell array of response names to consider for the different goals {1,Ng}
 %               Valid types:
-%               'S11_complex'
-%               'S11_real'
-%               'S11_imag'
-%               'S11_dB'
-%               'S11_abs'
-%               'S11_angle'
-%               'S11_deg' - degrees
+%               'Sb,a_complex'
+%               'Sb,a_real'
+%               'Sb,a_imag'
+%               'Sb,a_dB'
+%               'Sb,a_abs'
+%               'Sb,a_angle'
+%               'Sb,a_deg' - degrees
 %               'Gen' - general            
 %   goalType:   Cell array of goal types {1,Ng}
 %               Valid types:
@@ -560,7 +560,7 @@ function Rf = fineMod(M,xi)
 %   path:   Full path to file
 %   name:   File name of file (without extension)
 %   solver:     'CST'/'MATLAB'/'FEKO' (for now)
-%               'S11_dB' - obvious!
+%               'S1,1_dB'!
 
 % Limit the inputs
 if isfield(M,'ximin')
@@ -620,47 +620,48 @@ switch M.solver
         
         % Generate output
         for rr = 1:Nr
-            if strcmp(Rtype{rr},'S11_dB')
-                result = invoke(mws,'Result1D','d1(1)1(1)');    % S11 in dB
+            % TODO_DWW: This needs to be updated
+            if strcmp(Rtype{rr},'S1,1_dB')
+                result = invoke(mws,'Result1D','d1(1)1(1)');    % Sb,a in dB
                 % Get nr of frequency points in the plot
                 nRead = invoke(result,'GetN');
-                [fin,S11in] = deal(zeros(nRead,1));
+                [fin,Sbain] = deal(zeros(nRead,1));
                 for nn = 1:nRead
                     fin(nn) = invoke(result,'GetX',nn-1);        % Typically in GHz
-                    S11in(nn) = invoke(result,'GetY',nn-1);
+                    Sbain(nn) = invoke(result,'GetY',nn-1);
                 end
                 if isfield(M,'freq')
                     Nm = length(M.freq);
-                    Rf{rr}.r = reshape(interp1(fin,S11in,M.freq,'spline'),Nm,1);
+                    Rf{rr}.r = reshape(interp1(fin,Sbain,M.freq,'spline'),Nm,1);
                     Rf{rr}.f = M.freq;
                 else
                     Nm = nRead;
-                    Rf{rr}.r = S11in;
+                    Rf{rr}.r = Sbain;
                     Rf{rr}.f = fin;
                 end
                 Rf{rr}.t = Rtype{rr};
                 release(result);
-            elseif strcmp(Rtype{rr},'S11_complex')
-                resultA = invoke(mws,'Result1D','a1(1)1(1)');    % amplitude of S11
-                resultP = invoke(mws,'Result1D','p1(1)1(1)');    % phase of S11
+            elseif strcmp(Rtype{rr},'S1,1_complex')
+                resultA = invoke(mws,'Result1D','a1(1)1(1)');    % amplitude of Sb,a
+                resultP = invoke(mws,'Result1D','p1(1)1(1)');    % phase of Sb,a
                 % Get nr of frequency points in the plots
                 nRead = invoke(resultA,'GetN');
-                [fin,S11in] = deal(zeros(nRead,1));
+                [fin,Sbain] = deal(zeros(nRead,1));
                 for nn = 1:nRead
                     fin(nn) = invoke(resultA,'GetX',nn-1);        % Typically in GHz
                     amp = invoke(resultA,'GetY',nn-1);
                     phase = rad(invoke(resultP,'GetY',nn-1));
-                    S11in(nn) = amp.*exp(1i*phase);
+                    Sbain(nn) = amp.*exp(1i*phase);
                 end
                 if isfield(M,'freq')
                     Nm = length(M.freq);
-                    Rreal = reshape(interp1(fin,real(S11in),M.freq,'spline'),Nm,1);
-                    Rimag = reshape(interp1(fin,imag(S11in),M.freq,'spline'),Nm,1);
+                    Rreal = reshape(interp1(fin,real(Sbain),M.freq,'spline'),Nm,1);
+                    Rimag = reshape(interp1(fin,imag(Sbain),M.freq,'spline'),Nm,1);
                     Rf{rr}.r = Rreal + 1i*Rimag;
                     Rf{rr}.f = M.freq;
                 else
                     Nm = nRead;
-                    Rf{rr}.r = S11in;
+                    Rf{rr}.r = Sbain;
                     Rf{rr}.f = fin;
                 end
                 Rf{rr}.t = Rtype{rr};
@@ -672,39 +673,7 @@ switch M.solver
         invoke(mws,'Quit');
         
     case 'FEKO'
-        % Build parameter string
-        parStr = [];
-        for nn = 1:Nn
-            parStr = [parStr,' -#',M.params{nn},'=',num2str(xi(nn))];
-        end
-        % Remesh the structure with the new parameters
-        FEKOmesh = ['cadfeko_batch ',[M.path,M.name,'.cfx'],parStr];
-        system(FEKOmesh)
-        % Run FEKO - cannot run with path, so change the directory
-        curDir = pwd;
-        cd(M.path)
-        FEKOrun = ['runfeko ', [M.name,'.cfx']];
-        system(FEKOrun)
-        cd(curDir)
-        % Generate output
-        for rr = 1:Nr
-            % TODO_DWW: Clean up 
-            % if strncmp(Rtype{rr},'S11',3)
-                % Read the S11 touchstone file - must be exported by the FEKO
-                % file with the correct name - Name_S11.s1p!
-                [Spar,freq] = touchread([M.path,M.name,'_S11.s1p'],1);
-                S11 = reshape(Spar(1,1,:),length(freq),1);
-                Rf{rr}.f = freq;
-            % end
-            % if strcmp(Rtype{rr},'S11_dB')
-            %     Rf{rr}.r = dB20(S11);
-            % elseif strcmp(Rtype{rr},'S11_complex')
-            %     Rf{rr}.r = S11;
-            % end
-
-            Rf{rr}.r = S11;
-            Rf{rr}.t = Rtype{rr};
-        end
+        Rf = fekoMod(M,xi,Rtype);
         
     case 'MATLAB'
         Ni = length(M.params);  % This is interpreted as the number of inputs to the function
@@ -735,6 +704,7 @@ end
 
 end % fineMod
 
+
 function Rc = coarseMod(M,xi,xp,f)
 
 % Rc is a cell array of structures containing the response in Rc.r, the type Rc.t, and the
@@ -754,8 +724,9 @@ function Rc = coarseMod(M,xi,xp,f)
 %   freq:       Array of simulation frequencies [Nm,1] (optional)
 %   Rtype:      Type of response (cell array if more than one needed)
 %               Valid types:
-%               'S11_dB'
-%               'S11_complex'
+%               'Sb,a_dB'
+%               'Sb,a_complex'
+% TODO_DWW: Flesh out
 %               'Gen'
 
 % Limit the inputs - this should really never happen...
@@ -810,43 +781,7 @@ switch M.solver
         error('CST solver not implemented yet for coarse model evaluations')
         
     case 'FEKO'
-        % Build parameter string
-        parStr = [];
-        for nn = 1:Nn
-            parStr = [parStr,' -#',M.params{nn},'=',num2str(xi(nn))];
-        end
-        % Also include possible implicit parameters
-        for qq = 1:Nq
-            parStr = [parStr,' -#',M.Iparams{qq},'=',num2str(xp(qq))];
-        end
-        
-        % Remesh the structure with the new parameters
-        FEKOmesh = ['cadfeko_batch ',[M.path,M.name,'.cfx'],parStr];
-        system(FEKOmesh)
-        % Run FEKO - cannot run with path, so change the directory
-        curDir = pwd;
-        cd(M.path)
-        FEKOrun = ['runfeko ', [M.name,'.cfx']];
-        system(FEKOrun)
-        cd(curDir)
-        % Generate output
-        for rr = 1:Nr
-            if strncmp(Rtype{rr},'S',1)
-                portA = (Rtype{rr}(2));
-                portA_num = str2doulbe(Rtype{rr}(2));
-                portB = (Rtype{rr}(3));
-                portB_num = str2doulbe(Rtype{rr}(3));
-                maxPort = max(portA_num, portB_num)
-                % Read the S11 touchstone file - must be exported by the FEKO
-                % file with the correct name - Name_S11.s1p!
-                file = [M.path,M.name,'_S',portA,portB,'.s',maxPort,'p']
-                [Spar,freq] = touchread(file,maxPort);
-                Sxx = reshape(Spar(portA_num,portB_num,:),length(freq),1);
-                Rc{rr}.f = freq;
-            end
-            Rc{rr}.r = Sxx;
-            Rc{rr}.t = Rtype{rr};
-        end
+        Rc = fekoMod(M,xi,Rtype);
 
     case 'AWR'
         % Ensure that NI AWR is open and that all projects have been closed.
@@ -884,25 +819,25 @@ switch M.solver
         % Generate output
         for rr = 1:Nr
             if strncmp(Rtype{rr},'S',1)
-                % TODO_DWW: Swap this round t match the theory!
-                % TODO_DWW: Use a Sb,a_ format and update
-                portA = (Rtype{rr}(2));
-                portB = (Rtype{rr}(3));
+                assert(~contains(Rtype{rr},'_'), 'S-parameters are always complex therefore specifying units here does not make sense. The goal type can have units though.')
+                RTypeString = replace(Rtype{rr},',','_');
+                portsString = [Rtype{rr}(2:end)];
+
                 % Adding a graph and measurement 
                 graphs = proj.Graphs;
-                if graphs.Exists(['S', portA, portB,'_Mag Graph'])
-                    graph = graphs.Item(['S', portA, portB,'_Mag Graph']);
+                if graphs.Exists([RTypeString,'_Mag Graph'])
+                    graph = graphs.Item([RTypeString,'_Mag Graph']);
                 else
-                    graph = graphs.Add(['S', portA, portB,'_Mag Graph'],'mwGT_Rectangular');
+                    graph = graphs.Add([RTypeString,'_Mag Graph'],'mwGT_Rectangular');
                 end
-                measurement_Sxx_Mag = graph.Measurements.Add(M.name,['|S(', portA,',', portB, ')|']);
+                measurement_Sxx_Mag = graph.Measurements.Add(M.name,['|S(', portsString, ')|']);
 
-                if graphs.Exists(['S', portA, portB,'_Ang Graph'])
-                    graph = graphs.Item(['S', portA, portB,'_Ang Graph']);
+                if graphs.Exists([RTypeString,'_Ang Graph'])
+                    graph = graphs.Item([RTypeString,'_Ang Graph']);
                 else
-                    graph = graphs.Add(['S', portA, portB,'_Ang Graph'],'mwGT_Rectangular');
+                    graph = graphs.Add([RTypeString,'_Ang Graph'],'mwGT_Rectangular');
                 end
-                measurement_Sxx_Ang = graph.Measurements.Add(M.name,['Ang(S(', portA,',', portB, '))']);
+                measurement_Sxx_Ang = graph.Measurements.Add(M.name,['Ang(S(', portsString, '))']);
 
                 proj.Simulator.Analyze;
 
@@ -929,7 +864,7 @@ switch M.solver
                 end
                 Rc{rr}.t = Rtype{rr};
             else
-                error(['Unrecognised RType request ', Rtype{rr}]);
+                error(['Unrecognised Rtype request ', Rtype{rr}]);
             end
         end % for Nr
         % awr.Project.Close(false)
@@ -969,6 +904,53 @@ switch M.solver
         error(['M.solver unknown for coarse model evaluation'])
 end
 end % coarseMod
+
+
+function R = fekoMod(M,xi,Rtype)
+
+% TODO_DWW: Add functunality for coarse model xp
+Nn = length(xi);
+Nr = length(Rtype);
+
+% Build parameter string
+parStr = [];
+for nn = 1:Nn
+    parStr = [parStr,' -#',M.params{nn},'=',num2str(xi(nn))];
+end
+% Remesh the structure with the new parameters
+FEKOmesh = ['cadfeko_batch ',[M.path,M.name,'.cfx'],parStr];
+system(FEKOmesh)
+% Run FEKO - cannot run with path, so change the directory
+curDir = pwd;
+cd(M.path)
+FEKOrun = ['runfeko ', [M.name,'.cfx']];
+system(FEKOrun)
+cd(curDir)
+% Generate output
+for rr = 1:Nr
+    if strncmp(Rtype{rr},'S',1)
+        portB = Rtype{rr}(2:find(Rtype{rr}==',')-1);
+        portB_num = str2double(portB);
+        portA = Rtype{rr}(find(Rtype{rr}==',')+1:end);
+        portA_num = str2double(portA);
+        % Read the Sb_a touchstone file - must be exported by the FEKO
+        % file with the correct name - Name_S1_1.s*p!
+        fileName = [M.name,'_S',portB,'_',portA,'.s*p'];
+        wildPos = find(fileName=='*');
+        fileDir = dir([M.path,fileName]);
+        portCount = str2double(fileDir.name(wildPos));
+        file = [fileDir.folder, '\', fileDir.name];
+        [Spar,freq] = touchread(file,portCount);
+        Sba = reshape(Spar(portB_num,portA_num,:),length(freq),1);
+        R{rr}.f = freq;
+    else
+        error(['Unrecognised Rtype{rr} for FEKO run. Rtype{',rr,'} = ', Rtype{rr}])
+    end
+    R{rr}.r = Sba;
+    R{rr}.t = Rtype{rr};
+end
+end % fekoMod function
+
 
 function cost = costSurr(xin,S,OPTopts)
 
@@ -1015,15 +997,15 @@ Ni = length(Ti.xi_all);    % Number of iterations
 % title('costs')
 
 subplot(2,2,[1 2])
-if strcmp(OPTopts.goalResType{1},'S11_dB')
-    plot(cell2mat(Ti.costF_all), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-    plotGoals()
-elseif strcmp(OPTopts.goalResType{1},'S11_complex')
+if strcmp(extractUnitString(OPTopts.goalResType{1}),'complex')
     plot(real(cell2mat(Ti.costF_all)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     plot(imag(cell2mat(Ti.costF_all)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     legend('real','imag');
     plotRealGoals()
     plotImagGoals()
+elseif strcmp(extractUnitString(OPTopts.goalResType{1}),'dB')
+    plot(cell2mat(Ti.costF_all), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+    plotGoals()
 else
     error(['goalResType (', OPTopts.goalResType{1}, ')not found']);
 end
@@ -1033,12 +1015,12 @@ title('Ti.costF\_all')
 
 % Meaningless -> just for debugging
 subplot(2,2,3)
-if strcmp(OPTopts.goalResType{1},'S11_dB')
-    plot(cell2mat(costS), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-elseif strcmp(OPTopts.goalResType{1},'S11_complex')
+if strcmp(extractUnitString(OPTopts.goalResType{1}),'complex')
     plot(real(cell2mat(costS)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     plot(imag(cell2mat(costS)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     legend('real','imag')
+elseif strcmp(extractUnitString(OPTopts.goalResType{1}),'dB')
+    plot(cell2mat(costS), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
 else
     error(['goalResType (', OPTopts.goalResType{1}, ')not found']);
 end
@@ -1047,15 +1029,15 @@ xlabel('Iterations success points')
 title('costS - fairly meaningless')
 
 subplot(2,2,4)
-if strcmp(OPTopts.goalResType{1},'S11_dB')
-    plot(cell2mat(costF), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
-    plotGoals()
-elseif strcmp(OPTopts.goalResType{1},'S11_complex')
+if strcmp(extractUnitString(OPTopts.goalResType{1}),'complex')
     plot(real(cell2mat(costF)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     plot(imag(cell2mat(costF)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     legend('real','imag')
     plotRealGoals()
     plotImagGoals()
+elseif strcmp(extractUnitString(OPTopts.goalResType{1}),'dB')
+    plot(cell2mat(costF), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+    plotGoals()
 else
     error(['goalResType (', OPTopts.goalResType{1}, ')not found']);
 end
@@ -1083,7 +1065,6 @@ end % if validation
 end % plotRealGoals function
 
 function plotImagGoals()
-% TODO_DWW: Update this to use goalResType and not this isReal stuff
 if ( isfield(OPTopts, 'goalVal') )%&& isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
     Ng = length(OPTopts.goalVal);
     for gg = 1:Ng
