@@ -75,5 +75,7 @@ SMmain.asv
 # AWR
 # =========================
 *.TEMP
+*.dsf
+*.vin
 *MWOffice_ipclog.xml
 *ipc_log_formatter.xsl
