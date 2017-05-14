@@ -8,70 +8,42 @@ format compact
 %% Set up the models and SM parameters
 
 % Frequencies 
-fmin = 1e9;
-fmax = 2e9;  
+fmin = 4.5e9;
+fmax = 5.5e9;  
 Nm = 41;	% Number of frequencies
 
-% Initial input parameters 
-xinit = [70e-3]';  % Initial input parameters (only ls in this case)
-xpinit = [2.1]';   % Initial implicit parameters (only eps_r in this case)
+% Initial input parameters
+% Initial input parameters
+%       {'L1',  'L2',   'L3',   'L4',   'g'}
+xinit = [6.784, 4.890,  6.256,  5.280,  0.0956]';  
+% Initial implicit parameters
+% TODO_DWW: follow through 
+xpinit = [2.1]';
 
+keyboard
+currentPath = pwd
 
 % Set up fine model
 %setenv('PATH', [getenv('PATH') ';C:\Program Files\Altair\14.0\feko\bin']);
-Mf.path = 'C:\Users\19718330\Documents\GitHub\masters\ws_smap_various\smapTrust\examples\BandpassFilter\FEKO\';
-%Mf.path = '/home/rib/Documents/masters/smap/smap/examples/MSstub/FEKO/';
-Mf.name = 'MSstubOpen';
+Mf.path = [currentPath,'\FEKO\'];
+Mf.name = 'BandpassFilter';
 Mf.solver = 'FEKO';
-Mf.params = {'ls'};
-% Mf.ximin = [0]';
-% Mf.ximax = [1]';
-Mf.ximin = [50e-3]';
-Mf.ximax = [90e-3]';
+Mf.params = {'L1',  'L2',   'L3',   'L4',   'g'};
+Mf.ximin =  [6.0,   4.0,    6.0,    4.5,    0.085]';
+Mf.ximax =  [7.0,   5.0,    7.0,    5.5,    0.100]';
 Mf.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
-    
-% % Set up coarse model (MATLAB)
-% Mc.path = [pwd,'\'];
-% Mc.path = 'C:\Users\19718330\Documents\GitHub\masters\ws_smap\smapTrust\examples\MSstub\AWR\';
-% Mc.name = @MSstubCoarse;  % Must pass a function handle if MATLAB is the simulator...
-% Mc.solver = 'MATLAB';
-% Mc.params = {'x';'xp';'f'}; % Must be this order (and names) for MATLAB sims.  Can omit xp or f though...
-% Mc.ximin = Mf.ximin;
-% Mc.ximax = Mf.ximax;
-% Mc.xpmin = [1.8]';
-% Mc.xpmax = [3.0]';
-% % Mc.xpmin = [2]';
-% % Mc.xpmax = [2.2]';
-% Mc.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 
 % Set up coarse model (AWR)
-% TODO_DWW: HAVE TO MAKE THIS USE pwd or something!?!?!?!??!
-Mc.path = 'C:\Users\19718330\Documents\GitHub\masters\ws_smap_various\smapTrust\examples\MSstub\AWR\';
-Mc.name = 'MSstubCoarse';
+Mc.path = [currentPath,'\AWR\'];
+Mc.name = 'BandpassFilter';
 Mc.solver = 'AWR';
-Mc.params = {'ls'};
-Mc.Iparams = {'eps_r'};
+Mc.params = {'L1',  'L2',   'L3',   'L4',   'g'};
 Mc.ximin = Mf.ximin;
 Mc.ximax = Mf.ximax;
-Mc.xpmin = [1.8]';
-Mc.xpmax = [3.0]';
-% Mc.xpmin = [2]';
-% Mc.xpmax = [2.2]';
+Mc.Iparams ={'eps_r1',  'eps_r2',   'h1',   'h2'};
+Mc.xpmin =  [8.5,       8.5,        0.60,   0.60]';
+Mc.xpmax =  [9.5,       9.5,        0.70,   0.70]';
 Mc.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
-
-% Set up coarse model (FEKO)
-% Mc.path = 'c:\Users\ddv\Dropbox\Work\MATLAB\SpaceMapping\examples\MSstub\FEKO\';
-% Mc.path = 'C:\Users\19718330\Documents\GitHub\masters\ws_smap\smapTrust\examples\MSstub\FEKO\';
-% Mc.name = 'MSstubOpenCoarse';
-% Mc.solver = 'FEKO';
-% Mc.params = {'ls'}; 
-% Mc.ximin = Mf.ximin;
-% Mc.ximax = Mf.ximax;
-% Mc.Iparams = {'eps_r'};
-% Mc.xpmin = [2]';
-% Mc.xpmax = [2.2]';
-% Mc.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
-
 
 % Set up the SM
 % The initial SM structure
