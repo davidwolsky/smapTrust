@@ -1,6 +1,6 @@
 -- CADFEKO v14.0.432-293039 (x64)
 app = cf.GetApplication()
-project = app.Project
+project = app:NewProject()
 
 -- Save project
 -- app:SaveAs([[C:\Users\19718330\Documents\GitHub\masters\ws_smap\smapTrust\examples\BandpassFilter\bandpassFilter.cfx]])
@@ -223,4 +223,4 @@ MeshSettings:SetProperties(properties)
 project.Mesher:Mesh()
 
 -- Save project
-app:Save()
+-- app:Save()

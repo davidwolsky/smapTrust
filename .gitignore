@@ -77,5 +77,6 @@ SMmain.asv
 *.TEMP
 *.dsf
 *.vin
+*.afo
 *MWOffice_ipclog.xml
 *ipc_log_formatter.xsl
