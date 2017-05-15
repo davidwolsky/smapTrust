@@ -17,16 +17,17 @@ Nm = 41;	% Number of frequencies
 %       {'L1',  'L2',   'L3',   'L4',   'g'}
 xinit = [6.784, 4.890,  6.256,  5.280,  0.0956]';  
 % Initial implicit parameters
-% TODO_DWW: follow through 
-xpinit = [2.1]';
+%       {'eps_r1',  'eps_r2',   'h1',   'h2'}
+xpinit = [9.0,      9.0,        0.66,   0.66]';
 
-keyboard
-currentPath = pwd
+filename = mfilename('SM_BandpassFilter.m');
+fullpath = mfilename('fullpath');
+currentPath = replace(fullpath, filename, '');
 
 % Set up fine model
 %setenv('PATH', [getenv('PATH') ';C:\Program Files\Altair\14.0\feko\bin']);
-Mf.path = [currentPath,'\FEKO\'];
-Mf.name = 'BandpassFilter';
+Mf.path = [currentPath,'FEKO\'];
+Mf.name = 'bandpassFilter';
 Mf.solver = 'FEKO';
 Mf.params = {'L1',  'L2',   'L3',   'L4',   'g'};
 Mf.ximin =  [6.0,   4.0,    6.0,    4.5,    0.085]';
@@ -34,15 +35,15 @@ Mf.ximax =  [7.0,   5.0,    7.0,    5.5,    0.100]';
 Mf.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 
 % Set up coarse model (AWR)
-Mc.path = [currentPath,'\AWR\'];
-Mc.name = 'BandpassFilter';
+Mc.path = [currentPath,'AWR\'];
+Mc.name = 'bandpassFilter';
 Mc.solver = 'AWR';
 Mc.params = {'L1',  'L2',   'L3',   'L4',   'g'};
 Mc.ximin = Mf.ximin;
 Mc.ximax = Mf.ximax;
 Mc.Iparams ={'eps_r1',  'eps_r2',   'h1',   'h2'};
-Mc.xpmin =  [8.5,       8.5,        0.60,   0.60]';
-Mc.xpmax =  [9.5,       9.5,        0.70,   0.70]';
+Mc.xpmin =  [6.0,       6.0,        0.50,   0.50]';
+Mc.xpmax =  [10.0,      10.0,       1.30,   1.30]';
 Mc.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 
 % Set up the SM
@@ -66,27 +67,17 @@ OPTopts.ximax = Mf.ximax;
 OPTopts.Ni = 3;
 % OPTopts.TRNi = OPTopts.Ni*2;
 OPTopts.TRNi = OPTopts.Ni;
-OPTopts.Rtype = {'S1,1'};
-% TODO_DWW: name this nicely and follow through with an assertion
-OPTopts.SParamMaxPortNumber = 3;
+OPTopts.Rtype = {'S2,1'};
 OPTopts.globOpt = 0;
 OPTopts.globOptSM = 1;
 %
-% OPTopts.goalType = {'minimax'};
-% OPTopts.goalResType = {'S1,1_complex'};
-% OPTopts.goalVal = {0.1-1j*0.2};
-% OPTopts.goalWeight = {1};
-% OPTopts.goalStart = {1.30e9};
-% OPTopts.goalStop = {1.45e9};
-% OPTopts.errNorm = {1};
-%
-OPTopts.goalType = {'lt', 'gt'};
-OPTopts.goalResType = {'S1,1_dB', 'S1,1_dB'};
-OPTopts.goalVal = {-20, -10};
-OPTopts.goalWeight = {1, 1};
-OPTopts.goalStart = {1.40e9, 1.60e9};
-OPTopts.goalStop = {1.45e9, 1.75e9};
-OPTopts.errNorm = {1,1};
+OPTopts.goalType =      {'lt',      'gt',       'lt'};
+OPTopts.goalResType =   {'S2,1_dB', 'S2,1_dB',  'S2,1_dB'};
+OPTopts.goalVal =       {-20,       -3,         -20};
+OPTopts.goalWeight =    {1,         1,          1};
+OPTopts.goalStart =     {4.5e9,     4.9e9,      5.3e9};
+OPTopts.goalStop =      {4.7e9,     5.1e9,      5.5e9};
+OPTopts.errNorm =       {1,         1,          1};
 %
 OPTopts.optsPBIL.display =  'iter'; 
 OPTopts.optsPBIL.Nfeval = 5000;
@@ -112,8 +103,9 @@ SMopts.optsPBIL.display =  'iter';
 SMopts.optsPBIL.Nfeval = 5000;
 SMopts.errNorm = 1;
 errW = zeros(size(Mf.freq));
-errW(Mf.freq > OPTopts.goalStart{1} & Mf.freq < OPTopts.goalStop{1}) = 1;
+errW(Mf.freq > OPTopts.goalStart{1} & Mf.freq < OPTopts.goalStop{1}) = 1
 % errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1
+errW(Mf.freq > OPTopts.goalStart{3} & Mf.freq < OPTopts.goalStop{3}) = 1
 SMopts.errW = errW;
 % SMopts.wk = 5;
 SMopts.wk = 0;

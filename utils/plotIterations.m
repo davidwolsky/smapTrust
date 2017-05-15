@@ -59,6 +59,8 @@ if plotFlag
         title({strcat('Values per iteration with trust region radius - ', caption)})
     end
     legend()
+    % TODO_DWW: Get legend working with parameters names...
+    % legend(Mf.params)
 end
 
 function doPlotForTwoDesignVariables()

@@ -16,10 +16,13 @@ Nm = 41;	% Number of frequencies
 xinit = [70e-3]';  % Initial input parameters (only ls in this case)
 xpinit = [2.1]';   % Initial implicit parameters (only eps_r in this case)
 
+filename = mfilename('SM_BandpassFilter.m');
+fullpath = mfilename('fullpath');
+currentPath = replace(fullpath, filename, '');
 
 % Set up fine model
 %setenv('PATH', [getenv('PATH') ';C:\Program Files\Altair\14.0\feko\bin']);
-Mf.path = 'C:\Users\19718330\Documents\GitHub\masters\ws_smap_various\smapTrust\examples\MSstub\FEKO\';
+Mf.path = [currentPath,'FEKO\'];
 %Mf.path = '/home/rib/Documents/masters/smap/smap/examples/MSstub/FEKO/';
 Mf.name = 'MSstubOpen';
 Mf.solver = 'FEKO';
@@ -46,7 +49,7 @@ Mf.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 
 % Set up coarse model (AWR)
 % TODO_DWW: HAVE TO MAKE THIS USE pwd or something!?!?!?!??!
-Mc.path = 'C:\Users\19718330\Documents\GitHub\masters\ws_smap_various\smapTrust\examples\MSstub\AWR\';
+Mc.path = [currentPath,'AWR\'];
 Mc.name = 'MSstubCoarse';
 Mc.solver = 'AWR';
 Mc.params = {'ls'};
@@ -96,7 +99,6 @@ OPTopts.Ni = 3;
 OPTopts.TRNi = OPTopts.Ni;
 OPTopts.Rtype = {'S1,1'};
 % TODO_DWW: name this nicely and follow through with an assertion
-OPTopts.SParamMaxPortNumber = 3;
 OPTopts.globOpt = 0;
 OPTopts.globOptSM = 1;
 %

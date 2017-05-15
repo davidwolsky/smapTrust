@@ -790,6 +790,7 @@ switch M.solver
         if ( awr.ProjectOpen() )
             proj = awr.Project;
         else
+            [M.path,M.name,'.emp']
             awr.invoke('Open', [M.path,M.name,'.emp']);
             proj = awr.Project;
             proj.Frequencies.Clear();
