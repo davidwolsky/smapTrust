@@ -71,6 +71,7 @@ SMmain.asv
 *.lock
 *tmp_machfile*
 *SMlog.mat
+*runfeko_tmp_*
 
 # AWR
 # =========================

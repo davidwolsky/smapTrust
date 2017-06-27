@@ -74,7 +74,7 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   alp1:       A factor used by the TR to define the rate at which the radius grows with a very successful run.
 %   alp2:       A factor used by the TR to define the rate at which the radius shrinks for divergent fine and surrogate runs.
 %   DeltaInit:  The initial trust region radius.
-% TODO_DWW: Implement this as the next feature for refactoring.  
+%   prepopulatedSpaceFile: File name used to preload fine model runs so that a better surrogate can be calculated.
 
 % Returns:
 % Ri:   Structure containing the responses at each iteration
@@ -122,8 +122,16 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %             at successive TR iterations.
 % 2017-03-01: Introduced a TRterminate flag to ensure that an unsuccessful run is not plotted 
 %             and that counts are not incremented incorrectly in this case.
+% 2017-06-27: Log files now capture the core variable workspace after each successful iteration.
+%             This space can then be read in before the start of the main loop. So far only the 
+%             Ti.xi_all, Ti.Rfi_all, Ti.costF_all are loaded from the previous space. They are 
+%             used to build a better surrogate. In future a surrogate could potentially be 
+%             specified from outside SMmain. The 'prepopulatedSpaceFile' variable on OPTopts 
+%             is used to specify the space that should be loaded. 
 
 % ===== ToDo =====
+% - Global optimisor
+% - Next example
 % - Check ToDo and CRC_ in the code
 % =====      =====
 
@@ -143,6 +151,7 @@ eta2 = 0.9;
 alp1 = 2.5;
 alp2 = 0.25;
 testEnabled = 0;
+prepopulatedSpaceFile = '';
 DeltaInit = 0.25;
 
 if isfield(OPTopts,'Ni'), Ni = OPTopts.Ni; end
@@ -161,7 +170,7 @@ if isfield(OPTopts,'alp1'), alp1 = OPTopts.alp1; end
 if isfield(OPTopts,'alp2'), alp2 = OPTopts.alp2; end
 if isfield(OPTopts,'DeltaInit'), DeltaInit = OPTopts.DeltaInit; end
 if isfield(OPTopts,'testEnabled'), testEnabled = OPTopts.testEnabled; end
-
+if isfield(OPTopts,'prepopulatedSpaceFile'), prepopulatedSpaceFile = OPTopts.prepopulatedSpaceFile; end
 
 % Set up models - bookkeeping
 Nq = 0;
@@ -259,8 +268,35 @@ end
 specF = 0;  % Flag to test if the fine model reached spec
 TolX_achieved = 0;
 TRterminate = 0;
-
+space = {};
 [limMin_f{1},limMax_f{1},limMin_c{1},limMax_c{1}] = deal(zeros(size(xi{1})));
+
+% Set to zero before initialisation depending on starting set
+ii = 0;
+% Normalize the optimization parameters
+ximinn = OPTopts.ximin - OPTopts.ximin;
+ximaxn = OPTopts.ximax./OPTopts.ximax;
+% xinitn = (xinit - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
+
+% The initial trust region radius
+Ti.Deltan{1} = DeltaInit;
+Ti.Delta{1} = DeltaInit.*(OPTopts.ximax - OPTopts.ximin);
+
+LHSmat = [];
+RHSvect = [];
+nonLcon = [];
+
+% CRC_DWW: for global optimisation work.
+% prob = {}
+% prob.objective = @(xin) costSurr(xin,Sinit,OPTopts);
+% prob.x0 = xinitn;
+% prob.Aineq = LHSmat
+% prob.bineq = RHSvect
+% prob.Aeq = [];
+% prob.beq = [];
+% prob.lb = ximinn
+% prob.ub = ximaxn
+% prob.nonlcon = nonLcon
 
 % For the initial starting point ii=1
 ii = 1;
@@ -275,12 +311,12 @@ Ti.Delta{1} = DeltaInit.*(OPTopts.ximax - OPTopts.ximin);
 if ~testEnabled
     % Optimize coarse model to find initial alignment position
     if globOpt
-        [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Sinit,OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
+        % CRC_DWW: for global optimisation work.
+        error('TODO_DWW: implement this.');
+        % [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Sinit,OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
+        [xin{1}, costS{1}] = ga(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
         xinitn = reshape(xinitn,Nn,1);
     end
-    LHSmat = [];
-    RHSvect = [];
-    nonLcon = [];
     [xin{1}, costS{1}] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
 else
     testEnabled
@@ -290,38 +326,79 @@ end
 % De-normalize input vector
 xi{1} = xin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
 
-Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
-Rfi{1} = fineMod(Mf,xi{1});
-for rr = 1:Nr
-    if globOptSM > 0, SMopts.globOpt = 1; end
-    Si{1}{rr} = buildSurr(xi{1},Rfi{1}{rr}.r,Sinit,SMopts);
-    Rsi{1}{rr}.r = evalSurr(xi{1},Si{1}{rr});
-    Rsi{1}{rr}.t = Rci{1}{rr}.t;
-    if isfield(Rci{1}{rr},'f'), Rsi{1}{rr}.f = Rci{1}{rr}.f; end
-    Rsai{1}{rr} = Rsi{1}{rr};
-end
-costS{1} = costSurr(xin{1},Si{1}{:},OPTopts);
+% setup initialisation set/space
+if length(prepopulatedSpaceFile) > 1
+    space = getPreppopulatedSpaceFrom(prepopulatedSpaceFile);
+    assert(size(space.Rfi{1}{1}.f,2) == Nr, 'The number of results expected and those imported must correspond.')
+    assert(size(space.Ti.xi_all,1) == size(space.Ti.Rfi_all,1), 'The number of fine model runs and parameters must correspond')
 
-Ti.xi_all{1} = xi{1};
-Ti.xin_all{1} = xin{1};
-Ti.Rfi_all{1} = Rfi{1};
-Ti.successCount = [1];
-Ti.Si_all{1} = Si{1};
-Ti.costS_all{1} = costS{1};
-Ti.costChangeS{1} = costS{1};
-Ti.rho = [];
-Ti.rho_all = [];
+    Ti.xi_all = space.Ti.xi_all;
+    Ti.Rfi_all = space.Ti.Rfi_all;
+    Ti.costF_all = space.Ti.costF_all;
+
+    Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
+    Rfi{1} = fineMod(Mf,xi{1});
+
+    Ti.xi_all{end+1} = xi{1};
+    Ti.Rfi_all{end+1} = Rfi{1};
+
+    for rr = 1:Nr
+        r = {};
+        % if globOptSM > 0, SMopts.globOpt = 1; end
+        for iii = 1:length(Ti.Rfi_all)
+            r{end+1} = Ti.Rfi_all{iii}{rr}.r;
+        end
+        Si{1}{rr} = buildSurr(Ti.xi_all,r,Sinit,SMopts);
+        Rsi{1}{rr}.r = evalSurr(xi{1},Si{1}{rr});
+        Rsi{1}{rr}.t = Rci{1}{rr}.t;
+        if isfield(Rci{1}{rr},'f'), Rsi{1}{rr}.f = Rci{1}{rr}.f; end
+        Rsai{1}{rr} = Rsi{1}{rr};
+    end
+    costS{1} = costSurr(xin{1},Si{1}{:},OPTopts);
+
+    Ti.successCount = [1];
+    Ti.Si_all{1} = Si{1};
+    Ti.costS_all{1} = costS{1};
+    Ti.costChangeS{1} = costS{1};
+    Ti.rho = [];
+    Ti.rho_all = [];
+
+    costF{1} = costFunc(Ti.Rfi_all{end},OPTopts);
+    Ti.costF_all{end+1} = costF{1};
+    Ti.costChangeF{1} = costF{1}; 
+
+else 
+    Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
+    Rfi{1} = fineMod(Mf,xi{1});
+    for rr = 1:Nr
+        if globOptSM > 0, SMopts.globOpt = 1; end
+        Si{1}{rr} = buildSurr(xi{1},Rfi{1}{rr}.r,Sinit,SMopts);
+        Rsi{1}{rr}.r = evalSurr(xi{1},Si{1}{rr});
+        Rsi{1}{rr}.t = Rci{1}{rr}.t;
+        if isfield(Rci{1}{rr},'f'), Rsi{1}{rr}.f = Rci{1}{rr}.f; end
+        Rsai{1}{rr} = Rsi{1}{rr};
+    end
+    costS{1} = costSurr(xin{1},Si{1}{:},OPTopts);
+
+    Ti.xi_all{1} = xi{1};
+    Ti.Rfi_all{1} = Rfi{1};
+    Ti.successCount = [1];
+    Ti.Si_all{1} = Si{1};
+    Ti.costS_all{1} = costS{1};
+    Ti.costChangeS{1} = costS{1};
+    Ti.rho = [];
+    Ti.rho_all = [];
+
+    costF{1} = costFunc(Rfi{1},OPTopts);
+    Ti.costF_all{1} = costF{1};
+    Ti.costChangeF{1} = costF{1}; 
+end
 
 % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
-plotModels(plotIter, 1, Rci, Rfi, Rsi, Rsai, OPTopts);
-
-% Test fine model response
-costF{1} = costFunc(Rfi{1},OPTopts);
-Ti.costF_all{1} = costF{1};
-Ti.costChangeF{1} = costF{1}; 
+plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, OPTopts);
 
 while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
-%Coming into this iteration as ii now with the fine model run here already and responses available. 
+    % Coming into this iteration as ii now with the fine model run here already and responses available. 
     % Exit if spec is reached (will typically not work for eq and never for minimax, and bw is explicitly excluded)
     % CRC_DDV: DWW: Think there should be some basic specF calculations. 
     % No use different goal less than 
@@ -361,7 +438,6 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
             % De-normalize input vector. The new input vector that is.
             xi{ii+1} = xin{ii+1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
             Ti.xi_all{end+1}  = xi{ii+1};
-            Ti.xin_all{end+1} = xin{ii+1};
             
             % L2 norm describing the parameter space distance between the points
             TolXnorm = norm((xin{ii+1} - xin{ii}),2);
@@ -416,7 +492,6 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
             if ( TRsuccess || (kk == TRNi) || TolX_achieved )
                 targetCount = ii + 1;
             end
-            r = {};
             for rr = 1:Nr
                 % Get the surrogate response after previous iteration
                 % optimization - thus at current iteration position
@@ -431,7 +506,9 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                     % CRC_DDV: Not sure about which count to use here...
                     Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii}{rr},SMopts);
                 else
-                    for iii =1:length(Ti.Rfi_all)
+                    % TODO_DWW: Check that it makes sense for this to be inside the loop rr
+                    r = {};
+                    for iii = 1:length(Ti.Rfi_all)
                         % DISP = ['for - ', num2str(iii),' ',];
                         % disp(DISP)
                         r{end+1} = Ti.Rfi_all{iii}{rr}.r;
@@ -473,8 +550,28 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
         end % while ~TRsuccess
         
         if (~TRterminate)
+            space.ii = ii;
+            space.xi = xi;
+            space.Rci = Rci;
+            space.Rfi = Rfi;
+            space.Rsi = Rsi;
+            space.Si = Si;
+            space.costS = costS;
+            space.costF = costF;
+            space.limMin_f = limMin_f;
+            space.limMax_f = limMax_f;
+            space.limMin_c = limMin_c;
+            space.limMax_c = limMax_c;
+            space.TolX_achieved = TolX_achieved;
+            space.Ti = Ti;
+            space.TRterminate = TRterminate;
+
+            % TODO_DWW: Remember to update this to a better default
+            % createLog('SMLog_MSstub.mat', space);
+            % createLog('SMLog.mat', space);
+            createLog(['SMLog_',Mf.name,'.mat'], space);
             % Make a (crude) log file
-            save SMlog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c TolX_achieved Ti TRterminate
+            % save SMLog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c TolX_achieved Ti TRterminate
 
             % Plot the fine, coarse, optimised surrogate and aligned surrogate
             plotModels(plotIter, ii+1, Rci, Rfi, Rsi, Rsai, OPTopts);
@@ -920,13 +1017,13 @@ for nn = 1:Nn
 end
 % Remesh the structure with the new parameters
 FEKOmesh = ['cadfeko_batch ',[M.path,M.name,'.cfx'],parStr];
-system(FEKOmesh)
+[statusMesh, cmdoutMesh] = system(FEKOmesh);
 % Run FEKO - cannot run with path, so change the directory
 curDir = pwd;
-cd(M.path)
+cd(M.path);
 FEKOrun = ['runfeko ', [M.name,'.cfx']];
-system(FEKOrun)
-cd(curDir)
+[statusRun, cmdoutRun] = system(FEKOrun);
+cd(curDir);
 % Generate output
 for rr = 1:Nr
     if strncmp(Rtype{rr},'S',1)
@@ -950,6 +1047,8 @@ for rr = 1:Nr
     R{rr}.r = Sba;
     R{rr}.t = Rtype{rr};
 end
+save FEKOLog statusMesh cmdoutMesh statusRun cmdoutRun;
+
 end % fekoMod function
 
 
@@ -976,7 +1075,38 @@ for rr = 1:Nr
 end
 cost = costFunc(Rs,OPTopts);
 
-end % costSurr
+end % costSurr function
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TODO_DWW: move to a seperate file
+
+function [] = createLog(filename, space)
+
+% Creates a log file from the variables stored in space.
+%   filename:   The filename for the log file that stores the workspace.
+%   space:      A grouping variable that houses all the values that should be stored in the log file.
+
+save(filename, 'space')
+
+end % createLog function
+
+
+function [space] = getPreppopulatedSpaceFrom(filename)
+
+% Load the 'space' varaible from a file. This is a grouping of variables of interest from a previous 
+% workspace/set of runs. This is typically used for loading the Ti.xi_all, Ti.Rfi_all, Ti.costF_all 
+% variables from the previous space. They are used to build a better surrogate.
+%   filename: the filename used to load variables from.
+% Returns 
+%   space: a grouping of variables loaded from a log file.
+
+load(filename, 'space')
+
+end % getPreppopulatedSpaceFrom function
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 function plotCosts(Ti, OPTopts, costS, costF)
 markerstr = 'xso+*d^v><ph.xso+*d^v><ph.';

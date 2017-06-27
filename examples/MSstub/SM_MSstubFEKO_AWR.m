@@ -132,6 +132,7 @@ OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
 OPTopts.DeltaInit = 0.25;
 OPTopts.testEnabled = true;
+% OPTopts.prepopulatedSpaceFile = 'SMLog_MSstub.mat';
 
 SMopts.ximin = Mc.ximin;
 SMopts.ximax = Mc.ximax;
@@ -143,7 +144,7 @@ SMopts.optsPBIL.Nfeval = 5000;
 SMopts.errNorm = 1;
 errW = zeros(size(Mf.freq));
 errW(Mf.freq > OPTopts.goalStart{1} & Mf.freq < OPTopts.goalStop{1}) = 1;
-% errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1
+%%%% errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1
 SMopts.errW = errW;
 % SMopts.wk = 5;
 SMopts.wk = 0;

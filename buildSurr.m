@@ -227,8 +227,8 @@ NSMUnknowns = getNSMUnknowns();
 % Default optimization parameters
 optsFminS = optimset('display','none');
 globOpt = 0;
-M_PBIL = 8;
-optsPBIL = [];
+% M_PBIL = 8;
+% optsPBIL = [];
 errNorm = 2;
 errW = 1;
 if isfield(opts,'wk') 
@@ -273,10 +273,9 @@ if isfield(opts,'Fmax'), Fmax = opts.Fmax; end
 
 % Get user optimization parameters
 if isfield(opts,'optsFminS'), optsFminS = opts.optsFminS; end
-% if isfield(opts,'globOpt'), globOpt = opts.globOpt; end
-if isfield(opts,'globOpt'), warning('Global optimization not currently implimented - just using local constrained search'); end
-if isfield(opts,'M_PBIL'), M_PBIL = opts.M_PBIL; end
-if isfield(opts,'optsPBIL'), optsPBIL = opts.optsPBIL; end
+if isfield(opts,'globOpt'), globOpt = opts.globOpt; end
+% if isfield(opts,'M_PBIL'), M_PBIL = opts.M_PBIL; end
+% if isfield(opts,'optsPBIL'), optsPBIL = opts.optsPBIL; end
 if isfield(opts,'errNorm'), errNorm = opts.errNorm; end
 if isfield(opts,'errW'), errW = opts.errW; end
 
@@ -485,9 +484,9 @@ if strcmp(inputType,'F') || strcmp(inputType,'AF') && Nc == 1 % Special cases wh
     S.F = [1,0];
     Rc = evalSurr(xi{Nc},S);
     
-    if 0 && globOpt    % Only use local optimizer for FSM
-        F_init = PBILreal(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),Fmin,Fmax,M_PBIL,optsPBIL);
-    end
+    % if 0 && globOpt    % Only use local optimizer for FSM
+        % F_init = PBILreal(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),Fmin,Fmax,M_PBIL,optsPBIL);
+    % end
 %     Fvect = fminsearchcon(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),F_init,[0, -inf],[],[-min(S.f),0;0,-1],[0;0],[],optsFminS);     % Positive multiplier, and minimum frequency
     Fvect = fminsearchcon(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),F_init,[0, -inf],[],[-min(S.f),-1],[0],[],optsFminS);     % Positive multiplier, and minimum frequency
     
@@ -598,13 +597,34 @@ else
     if getF
         LHS_mat(2*(Nn+Nq)+1,end-1:end) = [-min(S.f),-1];
     end
-    
-    if 0 && globOpt     % Not implimented yet
+
+    % CRC_DWW: for global optimisation work.
+    % prob = {}
+    % prob.objective = @(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE);
+    % prob.fitnessfcn = @(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE);
+    % prob.nvars = length(xi)
+    % prob.x0 = [];
+    % prob.Aineq = LHSmat
+    % prob.bineq = RHSvect
+    % prob.Aeq = [];
+    % prob.beq = [];
+    % prob.lb = ximinn
+    % prob.ub = ximaxn
+    % prob.nonlcon = nonLcon
+
+    if 0 && globOpt
+        [initVect] = ga(prob);
         % Start with global search to get initial value
-        [initVect] = PBILreal(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),minVect,maxVect,M_PBIL,optsPBIL);
+        % PBIL Not implimented yet
+        % [initVect] = PBILreal(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),minVect,maxVect,M_PBIL,optsPBIL);
     end
 %     optVect = fminsearch(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),initVect,optsFminS);
+%     keyboard
+    % TODO_DWW:
     optVect = fminsearchcon(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),initVect,minVect,maxVect,LHS_mat,RHS_vect,[],optsFminS);
+%     optsFminS.OptimalityTolerance = 1e-12
+%     [optVect,f,outputs,next] = fmincon(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),initVect,LHS_mat,RHS_vect,[],[],minVect,maxVect,[],optsFminS);
+    
 end
 % Rebuild the individual parameters from the vector
 A = diag(optVect(firstPos(1):lastPos(1)));
