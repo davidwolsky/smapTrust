@@ -368,6 +368,7 @@ if length(prepopulatedSpaceFile) > 1
     Ti.costChangeF{1} = costF{1}; 
 
 else 
+    display(['--- TODO_DWW:Initialising ---'])
     Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
     Rfi{1} = fineMod(Mf,xi{1});
     for rr = 1:Nr
@@ -396,6 +397,8 @@ end
 
 % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
 plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, OPTopts);
+
+display(['--- TODO_DWW:Start loop ---'])
 
 while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
     % Coming into this iteration as ii now with the fine model run here already and responses available. 
@@ -431,6 +434,7 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
             RHSvect = [];
             nonLcon = [];
             
+            display(['--- TODO_DWW:loop optimisation ', num2str(ii), ' ---'])
             [xin{ii+1}, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xin{ii},ximinnTR,ximaxnTR,LHSmat,RHSvect,nonLcon,optsFminS);
             assert( costS{ii} >= costSi ); % The cost must have gotten better else chaos!
 			Ti.costS_all{end+1} = costSi;
@@ -517,7 +521,10 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                     % length(Ti.xi_all)
                     % length(r)
                     % assert(length(Ti.xi_all) == length(r), 'The lengths of xi and responses needs to be the same.')
+                    
+                    display(['--- TODO_DWW: build surr for iteration ', num2str(ii), ' ---'])
                     Si{targetCount}{rr} = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
+                    keyboard
                 end
                 % Also get the currently aligned surrogate for comparison
                 Rsai{targetCount}{rr}.r = evalSurr(xi{ii+1},Si{targetCount}{rr});
@@ -581,6 +588,20 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
     % keyboard
     if (~TRterminate)
         ii = ii+1;  % Increase main loop count
+        if (ii == Ni)
+            display(['Terminated due to: max iteration count reached (', num2str(ii), ').'])
+        end
+    else
+        % TODO_DWW: refine these messages
+        if (specF)
+            display(['Terminated due to: specF reached.'])
+        end
+        if (TolX_achieved)
+            display(['Terminated due to: TolX_achieved.'])
+        end
+        if (TRterminate)
+            display(['Terminated due to: TRterminate.'])
+        end
     end
 end % Main while loop
 
@@ -829,32 +850,32 @@ function Rc = coarseMod(M,xi,xp,f)
 % Limit the inputs - this should really never happen...
 if isfield(M,'ximin')
     minI = xi < M.ximin;
-    xi(minI) = M.ximin(minI);
     if minI | 0
+        xi(minI) = M.ximin(minI);
 		warning( strcat('Out of bounds coarse model evaluation encountered on ximin = ', ...
 			mat2str(M.ximin), ', xi = ', mat2str(xi)) )
 	end
 end
 if isfield(M,'ximax')
     maxI = xi > M.ximax;
-    xi(maxI) = M.ximax(maxI);
     if maxI | 0
+        xi(maxI) = M.ximax(maxI);
 		warning( strcat('Out of bounds coarse model evaluation encountered on ximax', ...
 			mat2str(M.ximax), ', xi = ', mat2str(xi)) )
 	end
 end
 if isfield(M,'xpmin')
     minIp = xp < M.xpmin;
-    xp(minIp) = M.xpmin(minIp);
     if minIp | 0
+        xp(minIp) = M.xpmin(minIp);
 		warning( strcat('Out of bounds coarse model evaluation encountered on xpmin', ...
 			mat2str(M.xpmin), ', xi = ', mat2str(xi)) )
 	end
 end
 if isfield(M,'xpmax')
     maxIp = xp > M.xpmax;
-    xp(maxIp) = M.xpmax(maxIp);
     if maxIp | 0
+        xp(maxIp) = M.xpmax(maxIp);
 		warning( strcat('Out of bounds coarse model evaluation encountered on xpmax', ...
 			mat2str(M.xpmax), ', xi = ', mat2str(xi)) )
 	end

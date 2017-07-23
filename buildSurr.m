@@ -158,6 +158,9 @@ function Si = buildSurr(xi,Rfi,S,opts)
 % 2017-03-08: Introduced a wk == 0  option that used the number of SM types to determine how
 %             how many of the most recent fine points to use when calculating the error function
 %             for model fitting. 
+% 2017-07-08: Bring in functions from the Matlab Optimisation toolbox. To do this the constraints
+%             and variables need to take a different form. This change will also allow the removal of 
+%             of variables or constraints that are not used. 
 
 % ToDo: Implement E (first order OSM)
 % ToDo: Jacobian fitting in error functions (vk)
@@ -475,6 +478,9 @@ optsParE.lastPos = lastPos;
 optsParE.errNorm = errNorm;
 optsParE.errW = errW;
 
+% TODO_DWW: clean up
+% keyboard
+
 % Set up and run the optimizations (parameter extractions)
 % Use provided SM parameters as initial values if available, and enhance
 % with global search if required
@@ -531,7 +537,7 @@ else
     
     lhsA_mat = zeros(size(A_init));        
     lhsB_mat = zeros(size(B_init));    % Basic matrix shape to use for distribution of the input vector in the LHS matrix for B
-    lhsc_mat = zeros(size(c_init));    % Basic matrix shape to use for distribution of the input vector in the LHS matrix for B
+    lhsc_mat = zeros(size(c_init));    % Basic matrix shape to use for distribution of the input vector in the LHS matrix for c
     lhsG_mat = zeros(size(G_init));    % Basic matrix shape to use for distribution of the input vector in the LHS matrix for G
     lhsxp_mat = zeros(size(xp_init));
     lhsF_mat = zeros(size(F_init));
@@ -539,18 +545,18 @@ else
     RHS_vect = [-ximin;ximax;-xpmin;xpmax;-fmin];
     
     % First populate the input space limits in LHS_mat
-    for xx = 1:Nn
+    for nn = 1:Nn
         xA_vect = diag(lhsA_mat);       % Always zeros - no influence on input/implicit space or frequency bounds
         
         xB_mat = lhsB_mat;
         if lenB > 0;
-            xB_mat(xx,:) = xi{1}';
+            xB_mat(nn,:) = xi{1}';
         end
         xB_vect = reshape(xB_mat,1,lenB);
         
         xc_mat = lhsc_mat;
         if lenc > 0
-            xc_mat(xx,:) = 1;
+            xc_mat(nn,:) = 1;
         end
         xc_vect = reshape(xc_mat,1,lenc);
         
@@ -558,73 +564,85 @@ else
         xxp_vect = reshape(lhsxp_mat,1,lenxp);
         xF_vect = reshape(lhsF_mat,1,lenF);
         
-        LBrow = [xA_vect,-xB_vect,-xc_vect,xG_vect,xxp_vect,xF_vect];
-        UBrow = [xA_vect,xB_vect,xc_vect,xG_vect,xxp_vect,xF_vect];
+        xLBrow = [xA_vect,-xB_vect,-xc_vect,xG_vect,xxp_vect,xF_vect];
+        xUBrow = [xA_vect,xB_vect,xc_vect,xG_vect,xxp_vect,xF_vect];
         
-        LHS_mat(xx,:) = LBrow; % Lower bound row
-        LHS_mat(Nn+xx,:) = UBrow; % Upper bound row
+        LHS_mat(nn,:) = xLBrow; % Lower bound row
+        LHS_mat(Nn+nn,:) = xUBrow; % Upper bound row
     end
     % And now the implicit parameters part
-    for ii = 1:Nq
-        rLB = 2*Nn + ii;    % Lower bound row
+    for qq = 1:Nq
+        % Always zeros
+        xpA_vect = diag(lhsA_mat);
+        xpB_vect = reshape(lhsB_mat,1,lenB);
+        xpc_vect = reshape(lhsc_mat,1,lenc);
+        xpF_vect = reshape(lhsF_mat,1,lenF);
+        
+        xpG_mat = lhsG_mat;
+        if lenG > 0
+            xpG_mat(qq,:) = xi{1}';
+        end
+        xpG_vect = reshape(xpG_mat,1,lenG);
+        
+        xpxp_mat = lhsxp_mat;
+        if lenxp > 0
+            xpxp_mat(qq,:) = 1;
+        end
+        xpxp_vect = reshape(xpxp_mat,1,lenxp);
+                
+        xpLBrow = [xpA_vect,xpB_vect,xpc_vect,-xpG_vect,-xpxp_vect,xpF_vect];
+        xpUBrow = [xpA_vect,xpB_vect,xpc_vect,xpG_vect,xpxp_vect,xpF_vect];
+
+        rLB = 2*Nn + qq;    % Lower bound row
         rUB = rLB + Nq;     % Upper bound row
         
-        % Always zeros
-        xA_vect = diag(lhsA_mat);      
-        xB_vect = reshape(lhsB_mat,1,lenB);
-        xc_vect = reshape(lhsc_mat,1,lenc);
-        xF_vect = reshape(lhsF_mat,1,lenF);
-        
-        xG_mat = lhsG_mat;
-        if lenG > 0
-            xG_mat(ii,:) = xi{1}';
-        end
-        xG_vect = reshape(xG_mat,1,lenG);
-        
-        xxp_mat = lhsxp_mat;
-        if lenxp > 0
-            xxp_mat(ii,:) = 1;
-        end
-        xxp_vect = reshape(xxp_mat,1,lenxp);
-                
-        LBrow = [xA_vect,xB_vect,xc_vect,-xG_vect,-xxp_vect,xF_vect];
-        UBrow = [xA_vect,xB_vect,xc_vect,xG_vect,xxp_vect,xF_vect];
-        
-        LHS_mat(rLB,:) = LBrow; % Lower bound row
-        LHS_mat(rUB,:) = UBrow; % Upper bound row
+        LHS_mat(rLB,:) = xpLBrow; % Lower bound row
+        LHS_mat(rUB,:) = xpUBrow; % Upper bound row
     end
     % And frequency shifts
     if getF
         LHS_mat(2*(Nn+Nq)+1,end-1:end) = [-min(S.f),-1];
     end
 
-    % CRC_DWW: for global optimisation work.
-    % prob = {}
-    % prob.objective = @(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE);
+    display(['--- TODO_DWW: Starting optimisation ---'])
+    % TODO_DWW: clean up
+%     keyboard
     % prob.fitnessfcn = @(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE);
     % prob.nvars = length(xi)
-    % prob.x0 = [];
-    % prob.Aineq = LHSmat
-    % prob.bineq = RHSvect
-    % prob.Aeq = [];
-    % prob.beq = [];
-    % prob.lb = ximinn
-    % prob.ub = ximaxn
-    % prob.nonlcon = nonLcon
-
+    % CRC_DWW: for global optimisation work.
+    problem = {}
+    problem.objective = @(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE);
+    problem.x0 = initVect;
+    problem.Aineq = LHS_mat;
+    problem.bineq = RHS_vect;
+    problem.Aeq = [];
+    problem.beq = [];
+    problem.lb = minVect;
+    problem.ub = maxVect;
+    problem.nonlcon = []
+    problem.solver = 'fmincon';
+    problem.options = optimoptions('fmincon',...
+                                   'Display','iter-detailed',...
+                                   'Diagnostics','on',...
+                                   'DiffMinChange',0.000001)
+%                                    'DiffMinChange',0.00000000001)
+%                                    'PlotFcn',@optimplotstepsize,...
+    
     if 0 && globOpt
-        [initVect] = ga(prob);
+        % TODO_DWW: adapts above.
+        [initVect] = ga(problem);
         % Start with global search to get initial value
         % PBIL Not implimented yet
         % [initVect] = PBILreal(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),minVect,maxVect,M_PBIL,optsPBIL);
     end
-%     optVect = fminsearch(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),initVect,optsFminS);
+    [optVect,fval,exitflag,output] = fmincon(problem);
 %     keyboard
+    display(['=== TODO_DWW: Ending optimisation ==='])
     % TODO_DWW:
-    optVect = fminsearchcon(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),initVect,minVect,maxVect,LHS_mat,RHS_vect,[],optsFminS);
+%     optVect = fminsearchcon(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),initVect,minVect,maxVect,LHS_mat,RHS_vect,[],optsFminS);
 %     optsFminS.OptimalityTolerance = 1e-12
 %     [optVect,f,outputs,next] = fmincon(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),initVect,LHS_mat,RHS_vect,[],[],minVect,maxVect,[],optsFminS);
-    
+   keyboard
 end
 % Rebuild the individual parameters from the vector
 A = diag(optVect(firstPos(1):lastPos(1)));
@@ -710,6 +728,8 @@ end % end buildSurr
 
 % Error function for optimization
 function e = erri(optVect,xi,Rfi,S,wk,vk,opts)
+% TODO_DWW: Clean up
+% transpose(optVect)
 
 % Unpack the input structure
 Nn = opts.Nn;
@@ -734,7 +754,7 @@ F = reshape(optVect(firstPos(6):lastPos(6)),lenF,1); % Must be empty matrix if l
 % Update the surrogate model structure
 S.A = A;
 S.B = B;
-S.c = c; 
+S.c = c;
 S.G = G;
 S.xp = xp;
 S.F = F;
@@ -761,7 +781,7 @@ for cc = 1:Nc
     ec(cc) = wk(cc).*ev;
 end
 e = sum(ec)./Nc;
-end
+end % erri function 
 
 
 % Special case error function where only F is optimized and the coarse
