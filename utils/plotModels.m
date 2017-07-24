@@ -14,6 +14,7 @@ function plotModels(plotFlag, itNum, Rci, Rfi, Rsi, Rsai, OPTopts)
 
 if plotFlag && valuesAreValid()
     figure(itNum)
+    freq = Rfi{1}{1}.f;
 
     Ng = length(OPTopts.goalType);
     for gg = 1:Ng
@@ -24,17 +25,17 @@ if plotFlag && valuesAreValid()
         if strcmp(splits{2},'complex')
             subplot(Ng, 2, gg*2-1)
             plotResponse([splits{1}, '_real']);
-            plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, real(OPTopts.goalVal{gg}), goalType)
+            plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, real(OPTopts.goalVal{gg}), goalType, freq)
             subplot(Ng, 2, gg*2)
             legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
             plotResponse([splits{1}, '_imag']);
-            plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, imag(OPTopts.goalVal{gg}), goalType)
+            plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, imag(OPTopts.goalVal{gg}), goalType, freq)
             
             legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
         else
             subplot(Ng, 2, [gg*2-1, gg*2])
             plotResponse(OPTopts.goalResType{gg});
-            plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, OPTopts.goalVal{gg}, goalType)
+            plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, OPTopts.goalVal{gg}, goalType, freq)
             
             legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', goalType)
         end
@@ -69,7 +70,7 @@ title(['Iteration: ',num2str(itNum), ', goal of result type : ', goalResType])
 end % plotForRealValuedResponse function
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function plotGoal(goalStart, goalStop, goalValue, goalType)
+function plotGoal(goalStart, goalStop, goalValue, goalType, freq)
 switch goalType
 case 'lt'
     colour = 'c';
@@ -87,6 +88,9 @@ end
 
 if ( isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
     plot([goalStart, goalStop], (goalValue)*ones(1,2), colour, 'LineWidth',3)
+    
+    goalFreqPoints = freq(freq > goalStart & freq < goalStop);
+    plot(goalFreqPoints, (goalValue)*ones(1,length(goalFreqPoints)),['o',colour],'LineWidth',3)
 end
 end % plotGoal function
 
