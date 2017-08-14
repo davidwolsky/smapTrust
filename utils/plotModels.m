@@ -13,7 +13,7 @@ function plotModels(plotFlag, itNum, Rci, Rfi, Rsi, Rsai, OPTopts)
 %   OPTopts:    Operational options, used for determining what the type of response is and goal values.
 
 if plotFlag && valuesAreValid()
-    figure(itNum)
+    figure()
     freq = Rfi{1}{1}.f;
 
     Ng = length(OPTopts.goalType);
@@ -53,6 +53,7 @@ RsaiMatch = findResponseFor(Rsai{itNum}, goalResType);
 % Assuming all responses are based off the same freq
 if isfield(RciMatch,'f')
     freq = RciMatch.f;
+    % TODO_DWW: This `, grid on, hold on' can just be done when the figure is called. on the subplot
     plot(freq, RfiMatch.r,'k','LineWidth',1.5), grid on, hold on
     plot(freq, RciMatch.r,'r','LineWidth',1.5), grid on, hold on
     plot(freq, RsiMatch.r,'b','LineWidth',1.5), grid on, hold on

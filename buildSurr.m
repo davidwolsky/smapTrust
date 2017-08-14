@@ -92,6 +92,11 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %          of length Nm, to calculate the extraction error.  Can be used to 
 %          mask out regions in the response domain of less importance. 
 %          Default ones. 
+%   plotAlignmentFlag - When true a plot of the starting point and final point
+%           of alignment will be plotted. For complex results both the real and 
+%           imaginary part is shown along with the error between the fine model and
+%           the evaluated surrogate. NOTE an extra two coarse model evaluations are 
+%           done when populating the errors to plot.
 %
 % Returns:
 % S -  The surrogate model structure containing:
@@ -159,8 +164,11 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %             how many of the most recent fine points to use when calculating the error function
 %             for model fitting. 
 % 2017-07-08: Bring in functions from the Matlab Optimisation toolbox. To do this the constraints
-%             and variables need to take a different form. This change will also allow the removal of 
-%             of variables or constraints that are not used. 
+%             and variables need to take a different form. 
+% 2017-07-29: Removed fixed parameters from the optimisation space. This is especially neccessary for
+%             the global optimiser and to reduce the complexity for debugging.
+% 2017-08-14: Introduced a plotting flag and function to make a graph showing the error before and 
+%             after the alignment phase.
 
 % ToDo: Implement E (first order OSM)
 % ToDo: Jacobian fitting in error functions (vk)
@@ -232,24 +240,26 @@ optsFminS = optimset('display','none');
 globOpt = 0;
 % M_PBIL = 8;
 % optsPBIL = [];
+% CRC_DDV: I dont think 2 is the correct default?
 errNorm = 2;
 errW = 1;
+plotAlignmentFlag = 0;
 if isfield(opts,'wk') 
-    wk = opts.wk;
+    wk = opts.wk
     if length(wk) == 1
         if (wk == 0) 
             wk = ones(1,Nc);
             % If the error function for the model fitting becomes overdetermined 
             % and can give a skewed model.
             if (Nc > NSMUnknowns)
-                wk(1:end-NSMUnknowns) = 0;
+                wk(1:end-NSMUnknowns) = 0
             end
         else
-            wk = wk.^[1:Nc];
+            wk = wk.^[1:Nc]
         end
     end
 else
-    wk = ones(1,Nc);
+    wk = ones(1,Nc)
 end
 
 if isfield(opts,'vk') 
@@ -273,7 +283,6 @@ if isfield(opts,'Amax'), Amax = opts.Amax; end
 if isfield(opts,'Fmin'), Fmin = opts.Fmin; end
 if isfield(opts,'Fmax'), Fmax = opts.Fmax; end
 
-
 % Get user optimization parameters
 if isfield(opts,'optsFminS'), optsFminS = opts.optsFminS; end
 if isfield(opts,'globOpt'), globOpt = opts.globOpt; end
@@ -281,6 +290,7 @@ if isfield(opts,'globOpt'), globOpt = opts.globOpt; end
 % if isfield(opts,'optsPBIL'), optsPBIL = opts.optsPBIL; end
 if isfield(opts,'errNorm'), errNorm = opts.errNorm; end
 if isfield(opts,'errW'), errW = opts.errW; end
+if isfield(opts,'plotAlignmentFlag'), plotAlignmentFlag = opts.plotAlignmentFlag; end
 
 % Assign current iteration S-model
 Si = S;
@@ -478,9 +488,6 @@ optsParE.lastPos = lastPos;
 optsParE.errNorm = errNorm;
 optsParE.errW = errW;
 
-% TODO_DWW: clean up
-% keyboard
-
 % Set up and run the optimizations (parameter extractions)
 % Use provided SM parameters as initial values if available, and enhance
 % with global search if required
@@ -494,6 +501,7 @@ if strcmp(inputType,'F') || strcmp(inputType,'AF') && Nc == 1 % Special cases wh
         % F_init = PBILreal(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),Fmin,Fmax,M_PBIL,optsPBIL);
     % end
 %     Fvect = fminsearchcon(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),F_init,[0, -inf],[],[-min(S.f),0;0,-1],[0;0],[],optsFminS);     % Positive multiplier, and minimum frequency
+    % TODO_DWW: Follow through here...
     Fvect = fminsearchcon(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),F_init,[0, -inf],[],[-min(S.f),-1],[0],[],optsFminS);     % Positive multiplier, and minimum frequency
     
     fs = Fvect(1).*S.f + Fvect(2);
@@ -604,47 +612,62 @@ else
         LHS_mat(2*(Nn+Nq)+1,end-1:end) = [-min(S.f),-1];
     end
 
-    display(['--- TODO_DWW: Starting optimisation ---'])
-    % TODO_DWW: clean up
-%     keyboard
-    % prob.fitnessfcn = @(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE);
-    % prob.nvars = length(xi)
-    % CRC_DWW: for global optimisation work.
-    problem = {}
-    problem.objective = @(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE);
-    problem.x0 = initVect;
-    problem.Aineq = LHS_mat;
-    problem.bineq = RHS_vect;
+    display(['--- TODO_DWW: Starting parameter extraction ---'])
+    
+    fullProblem = {};
+    fullProblem.x0 = initVect;
+    fullProblem.Aineq = LHS_mat;
+    fullProblem.bineq = RHS_vect;
+    fullProblem.lb = minVect;
+    fullProblem.ub = maxVect;
+
+    [reducedProblem] = removeFixedParameters(fullProblem);
+
+    if ( plotAlignmentFlag == 1 )
+        % Plot initial error before alignment
+        erri(reducedProblem.x0,xi,Rfi,S,wk,vk,optsParE, fullProblem, plotAlignmentFlag, 'Starting alignment')
+    end
+
+    problem = {};
+    problem.x0 = reducedProblem.x0;
+    problem.Aineq = reducedProblem.Aineq;
+    problem.bineq = reducedProblem.bineq;
     problem.Aeq = [];
     problem.beq = [];
-    problem.lb = minVect;
-    problem.ub = maxVect;
-    problem.nonlcon = []
+    problem.lb = reducedProblem.lb;
+    problem.ub = reducedProblem.ub;
+    problem.nonlcon = [];
+    if globOpt
+        problem.solver = 'ga';
+        problem.fitnessfcn = @(tempOptVect) erri(tempOptVect,xi,Rfi,S,wk,vk,optsParE,fullProblem, false, '');
+        problem.nvars = length(reducedProblem.x0);
+        problem.options = optimoptions('ga')
+        [optVectGlobalReduced,fval,exitflag,output] = ga(problem)
+        % Start with global search to get initial value
+        problem.x0 = optVectGlobalReduced
+    end
     problem.solver = 'fmincon';
+    problem.objective = @(tempOptVect) erri(tempOptVect,xi,Rfi,S,wk,vk,optsParE, fullProblem, false, '');
     problem.options = optimoptions('fmincon',...
                                    'Display','iter-detailed',...
                                    'Diagnostics','on',...
+                                   'PlotFcn',@optimplotconstrviolation ,...
                                    'DiffMinChange',0.000001)
 %                                    'DiffMinChange',0.00000000001)
 %                                    'PlotFcn',@optimplotstepsize,...
-    
-    if 0 && globOpt
-        % TODO_DWW: adapts above.
-        [initVect] = ga(problem);
-        % Start with global search to get initial value
-        % PBIL Not implimented yet
-        % [initVect] = PBILreal(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),minVect,maxVect,M_PBIL,optsPBIL);
+    [optVectReduced,fval,exitflag,output] = fmincon(problem)
+    if ( plotAlignmentFlag == 1 )
+        % Plot errors after alignment
+        erri(optVectReduced,xi,Rfi,S,wk,vk,optsParE, fullProblem, plotAlignmentFlag, 'Alignment complete');
     end
-    [optVect,fval,exitflag,output] = fmincon(problem);
-%     keyboard
-    display(['=== TODO_DWW: Ending optimisation ==='])
-    % TODO_DWW:
-%     optVect = fminsearchcon(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),initVect,minVect,maxVect,LHS_mat,RHS_vect,[],optsFminS);
-%     optsFminS.OptimalityTolerance = 1e-12
-%     [optVect,f,outputs,next] = fmincon(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),initVect,LHS_mat,RHS_vect,[],[],minVect,maxVect,[],optsFminS);
-   keyboard
+
+    % Put the results together again before asigning to the surrogate
+    optVect = reconstructWithFixedParameters(optVectReduced, fullProblem);
+
+    display(['=== TODO_DWW: Ending parameter extraction ==='])
 end
 % Rebuild the individual parameters from the vector
+% TODO_DWW: Make this into a function and reuse
 A = diag(optVect(firstPos(1):lastPos(1)));
 B = reshape(optVect(firstPos(2):lastPos(2)),sqrt(lenB),sqrt(lenB));   % Always square
 c = reshape(optVect(firstPos(3):lastPos(3)),lenc,1);
@@ -665,6 +688,7 @@ if getd, d = Rfi{end} - evalSurr(xi{end},Si); end
 Si.d = d;
 
 % Additive first order OSM - ToDo
+
 
 function NSMUnknowns = getNSMUnknowns()    
 % NSMUnknowns - The number of SM request types represent the number of unknowns that need to be solved. 
@@ -718,18 +742,126 @@ function NSMUnknowns = getNSMUnknowns()
     % Do nothing yet
 
     % --- getF ---
-    if getd == 1
+    if getF == 1
         NSMUnknowns = NSMUnknowns + 1;
     end
-end % end getNSMUnknowns
-
-end % end buildSurr
+end % getNSMUnknowns funcation
 
 
+end % buildSurr function 
+
+
+% ======================================
+% ========= begin subfunctions =========
+% ======================================
+
+function [reducedProblem] = removeFixedParameters(fullProblem)
+% The full optimisation problem is reduced to only include parameters that can be changed by the optimiser.
+% The starting point for the optimisation run (x0), the left hand side inequality matrix (Aineq) as well as the
+% right hand side equality constraint (bineq) are all reduced. Lower and upper bounds are also reduced.
+% This reduces the length of optimisation runs and makes it easier to debug what is going on. The reduced
+% problem is returned in a similar form to what is passed in. Once the problem has gone through the optimiser
+% and the optimised parameters vector have been returned, the reconstructWithFixedParameters function will 
+% return the vector with the fixed parameters that were previously removed.
+
+% Aguments:
+%   fullProblem: The orginal problem with both modifiable and fixed parameters
+%       x0:     Initial parameter vector
+%       Aineq:  Linear inequality constraints matrix (LHS)
+%       bineq:  Linear inequality constraints vector (RHS)
+%       lb:     Lower bound vector for the optimisation parameter
+%       ub:     Upper bound vector for the optimisation parameter
+
+% Returns:
+%   reducedProblem: Problem for the optimiser that only has variabled that can be modified
+%       x0:     Initial parameter vector
+%       Aineq:  Linear inequality constraints matrix (LHS)
+%       bineq:  Linear inequality constraints vector (RHS)
+%       lb:     Lower bound vector for the optimisation parameter
+%       ub:     Upper bound vector for the optimisation parameter
+
+parameterCount = size(fullProblem.lb,1);
+assert(size(fullProblem.ub,1) == parameterCount, 'The number of parameters must all match.')
+assert(size(fullProblem.Aineq,2) == parameterCount, 'The number of parameters must all match.')
+assert(size(fullProblem.x0,1) == parameterCount, 'The number of parameters must all match.')
+
+reducedProblem = fullProblem;
+reducedProblem.bineq = fullProblem.bineq;
+
+nn = 1;
+while nn <= size(reducedProblem.lb,1)
+    if ( reducedProblem.lb(nn) == reducedProblem.ub(nn) )
+        reducedProblem.lb(nn) = [];
+        reducedProblem.ub(nn) = [];
+        % Remove any influence of the removed parameters have on the bineq (RHS vector). 
+        % The optimisation parameter affects the entire columb in the Aineq (LHS matrix).
+        reducedProblem.bineq = reducedProblem.bineq - reducedProblem.Aineq(:,nn).*reducedProblem.x0(nn);
+        reducedProblem.Aineq(:,nn) = [];
+        reducedProblem.x0(nn) = [];
+    else
+        nn = nn +1;
+    end
+end
+
+end % removeFixedParameters function
+
+% ======================================
+
+function [optVect] = reconstructWithFixedParameters(reducedOptVect, fullProblem)
+% Builds up the optimisation vector with the fixed parameters that we removed using removeFixedParameters.
+% Fixed parameters are those whos lower and upper bounds are equal. The optimiser cannot use these values 
+% and it clutters the useful data when debugging. The original full problem is brought in for the upper and
+% lower bounds as well as the iniial values that need to be put back. 
+
+% Aguments:
+%   fullProblem: The orginal problem with both modifiable and fixed parameters
+%       x0:     Initial parameter vector
+%       lb:     Lower bound vector for the optimisation parameter
+%       ub:     Upper bound vector for the optimisation parameter
+%   reducedOptVect: A reduced optimisation parameter vector that only contains changeable parameters.
+
+% Returns:
+%   optVect: The full optimisation parameter vector with any fixed parameters filled in again.  
+
+parameterCount = size(fullProblem.lb,1);
+assert(size(fullProblem.ub,1) == parameterCount, 'The number of parameters must all match.')
+assert(size(fullProblem.x0,1) == parameterCount, 'The number of parameters must all match.')
+
+% Using zeros instead of the fullProblem.x0 for ease of debugging
+optVect = zeros(size(fullProblem.x0));
+
+countReduced = 1;
+for nn = 1:parameterCount
+    if ( fullProblem.lb(nn) == fullProblem.ub(nn) )
+        optVect(nn) = fullProblem.x0(nn);
+    else
+        optVect(nn) = reducedOptVect(countReduced);
+        countReduced = countReduced +1;
+    end
+end
+
+end % includeFixedParameters function
+
+% ======================================
+
+function e = erri(reducedOptVect,xi,Rfi,S,wk,vk,opts, fullProblem, plotFlag, plotTitle)
 % Error function for optimization
-function e = erri(optVect,xi,Rfi,S,wk,vk,opts)
-% TODO_DWW: Clean up
-% transpose(optVect)
+
+% Aguments: 
+%   see buildSurr for an explanation of the other arguments.
+%   reducedOptVect: A reduced optimisation parameter vector that only contains changeable parameters.
+%   fullProblem: The orginal problem with both modifiable and fixed parameters
+%       x0:     Initial parameter vector
+%       lb:     Lower bound vector for the optimisation parameter
+%       ub:     Upper bound vector for the optimisation parameter
+
+% Returns:
+%   e:  The total sum of normalised error between the complex fine model and the new surrogate evaluation.
+%       If multiple fine model evaluations are being used to build up a better surrogate then the error is 
+%       calculated for each fine model step for each output parameter. The surrogate is evaluated for each 
+%       output parameter at each of the fine model steps.
+
+optVect = reconstructWithFixedParameters(reducedOptVect, fullProblem);
 
 % Unpack the input structure
 Nn = opts.Nn;
@@ -768,27 +900,82 @@ if length(opts.errW) == 1
 else
     errW = opts.errW;
 end
-% Count over points
+diffR = {};
+errorValue = {};
+Rs = {};
 for cc = 1:Nc
-    Rs = evalSurr(xi{cc},S);
-    [Nm,Np] = size(Rs);
     ev = 0;
-    % Errors for each of the output parameters aggregated
+    Rs{cc} = evalSurr(xi{cc},S);
+    [Nm,Np] = size(Rs{cc});
+    % Errors for each output parameter (e.g. s-parameters) aggregated
     for pp = 1:Np
-        diffR = errW.*(Rfi{cc}(:,pp) - Rs(:,pp));
-        ev = ev + norm(diffR,opts.errNorm);
+        diffR{cc}{pp} = errW.*(Rfi{cc}(:,pp) - Rs{cc}(:,pp));
+        errorValue{cc}{pp} = norm(diffR{cc}{pp},opts.errNorm);
+        ev = ev + errorValue{cc}{pp};
     end
     ec(cc) = wk(cc).*ev;
 end
 e = sum(ec)./Nc;
+
+if ( plotFlag == 1 )
+    plotErri(Nc, Rfi, Rs, diffR, errorValue, opts.errNorm, ec, e, plotTitle);
+end
+
 end % erri function 
 
+% ======================================
 
+function plotErri(Nc, Rfi, Rs, diffR, errorValue, errorNorm, ec, e, plotTitle)
+% Plots the error between the fine models and the response of the surrogate.
+
+figure()
+% The number of parameters per model should not change
+[Nm,Np] = size(Rs{1});
+for cc = 1:Nc
+    for pp = 1:Np
+        diffAll = Rfi{cc}(:,pp) - Rs{cc}(:,pp);
+
+        subplot(Nc,Np*2, (Np*(cc-1)*2) + pp*2-1), grid on, hold on
+        plot(real(Rfi{cc}),'k', 'LineWidth',2)
+        plot(real(Rs{cc}),'--r', 'LineWidth',2)
+        plot(real(diffR{cc}{pp}),'og', 'LineWidth',2)
+        plot(abs(real(diffAll)),'+m', 'LineWidth',2)
+        title({[plotTitle], ...
+            [' - Real:'], ...
+            ['Fine model ', num2str(cc), 'of', num2str(Nc), ', Output param: ', num2str(pp), 'of', num2str(Np)], ...
+            ['Outpus parameter error = ', num2str(errorValue{cc}{pp})], ...
+            ['Combined normalised error = ', num2str(ec(cc))], ...
+            [' using norm ', num2str(errorNorm), ', final error:', num2str(e)]})
+        legend('real(Rfi)','real(Rs)','real(diffR)','(abs(real(diffAll))')
+        ylabel('Value')
+        xlabel('Point')
+
+        subplot(Nc,Np*2, (Np*(cc-1)*2) + pp*2), grid on, hold on
+        plot(imag(Rfi{cc}),'k', 'LineWidth',2)
+        plot(imag(Rs{cc}),'--r', 'LineWidth',2)
+        plot(imag(diffR{cc}{pp}),'og', 'LineWidth',2)
+        plot(abs(imag(diffAll)),'+m', 'LineWidth',2)
+        title({[plotTitle], .... 
+            [' - Imag:'], ...
+            ['Fine model ', num2str(cc), 'of', num2str(Nc), ', Output param: ', num2str(pp), 'of', num2str(Np)], ...
+            ['Outpus parameter error = ', num2str(errorValue{cc}{pp})], ...
+            ['Combined normalised error = ', num2str(ec(cc))], ...
+            [' using norm ', num2str(errorNorm), ', final error:', num2str(e)]})
+        legend('imag(Rfi)','imag(Rs)','imag(diffR)','(abs(imag(diffAll))')
+        ylabel('Value')
+        xlabel('Point')
+    end
+end
+end % plotErri function
+
+% ======================================
+
+function e = erriF(Fvect,Rfi,Rc,f,opts)
 % Special case error function where only F is optimized and the coarse
 % model is not re-evaluated - interpolation/extrapolation is used on the
 % provided coarse model response...
 % This will only work for a single response at this stage
-function e = erriF(Fvect,Rfi,Rc,f,opts)
+
 fs = Fvect(1).*f + Fvect(2);
 RsComp = interp1(f,Rc,fs,'linear');
 RsComp = reshape(RsComp,length(RsComp),1);
@@ -821,5 +1008,4 @@ e = norm(diffR,opts.errNorm);
 %     error(['Unknown norm: ' opts.errNorm,'.  Should be L1, L2 or Linf']);
 % end
 
-end
-
+end % erriF function

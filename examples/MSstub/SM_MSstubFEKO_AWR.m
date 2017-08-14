@@ -48,7 +48,6 @@ Mf.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 % Mc.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 
 % Set up coarse model (AWR)
-% TODO_DWW: HAVE TO MAKE THIS USE pwd or something!?!?!?!??!
 Mc.path = [currentPath,'AWR\'];
 Mc.name = 'MSstubCoarse';
 Mc.solver = 'AWR';
@@ -100,7 +99,8 @@ OPTopts.TRNi = OPTopts.Ni;
 OPTopts.Rtype = {'S1,1'};
 % TODO_DWW: name this nicely and follow through with an assertion
 OPTopts.globOpt = 0;
-OPTopts.globOptSM = 1;
+% OPTopts.globOpt = 1;
+OPTopts.globOptSM = 0;
 %
 % OPTopts.goalType = {'minimax'};
 % OPTopts.goalResType = {'S1,1_complex'};
@@ -149,7 +149,7 @@ errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1;
 SMopts.errW = errW;
 % SMopts.wk = 5;
 SMopts.wk = 0;
-
+SMopts.plotAlignmentFlag = 1;
 
 %% Run the main loop
 [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts);

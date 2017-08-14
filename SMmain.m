@@ -38,7 +38,7 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   Ni:         Maximum number of iterations
 %   TRNi:       Maximum number of iterations for the Trust region loop.
 %               To turn the TR off use TRNi=1.
-%   globOpt:    Flag to run PBIL (1 for only first iteration, 2 for all iterations) (default 0)
+%   globOpt:    Flag to run a globabl optimisation routine (1 for only first iteration, 2 for all iterations) (default 0)
 %   M_PBIL:     Vector of bits for the global search variables (see PBILreal.m)
 %   globOptSM:  Flag to run PBIL during the PE process (1 for only first iteration, 2 for all iterations) (default 0)
 %   goalResType:Cell array of response names to consider for the different goals {1,Ng}
@@ -128,6 +128,9 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %             used to build a better surrogate. In future a surrogate could potentially be 
 %             specified from outside SMmain. The 'prepopulatedSpaceFile' variable on OPTopts 
 %             is used to specify the space that should be loaded. 
+% 2017-08-14: Added validation for the coarse AWR model evaluation to pick up errors in simulations.
+%             Also fixed coarse models being clamped to the values that are acceptable in the evaluation.
+%             The optimisation can give output beyond what is defined as the constraints.
 
 % ===== ToDo =====
 % - Global optimisor
@@ -310,13 +313,14 @@ Ti.Delta{1} = DeltaInit.*(OPTopts.ximax - OPTopts.ximin);
 
 if ~testEnabled
     % Optimize coarse model to find initial alignment position
-    if globOpt
-        % CRC_DWW: for global optimisation work.
-        error('TODO_DWW: implement this.');
-        % [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Sinit,OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
-        [xin{1}, costS{1}] = ga(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
-        xinitn = reshape(xinitn,Nn,1);
-    end
+    % if globOpt
+    % TODO_DWW: Do this next
+    %     % CRC_DWW: for global optimisation work.
+    %     error('TODO_DWW: implement this.');
+    %     % [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Sinit,OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
+    %     [xin{1}, costS{1}] = ga(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
+    %     xinitn = reshape(xinitn,Nn,1);
+    % end
     [xin{1}, costS{1}] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
 else
     testEnabled
@@ -368,7 +372,7 @@ if length(prepopulatedSpaceFile) > 1
     Ti.costChangeF{1} = costF{1}; 
 
 else 
-    display(['--- TODO_DWW:Initialising ---'])
+    display(['--- TODO_DWW: Initialising ---'])
     Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
     Rfi{1} = fineMod(Mf,xi{1});
     for rr = 1:Nr
@@ -398,7 +402,7 @@ end
 % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
 plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, OPTopts);
 
-display(['--- TODO_DWW:Start loop ---'])
+display(['--- TODO_DWW: Start loop ---'])
 
 while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
     % Coming into this iteration as ii now with the fine model run here already and responses available. 
@@ -524,7 +528,6 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                     
                     display(['--- TODO_DWW: build surr for iteration ', num2str(ii), ' ---'])
                     Si{targetCount}{rr} = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
-                    keyboard
                 end
                 % Also get the currently aligned surrogate for comparison
                 Rsai{targetCount}{rr}.r = evalSurr(xi{ii+1},Si{targetCount}{rr});
@@ -585,22 +588,21 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
         end
     end
     
-    % keyboard
     if (~TRterminate)
         ii = ii+1;  % Increase main loop count
         if (ii == Ni)
-            display(['Terminated due to: max iteration count reached (', num2str(ii), ').'])
+            display(['====== Terminated due to: max iteration count reached (', num2str(ii), '). ======'])
         end
     else
         % TODO_DWW: refine these messages
         if (specF)
-            display(['Terminated due to: specF reached.'])
+            display(['====== Terminated due to: specF reached. ======'])
         end
         if (TolX_achieved)
-            display(['Terminated due to: TolX_achieved.'])
+            display(['====== Terminated due to: TolX_achieved. ======'])
         end
         if (TRterminate)
-            display(['Terminated due to: TRterminate.'])
+            display(['====== Terminated due to: TRterminate. ======'])
         end
     end
 end % Main while loop
@@ -638,28 +640,28 @@ function enforceFineModelLimits()
 	% Check if fine model is limited 
 	if isfield(Mf,'ximin')
 		limMin_f{ii} = xi{ii+1} < Mf.ximin;
-		if limMin_f{ii} | 0
+		if any(limMin_f{ii})
 			warning( strcat('Fine model bound met: xi{ii+1} = ', ...
 				mat2str(xi{ii+1}), ', Mf.ximin = ', mat2str(Mf.ximin)) )
 		end
 	end
 	if isfield(Mc,'ximin')
 		limMin_c{ii} = xi{ii+1} < Mc.ximin;
-		if limMin_c{ii} | 0
+		if any(limMin_c{ii})
 			warning( strcat('Fine model bound met: xi{ii+1} = ', ...
 				mat2str(xi{ii+1}), ', Mc.ximin = ', mat2str(Mc.ximin)) )
 		end
 	end
 	if isfield(Mf,'ximax')
 		limMax_f{ii} = xi{ii+1} > Mf.ximax;
-		if limMax_f{ii} | 0
+		if any(limMax_f{ii})
 			warning( strcat('Fine model bound met: xi{ii+1} = ', ...
 				mat2str(xi{ii+1}), ', Mf.ximax = ', mat2str(Mf.ximax)) )
 		end
 	end
 	if isfield(Mc,'ximax')
 		limMax_c{ii} = xi{ii+1} > Mc.ximax;
-		if limMin_f{ii} | 0
+		if any(limMin_f{ii})
 			warning( strcat('Fine model bound met: xi{ii+1} = ', ...
 				mat2str(xi{ii+1}), ',  Mc.ximax = ', mat2str( Mc.ximax)) )
 		end
@@ -825,12 +827,17 @@ end % fineMod
 
 function Rc = coarseMod(M,xi,xp,f)
 
-% Rc is a cell array of structures containing the response in Rc.r, the type Rc.t, and the
+% Rc: is a cell array of structures containing the response in Rc.r, the type Rc.t, and the
 % (optional) domain (typically frequency) in Rc.f.  Same length as M.Rtype
-% xi is an array of input parameters - same order as those specified in M
-% xp is an array of implicit parameters - same order as those specified in M
-% f is an array of frequency points where to evaluate the model (optional)
-% M is a structure containing all the info to describe to model containing:
+%   hasError:   is true if an error was encountered during the simulation. Results cannot
+%               be trusted if this flag is true.
+%   TODO_DWW: Remove i guess... 
+%   TODO_DWW: flow through system if this is the chosen approach.
+%   TODO_DWW: add to the other methods
+% xi: is an array of input parameters - same order as those specified in M
+% xp: is an array of implicit parameters - same order as those specified in M
+% f: is an array of frequency points where to evaluate the model (optional)
+% M: is a structure containing all the info to describe to model containing:
 %   path:   Full path to file
 %   name:   File name of file (without extension)
 %   solver:     'CST'/'FEKO'/'MATLAB' (for now)
@@ -850,7 +857,7 @@ function Rc = coarseMod(M,xi,xp,f)
 % Limit the inputs - this should really never happen...
 if isfield(M,'ximin')
     minI = xi < M.ximin;
-    if minI | 0
+    if any(minI)
         xi(minI) = M.ximin(minI);
 		warning( strcat('Out of bounds coarse model evaluation encountered on ximin = ', ...
 			mat2str(M.ximin), ', xi = ', mat2str(xi)) )
@@ -858,7 +865,7 @@ if isfield(M,'ximin')
 end
 if isfield(M,'ximax')
     maxI = xi > M.ximax;
-    if maxI | 0
+    if any(maxI)
         xi(maxI) = M.ximax(maxI);
 		warning( strcat('Out of bounds coarse model evaluation encountered on ximax', ...
 			mat2str(M.ximax), ', xi = ', mat2str(xi)) )
@@ -866,7 +873,7 @@ if isfield(M,'ximax')
 end
 if isfield(M,'xpmin')
     minIp = xp < M.xpmin;
-    if minIp | 0
+    if any(minIp)
         xp(minIp) = M.xpmin(minIp);
 		warning( strcat('Out of bounds coarse model evaluation encountered on xpmin', ...
 			mat2str(M.xpmin), ', xi = ', mat2str(xi)) )
@@ -874,7 +881,7 @@ if isfield(M,'xpmin')
 end
 if isfield(M,'xpmax')
     maxIp = xp > M.xpmax;
-    if maxIp | 0
+    if any(maxIp)
         xp(maxIp) = M.xpmax(maxIp);
 		warning( strcat('Out of bounds coarse model evaluation encountered on xpmax', ...
 			mat2str(M.xpmax), ', xi = ', mat2str(xi)) )
@@ -959,6 +966,24 @@ switch M.solver
                 measurement_Sxx_Ang = graph.Measurements.Add(M.name,['Ang(S(', portsString, '))']);
 
                 proj.Simulator.Analyze;
+                
+                switch proj.ErrorState
+                    case 'mwET_Fatal'
+                        % Rc{rr}.hasError = true;
+                        error(['AWR proj.ErrorState gave mwET_Fatal.'])
+                    case 'mwET_Error'
+                        % Rc{rr}.hasError = true;
+                        error(['AWR proj.ErrorState gave mwET_Error.'])
+                    case 'mwET_Warning'
+                        % Rc{rr}.hasError = true;
+                        error(['AWR proj.ErrorState gave mwET_Warning.'])
+                    case 'mwET_None'
+                        % Rc{rr}.hasError = false;
+                        % Do nothing, continue
+                    otherwise
+                        % Rc{rr}.hasError = true;
+                        error(['AWR proj.ErrorState unknown result from simulation.'])
+                end
 
                 nRead = measurement_Sxx_Mag.XPointCount;
                 [fin,Sxxin] = deal(zeros(nRead,1));

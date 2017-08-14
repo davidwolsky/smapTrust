@@ -30,8 +30,10 @@ Mf.path = [currentPath,'FEKO\'];
 Mf.name = 'bandpassFilter';
 Mf.solver = 'FEKO';
 Mf.params = {'L1',  'L2',   'L3',   'L4',   'g'};
-Mf.ximin =  [6.0,   4.0,    6.0,    4.5,    0.085]';
+Mf.ximin =  [6.0,   4.0,    6.0,    4.5,    0.095]';
 Mf.ximax =  [7.0,   5.0,    7.0,    5.5,    0.100]';
+% Mf.ximin =  [6.0,   4.0,    6.0,    4.5,    0.085]';
+% Mf.ximax =  [7.0,   5.0,    7.0,    5.5,    0.100]';
 Mf.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 
 % Set up coarse model (AWR)
@@ -43,7 +45,9 @@ Mc.ximin = Mf.ximin;
 Mc.ximax = Mf.ximax;
 Mc.Iparams ={'eps_r1',  'eps_r2',   'h1',   'h2'};
 Mc.xpmin =  [6.0,       6.0,        0.50,   0.50]';
-Mc.xpmax =  [10.0,      10.0,       1.30,   1.30]';
+Mc.xpmax =  [10.0,      10.0,       0.95,   1.30]';
+% Mc.xpmin =  [6.0,       6.0,        0.50,   0.50]';
+% Mc.xpmax =  [10.0,      10.0,       1.30,   1.30]';
 Mc.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 
 % Set up the SM
@@ -69,7 +73,8 @@ OPTopts.Ni = 5;
 OPTopts.TRNi = OPTopts.Ni;
 OPTopts.Rtype = {'S2,1'};
 OPTopts.globOpt = 0;
-OPTopts.globOptSM = 1;
+OPTopts.globOptSM = 0;
+% OPTopts.globOptSM = 1;
 %
 OPTopts.goalType =      {'lt',      'gt',       'lt'};
 OPTopts.goalResType =   {'S2,1_dB', 'S2,1_dB',  'S2,1_dB'};
@@ -103,14 +108,16 @@ SMopts.optsFminS = optimset('display','iter');
 SMopts.optsPBIL.display =  'iter';
 SMopts.optsPBIL.Nfeval = 5000;
 SMopts.errNorm = 1;
-errW = 1;
-% errW = zeros(size(Mf.freq));
-% errW(Mf.freq > OPTopts.goalStart{1} & Mf.freq < OPTopts.goalStop{1}) = 1
-% errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1
-% errW(Mf.freq > OPTopts.goalStart{3} & Mf.freq < OPTopts.goalStop{3}) = 1
+% errW = 1;
+errW = zeros(size(Mf.freq));
+errW(Mf.freq > OPTopts.goalStart{1} & Mf.freq < OPTopts.goalStop{1}) = 1
+errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1
+errW(Mf.freq > OPTopts.goalStart{3} & Mf.freq < OPTopts.goalStop{3}) = 1
 SMopts.errW = errW;
 % SMopts.wk = 5;
-SMopts.wk = 0;
+SMopts.wk = 0; % <---
+% SMopts.wk = 1;
+SMopts.plotAlignmentFlag = 1;
 
 
 %% Run the main loop
