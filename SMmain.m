@@ -1095,6 +1095,13 @@ for rr = 1:Nr
 end
 save FEKOLog statusMesh cmdoutMesh statusRun cmdoutRun;
 
+fid=fopen('FEKOLog.txt','w');
+% fprintf(fid, [ cmdoutMesh '\n\n' statusRun '\n\n' cmdoutRun]);
+fprintf(fid, '%s \n\n', [cmdoutMesh]');
+fprintf(fid, '%s \n\n', [statusRun]');
+fprintf(fid, '%s \n\n', [cmdoutRun]');
+fclose(fid);
+
 end % fekoMod function
 
 

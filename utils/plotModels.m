@@ -27,17 +27,17 @@ if plotFlag && valuesAreValid()
             plotResponse([splits{1}, '_real']);
             plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, real(OPTopts.goalVal{gg}), goalType, freq)
             subplot(Ng, 2, gg*2)
-            legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
+            % legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
             plotResponse([splits{1}, '_imag']);
             plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, imag(OPTopts.goalVal{gg}), goalType, freq)
             
-            legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
+            % legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
         else
             subplot(Ng, 2, [gg*2-1, gg*2])
             plotResponse(OPTopts.goalResType{gg});
             plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, OPTopts.goalVal{gg}, goalType, freq)
             
-            legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', goalType)
+            % legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', goalType)
         end
     end % for Ng
 end % if validation

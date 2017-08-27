@@ -611,8 +611,9 @@ else
     if getF
         LHS_mat(2*(Nn+Nq)+1,end-1:end) = [-min(S.f),-1];
     end
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     display(['--- TODO_DWW: Starting parameter extraction ---'])
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
     fullProblem = {};
     fullProblem.x0 = initVect;
@@ -622,10 +623,12 @@ else
     fullProblem.ub = maxVect;
 
     [reducedProblem] = removeFixedParameters(fullProblem);
-
+    % TODO_DWW: Clean up - not used if not plotted... 
+    startingError = 0;
+    completionError = 0;
     if ( plotAlignmentFlag == 1 )
         % Plot initial error before alignment
-        erri(reducedProblem.x0,xi,Rfi,S,wk,vk,optsParE, fullProblem, plotAlignmentFlag, 'Starting alignment')
+        startingError = erri(reducedProblem.x0,xi,Rfi,S,wk,vk,optsParE, fullProblem, plotAlignmentFlag, 'Starting alignment')
     end
 
     problem = {};
@@ -651,20 +654,28 @@ else
     problem.options = optimoptions('fmincon',...
                                    'Display','iter-detailed',...
                                    'Diagnostics','on',...
-                                   'PlotFcn',@optimplotconstrviolation ,...
-                                   'DiffMinChange',0.000001)
+                                   'PlotFcn',@optimplotconstrviolation)
+    problem.options.DiffMinChange = 1e-4;
+%     problem.options.Algorithm = 'sqp';
 %                                    'DiffMinChange',0.00000000001)
 %                                    'PlotFcn',@optimplotstepsize,...
+    keyboard
     [optVectReduced,fval,exitflag,output] = fmincon(problem)
     if ( plotAlignmentFlag == 1 )
         % Plot errors after alignment
-        erri(optVectReduced,xi,Rfi,S,wk,vk,optsParE, fullProblem, plotAlignmentFlag, 'Alignment complete');
+        completionError = erri(optVectReduced,xi,Rfi,S,wk,vk,optsParE, fullProblem, plotAlignmentFlag, 'Alignment complete');
+
+        assert(completionError == fval, 'The optimised parameters should return the same error as the optimiser received.')
+        % TODO_DWW: Clean up - not used if not plotted... 
+%         assert(startingError > completionError, 'Alignment must result in less of an error.')
     end
 
     % Put the results together again before asigning to the surrogate
     optVect = reconstructWithFixedParameters(optVectReduced, fullProblem);
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     display(['=== TODO_DWW: Ending parameter extraction ==='])
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 end
 % Rebuild the individual parameters from the vector
 % TODO_DWW: Make this into a function and reuse
@@ -946,7 +957,7 @@ for cc = 1:Nc
             ['Outpus parameter error = ', num2str(errorValue{cc}{pp})], ...
             ['Combined normalised error = ', num2str(ec(cc))], ...
             [' using norm ', num2str(errorNorm), ', final error:', num2str(e)]})
-        legend('real(Rfi)','real(Rs)','real(diffR)','(abs(real(diffAll))')
+        % legend('real(Rfi)','real(Rs)','real(diffR)','(abs(real(diffAll))')
         ylabel('Value')
         xlabel('Point')
 
@@ -961,7 +972,7 @@ for cc = 1:Nc
             ['Outpus parameter error = ', num2str(errorValue{cc}{pp})], ...
             ['Combined normalised error = ', num2str(ec(cc))], ...
             [' using norm ', num2str(errorNorm), ', final error:', num2str(e)]})
-        legend('imag(Rfi)','imag(Rs)','imag(diffR)','(abs(imag(diffAll))')
+        % legend('imag(Rfi)','imag(Rs)','imag(diffR)','(abs(imag(diffAll))')
         ylabel('Value')
         xlabel('Point')
     end
