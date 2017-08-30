@@ -626,7 +626,7 @@ else
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     display(['--- TODO_DWW: Starting parameter extraction ---'])
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Normalisation options from FEKO chat:
+% TODO_DWW: Normalisation options from FEKO chat:
 %   - normalise internal to the optimisation algorithms with standard deviation.
 %   - normalise incoming between 0 and 1.
 %   - the goal functions are also normalised.
@@ -638,7 +638,14 @@ else
     fullProblem.lb = minVect;
     fullProblem.ub = maxVect;
 
+    % TODO_DWW: Remove
+    % [nProblem] = normaliseProblem(fullProblem, optsParE);
+    % [dProblem] = denormaliseProblem(nProblem, fullProblem, optsParE);
+
     [reducedProblem] = removeFixedParameters(fullProblem);
+
+    keyboard
+
     % TODO_DWW: Clean up - not used if not plotted... 
     startingError = 0;
     completionError = 0;
@@ -693,21 +700,8 @@ else
     display(['=== TODO_DWW: Ending parameter extraction ==='])
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 end
-% Rebuild the individual parameters from the vector
-% TODO_DWW: Make this into a function and reuse
-A = diag(optVect(firstPos(1):lastPos(1)));
-B = reshape(optVect(firstPos(2):lastPos(2)),sqrt(lenB),sqrt(lenB));   % Always square
-c = reshape(optVect(firstPos(3):lastPos(3)),lenc,1);
-G = reshape(optVect(firstPos(4):lastPos(4)),min(lenG,Nq),Nn); % Must be empty matrix if lenG == 0
-xp = reshape(optVect(firstPos(5):lastPos(5)),lenxp,1);
-F = reshape(optVect(firstPos(6):lastPos(6)),lenF,1); % Must be empty matrix if lenG == 0
 
-Si.A = A; 
-Si.B = B; 
-Si.c = c; 
-Si.G = G; 
-Si.xp = xp; 
-Si.F = F; 
+Si = reshapeParameters(optVect, Si, optsParE);
 
 % Additive zero order OSM 
 d = zeros(Nm,1);
@@ -782,125 +776,116 @@ end % buildSurr function
 % ========= begin subfunctions =========
 % ======================================
 
-function [reducedProblem] = removeFixedParameters(fullProblem)
-% The full optimisation problem is reduced to only include parameters that can be changed by the optimiser.
-% The starting point for the optimisation run (x0), the left hand side inequality matrix (Aineq) as well as the
-% right hand side equality constraint (bineq) are all reduced. Lower and upper bounds are also reduced.
-% This reduces the length of optimisation runs and makes it easier to debug what is going on. The reduced
-% problem is returned in a similar form to what is passed in. Once the problem has gone through the optimiser
-% and the optimised parameters vector have been returned, the reconstructWithFixedParameters function will 
-% return the vector with the fixed parameters that were previously removed.
 
-% Aguments:
-%   fullProblem: The orginal problem with both modifiable and fixed parameters
-%       x0:     Initial parameter vector
-%       Aineq:  Linear inequality constraints matrix (LHS)
-%       bineq:  Linear inequality constraints vector (RHS)
-%       lb:     Lower bound vector for the optimisation parameter
-%       ub:     Upper bound vector for the optimisation parameter
+% function [reducedProblem] = removeFixedParameters(fullProblem)
+% % The full optimisation problem is reduced to only include parameters that can be changed by the optimiser.
+% % The starting point for the optimisation run (x0), the left hand side inequality matrix (Aineq) as well as the
+% % right hand side equality constraint (bineq) are all reduced. Lower and upper bounds are also reduced.
+% % This reduces the length of optimisation runs and makes it easier to debug what is going on. The reduced
+% % problem is returned in a similar form to what is passed in. Once the problem has gone through the optimiser
+% % and the optimised parameters vector have been returned, the reconstructWithFixedParameters function will 
+% % return the vector with the fixed parameters that were previously removed.
 
-% Returns:
-%   reducedProblem: Problem for the optimiser that only has variabled that can be modified
-%       x0:     Initial parameter vector
-%       Aineq:  Linear inequality constraints matrix (LHS)
-%       bineq:  Linear inequality constraints vector (RHS)
-%       lb:     Lower bound vector for the optimisation parameter
-%       ub:     Upper bound vector for the optimisation parameter
+% % Aguments:
+% %   fullProblem: The orginal problem with both modifiable and fixed parameters
+% %       x0:     Initial parameter vector
+% %       Aineq:  Linear inequality constraints matrix (LHS)
+% %       bineq:  Linear inequality constraints vector (RHS)
+% %       lb:     Lower bound vector for the optimisation parameter
+% %       ub:     Upper bound vector for the optimisation parameter
 
-parameterCount = size(fullProblem.lb,1);
-assert(size(fullProblem.ub,1) == parameterCount, 'The number of parameters must all match.')
-assert(size(fullProblem.Aineq,2) == parameterCount, 'The number of parameters must all match.')
-assert(size(fullProblem.x0,1) == parameterCount, 'The number of parameters must all match.')
+% % Returns:
+% %   reducedProblem: Problem for the optimiser that only has variabled that can be modified
+% %       x0:     Initial parameter vector
+% %       Aineq:  Linear inequality constraints matrix (LHS)
+% %       bineq:  Linear inequality constraints vector (RHS)
+% %       lb:     Lower bound vector for the optimisation parameter
+% %       ub:     Upper bound vector for the optimisation parameter
 
-reducedProblem = fullProblem;
-reducedProblem.bineq = fullProblem.bineq;
+% parameterCount = size(fullProblem.lb,1);
+% assert(size(fullProblem.ub,1) == parameterCount, 'The number of parameters must all match.')
+% assert(size(fullProblem.Aineq,2) == parameterCount, 'The number of parameters must all match.')
+% assert(size(fullProblem.x0,1) == parameterCount, 'The number of parameters must all match.')
 
-nn = 1;
-while nn <= size(reducedProblem.lb,1)
-    if ( reducedProblem.lb(nn) == reducedProblem.ub(nn) )
-        reducedProblem.lb(nn) = [];
-        reducedProblem.ub(nn) = [];
-        % Remove any influence of the removed parameters have on the bineq (RHS vector). 
-        % The optimisation parameter affects the entire columb in the Aineq (LHS matrix).
-        reducedProblem.bineq = reducedProblem.bineq - reducedProblem.Aineq(:,nn).*reducedProblem.x0(nn);
-        reducedProblem.Aineq(:,nn) = [];
-        reducedProblem.x0(nn) = [];
-    else
-        nn = nn +1;
-    end
-end
+% reducedProblem = fullProblem;
+% reducedProblem.bineq = fullProblem.bineq;
 
-end % removeFixedParameters function
+% nn = 1;
+% while nn <= size(reducedProblem.lb,1)
+%     if ( reducedProblem.lb(nn) == reducedProblem.ub(nn) )
+%         reducedProblem.lb(nn) = [];
+%         reducedProblem.ub(nn) = [];
+%         % Remove any influence of the removed parameters have on the bineq (RHS vector). 
+%         % The optimisation parameter affects the entire columb in the Aineq (LHS matrix).
+%         reducedProblem.bineq = reducedProblem.bineq - reducedProblem.Aineq(:,nn).*reducedProblem.x0(nn);
+%         reducedProblem.Aineq(:,nn) = [];
+%         reducedProblem.x0(nn) = [];
+%     else
+%         nn = nn +1;
+%     end
+% end
 
-% ======================================
-
-function [optVect] = reconstructWithFixedParameters(reducedOptVect, fullProblem)
-% Builds up the optimisation vector with the fixed parameters that we removed using removeFixedParameters.
-% Fixed parameters are those whos lower and upper bounds are equal. The optimiser cannot use these values 
-% and it clutters the useful data when debugging. The original full problem is brought in for the upper and
-% lower bounds as well as the iniial values that need to be put back. 
-
-% Aguments:
-%   fullProblem: The orginal problem with both modifiable and fixed parameters
-%       x0:     Initial parameter vector
-%       lb:     Lower bound vector for the optimisation parameter
-%       ub:     Upper bound vector for the optimisation parameter
-%   reducedOptVect: A reduced optimisation parameter vector that only contains changeable parameters.
-
-% Returns:
-%   optVect: The full optimisation parameter vector with any fixed parameters filled in again.  
-
-parameterCount = size(fullProblem.lb,1);
-assert(size(fullProblem.ub,1) == parameterCount, 'The number of parameters must all match.')
-assert(size(fullProblem.x0,1) == parameterCount, 'The number of parameters must all match.')
-
-% Using zeros instead of the fullProblem.x0 for ease of debugging
-optVect = zeros(size(fullProblem.x0));
-
-countReduced = 1;
-for nn = 1:parameterCount
-    if ( fullProblem.lb(nn) == fullProblem.ub(nn) )
-        optVect(nn) = fullProblem.x0(nn);
-    else
-        optVect(nn) = reducedOptVect(countReduced);
-        countReduced = countReduced +1;
-    end
-end
-
-end % includeFixedParameters function
+% end % removeFixedParameters function
 
 % ======================================
 
-function e = erri(reducedOptVect,xi,Rfi,S,wk,vk,opts, fullProblem, plotFlag, plotOpts)
-% Error function for optimization
+% function [optVect] = reconstructWithFixedParameters(reducedOptVect, fullProblem)
+% % Builds up the optimisation vector with the fixed parameters that we removed using removeFixedParameters.
+% % Fixed parameters are those whos lower and upper bounds are equal. The optimiser cannot use these values 
+% % and it clutters the useful data when debugging. The original full problem is brought in for the upper and
+% % lower bounds as well as the iniial values that need to be put back. 
 
-% Aguments: 
-%   see buildSurr for an explanation of the other arguments.
-%   reducedOptVect: A reduced optimisation parameter vector that only contains changeable parameters.
-%   fullProblem: The orginal problem with both modifiable and fixed parameters
-%       x0:     Initial parameter vector
-%       lb:     Lower bound vector for the optimisation parameter
-%       ub:     Upper bound vector for the optimisation parameter
+% % Aguments:
+% %   fullProblem: The orginal problem with both modifiable and fixed parameters
+% %       x0:     Initial parameter vector
+% %       lb:     Lower bound vector for the optimisation parameter
+% %       ub:     Upper bound vector for the optimisation parameter
+% %   reducedOptVect: A reduced optimisation parameter vector that only contains changeable parameters.
 
-% Returns:
-%   e:  The total sum of normalised error between the complex fine model and the new surrogate evaluation.
-%       If multiple fine model evaluations are being used to build up a better surrogate then the error is 
-%       calculated for each fine model step for each output parameter. The surrogate is evaluated for each 
-%       output parameter at each of the fine model steps.
+% % Returns:
+% %   optVect: The full optimisation parameter vector with any fixed parameters filled in again.  
 
-optVect = reconstructWithFixedParameters(reducedOptVect, fullProblem);
+% parameterCount = size(fullProblem.lb,1);
+% assert(size(fullProblem.ub,1) == parameterCount, 'The number of parameters must all match.')
+% assert(size(fullProblem.x0,1) == parameterCount, 'The number of parameters must all match.')
+
+% % Using zeros instead of the fullProblem.x0 for ease of debugging
+% optVect = zeros(size(fullProblem.x0));
+
+% countReduced = 1;
+% for nn = 1:parameterCount
+%     if ( fullProblem.lb(nn) == fullProblem.ub(nn) )
+%         optVect(nn) = fullProblem.x0(nn);
+%     else
+%         optVect(nn) = reducedOptVect(countReduced);
+%         countReduced = countReduced +1;
+%     end
+% end
+
+% end % includeFixedParameters function
+
+% ======================================
+
+function [S] = reshapeParameters(optVect, S, optsParE)
+% Reshaped the optimisation vector back into the parameters.
+% Arguments:
+%   optVect: optimisation vector containing all the different parameters lumped together.
+%   S: The existing surrogate model
+%   optsParE: options for the parameters
+%       Nn;Nq;lenVect;firstPos;lastPos;errNorm;errW;
+% Returns: A surrogate with its individual parameters
 
 % Unpack the input structure
-Nn = opts.Nn;
-Nq = opts.Nq;
-firstPos = opts.firstPos;
-lastPos = opts.lastPos;
-lenA = opts.lenVect(1);
-lenB = opts.lenVect(2);
-lenc = opts.lenVect(3);
-lenG = opts.lenVect(4);
-lenxp = opts.lenVect(5);
-lenF = opts.lenVect(6);
+Nn = optsParE.Nn;
+Nq = optsParE.Nq;
+firstPos = optsParE.firstPos;
+lastPos = optsParE.lastPos;
+lenA = optsParE.lenVect(1);
+lenB = optsParE.lenVect(2);
+lenc = optsParE.lenVect(3);
+lenG = optsParE.lenVect(4);
+lenxp = optsParE.lenVect(5);
+lenF = optsParE.lenVect(6);
 
 % Extract individual parameters
 A = diag(optVect(firstPos(1):lastPos(1)));
@@ -917,6 +902,28 @@ S.c = c;
 S.G = G;
 S.xp = xp;
 S.F = F;
+
+end % reshapeParameters function
+
+% ======================================
+
+function e = erri(reducedOptVect,xi,Rfi,S,wk,vk,opts, fullProblem, plotFlag, plotOpts)
+% Error function for optimization
+% Aguments: 
+%   see buildSurr for an explanation of the other arguments.
+%   reducedOptVect: A reduced optimisation parameter vector that only contains changeable parameters.
+%   fullProblem: The orginal problem with both modifiable and fixed parameters
+%       x0:     Initial parameter vector
+%       lb:     Lower bound vector for the optimisation parameter
+%       ub:     Upper bound vector for the optimisation parameter
+% Returns:
+%   e:  The total sum of normalised error between the complex fine model and the new surrogate evaluation.
+%       If multiple fine model evaluations are being used to build up a better surrogate then the error is 
+%       calculated for each fine model step for each output parameter. The surrogate is evaluated for each 
+%       output parameter at each of the fine model steps.
+
+optVect = reconstructWithFixedParameters(reducedOptVect, fullProblem);
+S = reshapeParameters(optVect, S, opts);
 
 % Calculate the error function value
 Nc = length(wk);
