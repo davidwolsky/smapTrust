@@ -204,6 +204,8 @@ getd = 0;
 getE = 0;
 getF = 0;
 
+plotOpts = {}
+
 % Default constraints
 ximin = -inf.*ones(Nn,1); 
 ximax = inf.*ones(Nn,1);
@@ -362,12 +364,14 @@ if any(getB)
     end
     % Sort out the box limits according to what is requested
     if numel(getB) == 1 && getB == 1    % Full matrix to be optimized - unconstrained in the box
+        % TODO: 0.5 and 2 restriction
         BminM = -inf.*ones(Nn,Nn);  
         BmaxM = inf.*ones(Nn,Nn);
     elseif numel(getB) == 1 && getB == 2    % Only the diagonal entries optimized - unconstrained in the box
         % Keep the rest of the entries the same as B - this allows (rarely
         % used) the off-diagonal entries to be the user supplied values
         [BminM,BmaxM] = deal(B_init);
+        % TODO: 0.5 and 2 restriction
         BminM = BminM + diag(-inf.*ones(Nn,1));
         BmaxM = BmaxM + diag(inf.*ones(Nn,1));
     elseif numel(getB) == Nn   % Only certain of the diagonal entries optimized - unconstrained in the box
@@ -377,6 +381,7 @@ if any(getB)
         [minDiag,maxDiag] = deal(zeros(Nn,1));
         minDiag(getB == 1) = -inf;
         maxDiag(getB == 1) = inf;
+        % TODO: 0.5 and 2 restriction
         BminM = BminM + diag(minDiag);
         BmaxM = BmaxM + diag(maxDiag);
     else
@@ -385,6 +390,7 @@ if any(getB)
     Bv_init = reshape(B_init,lenB,1);
     Bmin = reshape(BminM,lenB,1);
     Bmax = reshape(BmaxM,lenB,1);
+    % TODO: 0.5 and 2 restriction
 end
 lenc = Nn; 
 [c_init,cmin,cmax] = deal(zeros(lenc,1));
@@ -393,8 +399,14 @@ if getc
     if isfield(S,'c')
         c_init(:,1) = S.c;
     end
-    cmin = -inf.*ones(Nn,1);   % Unconstrained in the box
-    cmax = inf.*ones(Nn,1);
+
+    % TODO_DWW: clean up and comment on 
+    cmin = ximin - reshape(Bmax, Nn, Nn)*ximax
+    cmax = ximax - reshape(Bmin, Nn, Nn)*ximin
+
+    % Unconstrained in the box
+    % cmin = -inf.*ones(Nn,1);
+    % cmax = inf.*ones(Nn,1);
 end
 % Have to provide an xp input for implicit space mapping...
 if isfield(S,'xp')
@@ -614,6 +626,10 @@ else
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     display(['--- TODO_DWW: Starting parameter extraction ---'])
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Normalisation options from FEKO chat:
+%   - normalise internal to the optimisation algorithms with standard deviation.
+%   - normalise incoming between 0 and 1.
+%   - the goal functions are also normalised.
     
     fullProblem = {};
     fullProblem.x0 = initVect;
@@ -628,7 +644,8 @@ else
     completionError = 0;
     if ( plotAlignmentFlag == 1 )
         % Plot initial error before alignment
-        startingError = erri(reducedProblem.x0,xi,Rfi,S,wk,vk,optsParE, fullProblem, plotAlignmentFlag, 'Starting alignment')
+        plotOpts.plotTitle = 'Starting alignment';
+        startingError = erri(reducedProblem.x0,xi,Rfi,S,wk,vk,optsParE, fullProblem, plotAlignmentFlag, plotOpts)
     end
 
     problem = {};
@@ -642,7 +659,7 @@ else
     problem.nonlcon = [];
     if globOpt
         problem.solver = 'ga';
-        problem.fitnessfcn = @(tempOptVect) erri(tempOptVect,xi,Rfi,S,wk,vk,optsParE,fullProblem, false, '');
+        problem.fitnessfcn = @(tempOptVect) erri(tempOptVect,xi,Rfi,S,wk,vk,optsParE,fullProblem, false, plotOpts);
         problem.nvars = length(reducedProblem.x0);
         problem.options = optimoptions('ga')
         [optVectGlobalReduced,fval,exitflag,output] = ga(problem)
@@ -650,20 +667,19 @@ else
         problem.x0 = optVectGlobalReduced
     end
     problem.solver = 'fmincon';
-    problem.objective = @(tempOptVect) erri(tempOptVect,xi,Rfi,S,wk,vk,optsParE, fullProblem, false, '');
+    problem.objective = @(tempOptVect) erri(tempOptVect,xi,Rfi,S,wk,vk,optsParE, fullProblem, false, plotOpts);
     problem.options = optimoptions('fmincon',...
                                    'Display','iter-detailed',...
                                    'Diagnostics','on',...
                                    'PlotFcn',@optimplotconstrviolation)
     problem.options.DiffMinChange = 1e-4;
 %     problem.options.Algorithm = 'sqp';
-%                                    'DiffMinChange',0.00000000001)
-%                                    'PlotFcn',@optimplotstepsize,...
-    keyboard
+    % keyboard
     [optVectReduced,fval,exitflag,output] = fmincon(problem)
     if ( plotAlignmentFlag == 1 )
         % Plot errors after alignment
-        completionError = erri(optVectReduced,xi,Rfi,S,wk,vk,optsParE, fullProblem, plotAlignmentFlag, 'Alignment complete');
+        plotOpts.plotTitle = 'Alignment complete'
+        completionError = erri(optVectReduced,xi,Rfi,S,wk,vk,optsParE, fullProblem, plotAlignmentFlag, plotOpts);
 
         assert(completionError == fval, 'The optimised parameters should return the same error as the optimiser received.')
         % TODO_DWW: Clean up - not used if not plotted... 
@@ -855,7 +871,7 @@ end % includeFixedParameters function
 
 % ======================================
 
-function e = erri(reducedOptVect,xi,Rfi,S,wk,vk,opts, fullProblem, plotFlag, plotTitle)
+function e = erri(reducedOptVect,xi,Rfi,S,wk,vk,opts, fullProblem, plotFlag, plotOpts)
 % Error function for optimization
 
 % Aguments: 
@@ -929,17 +945,26 @@ end
 e = sum(ec)./Nc;
 
 if ( plotFlag == 1 )
-    plotErri(Nc, Rfi, Rs, diffR, errorValue, opts.errNorm, ec, e, plotTitle);
+    plotErri(Nc, Rfi, Rs, diffR, errorValue, opts.errNorm, ec, e, plotOpts);
 end
 
 end % erri function 
 
 % ======================================
 
-function plotErri(Nc, Rfi, Rs, diffR, errorValue, errorNorm, ec, e, plotTitle)
+function plotErri(Nc, Rfi, Rs, diffR, errorValue, errorNorm, ec, e, plotOpts)
 % Plots the error between the fine models and the response of the surrogate.
 
-figure()
+% Parameters:
+%   plotOpts:
+%       plotTitle:  The graphs title.
+%       yLims:  Limits for the y axis. This is used to keep the graph scaling the same as the 
+%               initial alignment plot for easier comparison.
+%               Format: ylim([0.05,1.5])
+plotTitle = '';
+if isfield(plotOpts,'plotTitle'), plotTitle = plotOpts.plotTitle; end
+
+fig = figure();
 % The number of parameters per model should not change
 [Nm,Np] = size(Rs{1});
 for cc = 1:Nc

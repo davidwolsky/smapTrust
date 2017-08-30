@@ -30,8 +30,8 @@ Mf.path = [currentPath,'FEKO\'];
 Mf.name = 'bandpassFilter';
 Mf.solver = 'FEKO';
 Mf.params = {'L1',  'L2',   'L3',   'L4',   'g'};
-Mf.ximin =  [6.0,   4.0,    6.0,    4.5,    0.095]';
-Mf.ximax =  [7.0,   5.0,    7.0,    5.5,    0.100]';
+Mf.ximin =  [6.0,   4.0,    6.0,    4.5,    0.0661]';
+Mf.ximax =  [7.0,   5.0,    7.0,    5.5,    0.250]';
 % Mf.ximin =  [6.0,   4.0,    6.0,    4.5,    0.085]';
 % Mf.ximax =  [7.0,   5.0,    7.0,    5.5,    0.100]';
 Mf.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
@@ -44,10 +44,17 @@ Mc.params = {'L1',  'L2',   'L3',   'L4',   'g'};
 Mc.ximin = Mf.ximin;
 Mc.ximax = Mf.ximax;
 Mc.Iparams ={'eps_r1',  'eps_r2',   'h1',   'h2'};
-Mc.xpmin =  [6.0,       6.0,        0.50,   0.50]';
-Mc.xpmax =  [10.0,      10.0,       0.95,   1.30]';
+Mc.xpmin =  [6.0,       6.0,        0.25,   0.50]';
+Mc.xpmax =  [10.0,      10.0,       0.661,   1.30]';
 % Mc.xpmin =  [6.0,       6.0,        0.50,   0.50]';
 % Mc.xpmax =  [10.0,      10.0,       1.30,   1.30]';
+% -------
+% Microstrip gap EM Quasi-Static: MGAP2
+% S = g, W = 0.6, H = h1
+% 0.5 < W/H < 2.5
+% 0.1 < S/H < 1
+% 1 < εr < 216 
+% -------
 Mc.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 
 % Set up the SM
@@ -73,8 +80,8 @@ OPTopts.Ni = 5;
 OPTopts.TRNi = OPTopts.Ni;
 OPTopts.Rtype = {'S2,1'};
 OPTopts.globOpt = 0;
-OPTopts.globOptSM = 0;
-% OPTopts.globOptSM = 1;
+% OPTopts.globOptSM = 0;
+OPTopts.globOptSM = 1;
 %
 OPTopts.goalType =      {'lt',      'gt',       'lt'};
 OPTopts.goalResType =   {'S2,1_dB', 'S2,1_dB',  'S2,1_dB'};
@@ -107,7 +114,8 @@ SMopts.xpmax = Mc.xpmax;
 SMopts.optsFminS = optimset('display','iter');
 SMopts.optsPBIL.display =  'iter';
 SMopts.optsPBIL.Nfeval = 5000;
-SMopts.errNorm = 1;
+% SMopts.errNorm = 1;
+SMopts.errNorm = 2;
 % errW = 1;
 errW = zeros(size(Mf.freq));
 errW(Mf.freq > OPTopts.goalStart{1} & Mf.freq < OPTopts.goalStop{1}) = 1

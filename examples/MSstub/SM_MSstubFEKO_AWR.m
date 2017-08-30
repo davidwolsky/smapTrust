@@ -100,7 +100,8 @@ OPTopts.Rtype = {'S1,1'};
 % TODO_DWW: name this nicely and follow through with an assertion
 OPTopts.globOpt = 0;
 % OPTopts.globOpt = 1;
-OPTopts.globOptSM = 0;
+% OPTopts.globOptSM = 0;
+OPTopts.globOptSM = 1;
 %
 % OPTopts.goalType = {'minimax'};
 % OPTopts.goalResType = {'S1,1_complex'};
@@ -131,7 +132,7 @@ OPTopts.eta2 = 0.9;
 OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
 OPTopts.DeltaInit = 0.25;
-OPTopts.testEnabled = true;
+% OPTopts.testEnabled = true;
 % OPTopts.prepopulatedSpaceFile = 'SMLog_MSstub.mat';
 
 SMopts.ximin = Mc.ximin;
@@ -141,7 +142,8 @@ SMopts.xpmax = Mc.xpmax;
 SMopts.optsFminS = optimset('display','iter');
 SMopts.optsPBIL.display =  'iter';
 SMopts.optsPBIL.Nfeval = 5000;
-SMopts.errNorm = 1;
+% SMopts.errNorm = 1;
+SMopts.errNorm = 2;
 % errW = 1
 errW = zeros(size(Mf.freq));
 errW(Mf.freq > OPTopts.goalStart{1} & Mf.freq < OPTopts.goalStop{1}) = 1;

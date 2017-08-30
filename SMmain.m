@@ -67,6 +67,8 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %               Valid types: (1,2,inf)
 %   TolX:       Termination tolerance on X [ positive scalar - default 10^-2]
 %   optsFminS:  options for the fminsearch local optimizer
+%   TODO_DWW: Update this... now this uses problem.options = optimoptions(....
+
 %   optsPBIL:   options for the PBIL global optimizer
 %   plotIter:   Flag to plot the responses after each iteration
 %   eta1:       A factor used by the TR to define the bound governing when to keep or reduce the radius.
@@ -321,7 +323,28 @@ if ~testEnabled
     %     [xin{1}, costS{1}] = ga(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
     %     xinitn = reshape(xinitn,Nn,1);
     % end
-    [xin{1}, costS{1}] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
+%     [xin{1}, costS{1}] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
+
+    problem = {};
+    problem.x0 = xinitn;
+    problem.Aineq = LHSmat;
+    problem.bineq = RHSvect;
+    problem.Aeq = [];
+    problem.beq = [];
+    problem.lb = ximinn;
+    problem.ub = ximaxn;
+    problem.nonlcon = [];
+    problem.solver = 'fmincon';
+    problem.objective = @(tempXin) costSurr(tempXin,Sinit,OPTopts)
+    problem.options = optimoptions('fmincon',...
+                                   'Display','iter-detailed',...
+                                   'Diagnostics','on',...
+                                   'PlotFcn',@optimplotconstrviolation,...
+                                   'DiffMinChange',1e-4)
+%                                    'DiffMinChange',0.00000000001)
+%                                    'PlotFcn',@optimplotstepsize,...
+    [xin{1}, costS{1}, exitflag, output] = fmincon(problem)
+
 else
     testEnabled
     xin{1} = xinitn;
