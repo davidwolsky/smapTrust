@@ -71,6 +71,7 @@ OPTopts.Rtype = {'S1,1'};
 OPTopts.globOpt = 0;
 OPTopts.globOptSM = 0;
 % OPTopts.globOptSM = 1;
+
 %
 % OPTopts.goalType = {'minimax'};
 % OPTopts.goalResType = {'S1,1_complex'};

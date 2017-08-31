@@ -76,13 +76,15 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %           say the coarse model will only ever be evaluated within these
 %           bounds during the PE process.  Equal upper and lower bounds
 %           will remove the parameters of interest from the PE optimization
-%   Amin - minimum value for A to constrain the search space (default 0)
-%   Amax - maximum value for A to constrain the search space (default inf)
+%   Amin - minimum value for A to constrain the search space (default 0.5)
+%   Amax - maximum value for A to constrain the search space (default 2.0)
 %          The above values can be scalar of vectors of length Nm
-%   Fmin - minimum values for F to constrain the search space [2,1] (default [0;-min(S.f)])
-%   Fmax - maximum values for F to constrain the search space [2,1] (default [inf;inf])
+%   Fmin - minimum values for F to constrain the search space [2,1]
+%   Fmax - maximum values for F to constrain the search space [2,1]
 %          Once again, equal upper and lower bounds can be used above to
 %          remove a certain element from the search space
+%   fmin - minimum shifted frequency when using getF
+%   fmax - maximum shifted frequency when using getF
 %   optsFminS - options for the fminsearch local optimizer in the PE
 %   globOpt - flag to include global search (PBILreal) in the PE (Not currently working)
 %   M_PBIL - number of bits per parameter in the PBIL global search (8)
@@ -179,7 +181,7 @@ function Si = buildSurr(xi,Rfi,S,opts)
 [lenA,lenB,lenc,lenG,lenxp,lenF] = deal(0);
 [Nc,Nn,Nq,Nm] = deal(0);
 [A_init,Av_init,B_init,Bv_init,c_init,G_init,Gv_init,xp_init,F_init,typeA,typeB,typec,typeG,typexp,typeF] = deal([]);
-[Bmin,Bmax,cmin,cmax,Gmin,Gmax,xpmin,xpmax,fmin] = deal([]);
+[Bmin,Bmax,cmin,cmax,Gmin,Gmax,xpmin,xpmax,fmin,fmax] = deal([]);
 
 % Sort out formats
 if iscell(xi) && iscell(Rfi) && (length(xi) == length(Rfi))   % Basic error checking - if any issue here only first point will be used
@@ -218,12 +220,8 @@ if isfield(S,'xp')
         S = rmfield(S,'xp');    % Get rid of empty xp field for later checks
     end
 end
-Amin = eps;
-Amax = inf;
-if isfield(S,'f')
-    Fmin = [0,min(S.f)]';
-    Fmax = [inf,inf]';
-end
+Amin = 0.5;
+Amax = 2.0;
 
 % Get user SM type request
 if isfield(opts,'getA'), getA = opts.getA; end
@@ -234,6 +232,14 @@ if isfield(opts,'getxp'), getxp = opts.getxp; end
 if isfield(opts,'getd'), getd = opts.getd; end
 if isfield(opts,'getE'), getE = opts.getE; end
 if isfield(opts,'getF'), getF = opts.getF; end
+
+if isfield(S,'f')
+    % TODO_DWW: Move to somewhere more logical or bac up and fix usage logic with getF
+    if getF
+        fmin = 0.9*min(S.f);
+        fmax = 1.1*max(S.f);
+    end
+end
 
 NSMUnknowns = getNSMUnknowns();
 
@@ -278,12 +284,15 @@ end
 % Get user constraints
 if isfield(opts,'ximin'), ximin = opts.ximin; end
 if isfield(opts,'ximax'), ximax = opts.ximax; end
-if isfield(opts,'xpmin'), xpmin = opts.xpmin; end
-if isfield(opts,'xpmax'), xpmax = opts.xpmax; end
 if isfield(opts,'Amin'), Amin = opts.Amin; end
 if isfield(opts,'Amax'), Amax = opts.Amax; end
+if isfield(opts,'xpmin'), xpmin = opts.xpmin; end
+if isfield(opts,'xpmax'), xpmax = opts.xpmax; end
 if isfield(opts,'Fmin'), Fmin = opts.Fmin; end
 if isfield(opts,'Fmax'), Fmax = opts.Fmax; end
+% TODO_DWW: Move this to inside an getF scope
+% if isfield(opts,'fmin'), fmin = opts.fmin; end
+% if isfield(opts,'fmax'), fmax = opts.fmax; end
 
 % Get user optimization parameters
 if isfield(opts,'optsFminS'), optsFminS = opts.optsFminS; end
@@ -354,44 +363,53 @@ else    % A not requested - revert to default and clamp box limits.  Do here sin
     [A_init,Av_init,Amin,Amax] = deal(1);
     lenA = 1;
 end
+
+% --- getB ----
 lenB = Nn*Nn;
 B_init = eye(Nn);
 [Bv_init,Bmin,Bmax] = deal(reshape(B_init,lenB,1));
+BminDefaultDiag = 0.5;
+BmaxDefaultDiag = 2.0;
+BminDefaultCross = -0.5;
+BmaxDefaultCross = 0.5;
 if any(getB)
     typeB = 'B';
     if isfield(S,'B')
         B_init = S.B;
     end
     % Sort out the box limits according to what is requested
-    if numel(getB) == 1 && getB == 1    % Full matrix to be optimized - unconstrained in the box
-        % TODO: 0.5 and 2 restriction
-        BminM = -inf.*ones(Nn,Nn);  
-        BmaxM = inf.*ones(Nn,Nn);
-    elseif numel(getB) == 1 && getB == 2    % Only the diagonal entries optimized - unconstrained in the box
+    if numel(getB) == 1 && getB == 1    % Full matrix to be optimized
+        BminM = BminDefaultCross.*ones(Nn,Nn).*~eye(Nn) + diag(BminDefaultDiag.*ones(Nn,1));  
+        BmaxM = BmaxDefaultCross.*ones(Nn,Nn).*~eye(Nn) + diag(BmaxDefaultDiag.*ones(Nn,1));
+    elseif numel(getB) == 1 && getB == 2    % Only the diagonal entries optimized
         % Keep the rest of the entries the same as B - this allows (rarely
         % used) the off-diagonal entries to be the user supplied values
         [BminM,BmaxM] = deal(B_init);
-        % TODO: 0.5 and 2 restriction
-        BminM = BminM + diag(-inf.*ones(Nn,1));
-        BmaxM = BmaxM + diag(inf.*ones(Nn,1));
-    elseif numel(getB) == Nn   % Only certain of the diagonal entries optimized - unconstrained in the box
+        BminM = BminM.*~eye(Nn) + diag(BminDefaultDiag.*ones(Nn,1));
+        BmaxM = BmaxM.*~eye(Nn) + diag(BmaxDefaultDiag.*ones(Nn,1));
+    elseif numel(getB) == Nn   % Only certain of the diagonal entries optimized
         % Keep the rest of the entries the same as B - this allows (rarely
         % used) the off-diagonal entries to be the user supplied values
         [BminM,BmaxM] = deal(B_init);
         [minDiag,maxDiag] = deal(zeros(Nn,1));
-        minDiag(getB == 1) = -inf;
-        maxDiag(getB == 1) = inf;
-        % TODO: 0.5 and 2 restriction
-        BminM = BminM + diag(minDiag);
-        BmaxM = BmaxM + diag(maxDiag);
+        minDiag(getB == 1) = BminDefaultDiag;
+        maxDiag(getB == 1) = BmaxDefaultDiag;
+        BminM = BminM.*(~diag(getB)) + diag(minDiag);
+        BmaxM = BmaxM.*(~diag(getB)) + diag(maxDiag);
     else
-        error(['Unknown getB flag: ', num2str(getB),', should be 0, 1, 2 or a bollena vector of length Nn = ', num2str(Nn)]);
+        error(['Unknown getB flag: ', num2str(getB),', should be 0, 1, 2 or a bollean vector of length Nn = ', num2str(Nn)]);
     end
+
+    % Override defaults with user input
+    if isfield(opts,'Bmin'), BminM = opts.Bmin; end
+    if isfield(opts,'Bmax'), BmaxM = opts.Bmax; end
+
     Bv_init = reshape(B_init,lenB,1);
     Bmin = reshape(BminM,lenB,1);
     Bmax = reshape(BmaxM,lenB,1);
-    % TODO: 0.5 and 2 restriction
 end
+
+% --- getC ----
 lenc = Nn; 
 [c_init,cmin,cmax] = deal(zeros(lenc,1));
 if getc
@@ -400,55 +418,68 @@ if getc
         c_init(:,1) = S.c;
     end
 
-    % TODO_DWW: clean up and comment on 
-    cmin = ximin - reshape(Bmax, Nn, Nn)*ximax
-    cmax = ximax - reshape(Bmin, Nn, Nn)*ximin
+    cmin = ximin - reshape(Bmax, Nn, Nn)*ximax;
+    cmax = ximax - reshape(Bmin, Nn, Nn)*ximin;
 
-    % Unconstrained in the box
-    % cmin = -inf.*ones(Nn,1);
-    % cmax = inf.*ones(Nn,1);
+    % Override defaults with user input
+    if isfield(opts,'cmin'), cmin = opts.cmin; end
+    if isfield(opts,'cmax'), cmax = opts.cmax; end
 end
+
+% --- getxp and getG ----
 % Have to provide an xp input for implicit space mapping...
 if isfield(S,'xp')
     lenxp = Nq;
-    [xp_init(:,1),pmin(:,1),pmax(:,1)] = deal(S.xp);    % Note name pmin/max here - xpmin reserved for linear constraints
+    % Note name pmin/max here - xpmin reserved for linear constraints
+    [xp_init(:,1),pmin(:,1),pmax(:,1)] = deal(S.xp);    
     lenG = Nq*Nn;
     G_init = zeros(Nq,Nn); 
     [Gv_init,Gmin,Gmax] = deal(reshape(G_init,lenG,1));
-    if getxp
-        typexp = 'xp';
-        xp_init(:,1) = S.xp;
-        pmin = -inf.*ones(Nq,1);   % Unconstrained in box
-        pmax = inf.*ones(Nq,1);
-    end
+
+    GminDefault = -2.0;
+    GmaxDefault = 2.0;
     if any(getG)
         typeG = 'G';
         if isfield(S,'G')
             G_init = S.G;
         end
         % Sort out the box limits according to what is requested
-        if numel(getG) == 1 && getG == 1    % Full matrix to be optimized - unconstrained in the box
-            GminM = -inf.*ones(Nq,Nn);
-            GmaxM = inf.*ones(Nq,Nn);
-        elseif numel(getG) == Nn  % Only certain input parameter dependencies are kept for all implicit parameters - unconstrained in the box
+        if numel(getG) == 1 && getG == 1    % Full matrix to be optimized
+            GminM = GminDefault.*ones(Nq,Nn);
+            GmaxM = GmaxDefault.*ones(Nq,Nn);
+        elseif numel(getG) == Nn  % Only certain input parameter dependencies are kept for all implicit parameters
             % Keep the rest of the entries the same as G
             [GminM,GmaxM] = deal(G_init);
             % Unconstrained columns where we want to allow a search
-            GminM(:,getG == 1) = -inf;
-            GmaxM(:,getG == 1) = inf;
+            GminM(:,getG == 1) = GminDefault;
+            GmaxM(:,getG == 1) = GmaxDefault;
         elseif all(size(getG) == [Nq,Nn])
             % Keep the rest of the entries the same as G
             [GminM,GmaxM] = deal(G_init);
             % Unconstrained entries where we want to allow a search
-            GminM(getG == 1) = -inf;
-            GmaxM(getG == 1) = inf;
+            GminM(getG == 1) = GminDefault;
+            GmaxM(getG == 1) = GmaxDefault;
         else
             error(['Unknown getG flag: ', num2str(getG),', should be 0, 1 or a bollean vector of length Nn = ', num2str(Nn),', or a boolean matrix of size [Nq,Nn] = [',num2str(Nq),',',num2str(Nn),']']);
         end
+        
+        % Override defaults with user input
+        if isfield(opts,'Gmin'), GminM = opts.Gmin; end
+        if isfield(opts,'Gmax'), GmaxM = opts.Gmax; end
+        
         Gv_init = reshape(G_init,lenG,1);
         Gmin = reshape(GminM,lenG,1);
         Gmax = reshape(GmaxM,lenG,1);
     end
+
+    if getxp
+        typexp = 'xp';
+        xp_init(:,1) = S.xp;
+        % Box constraint
+        pmin = xpmin - reshape(Gmax, Nq, Nn)*ximax;
+        pmax = xpmax - reshape(Gmin, Nq, Nn)*ximin;
+    end
+
 else
     if getxp
         warning('Cannot perform getxp with no S.xp provided - request ignored');
@@ -457,6 +488,8 @@ else
     end
     [xp_init,pmin,pmax,G_init,Gv_init,Gmin,Gmax] = deal([]);
 end
+
+% --- getF ---
 lenF = 2;
 if getF 
     if ~isfield(S,'f')
@@ -468,9 +501,13 @@ if getF
     else
         F_init = [1;0];
     end
-    % Limits already handled earlier while setting up defaults and reading
-    % user supplied data
-    fmin = eps; % Linear constraint to force positive surrogate frequency
+    F1min = -0.5;
+    F1max = 0.5;
+    F2min = fmin - F1max*max(S.f);
+    F2max = fmax - F1min*min(S.f);
+    Fmin = [F1min; F2min];
+    Fmax = [F1max; F2max];
+
 else  % F not requested - revert to default and clamp box limits.  Do here since user can supply limits.
     [F_init,Fmin,Fmax] = deal([1;0]);
 end
@@ -552,7 +589,8 @@ elseif strcmp(inputType,'A') && Nc == 1  % Special case without optimization
     optVect(firstPos(1):lastPos(1)) = A;
 else
     % Set up the linear constraints
-    Ncon = 2*Nn + 2*Nq + getF;
+    keyboard
+    Ncon = 2*Nn + 2*Nq + 2*(getF>0);
     LHS_mat = zeros(Ncon,length(initVect));
     
     lhsA_mat = zeros(size(A_init));        
@@ -562,7 +600,7 @@ else
     lhsxp_mat = zeros(size(xp_init));
     lhsF_mat = zeros(size(F_init));
     
-    RHS_vect = [-ximin;ximax;-xpmin;xpmax;-fmin];
+    RHS_vect = [-ximin; ximax; -xpmin; xpmax; -fmin; fmax];
     
     % First populate the input space limits in LHS_mat
     for nn = 1:Nn
@@ -622,6 +660,7 @@ else
     % And frequency shifts
     if getF
         LHS_mat(2*(Nn+Nq)+1,end-1:end) = [-min(S.f),-1];
+        LHS_mat(2*(Nn+Nq)+2,end-1:end) = [max(S.f),1];
     end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     display(['--- TODO_DWW: Starting parameter extraction ---'])
@@ -631,6 +670,7 @@ else
 %   - normalise incoming between 0 and 1.
 %   - the goal functions are also normalised.
     
+    keyboard
     fullProblem = {};
     fullProblem.x0 = initVect;
     fullProblem.Aineq = LHS_mat;
@@ -638,13 +678,12 @@ else
     fullProblem.lb = minVect;
     fullProblem.ub = maxVect;
 
-    % TODO_DWW: Remove
-    % [nProblem] = normaliseProblem(fullProblem, optsParE);
-    % [dProblem] = denormaliseProblem(nProblem, fullProblem, optsParE);
+    % TODO_DWW: Clean up
+    [nProblem] = normaliseProblem(fullProblem, optsParE);
+%     [x0] = denormaliseProblem(nProblem, fullProblem, optsParE);
 
-    [reducedProblem] = removeFixedParameters(fullProblem);
+    [reducedProblem] = removeFixedParameters(nProblem);
 
-    keyboard
 
     % TODO_DWW: Clean up - not used if not plotted... 
     startingError = 0;
@@ -922,7 +961,9 @@ function e = erri(reducedOptVect,xi,Rfi,S,wk,vk,opts, fullProblem, plotFlag, plo
 %       calculated for each fine model step for each output parameter. The surrogate is evaluated for each 
 %       output parameter at each of the fine model steps.
 
-optVect = reconstructWithFixedParameters(reducedOptVect, fullProblem);
+optVectn = reconstructWithFixedParameters(reducedOptVect, fullProblem);
+optVect = denormaliseProblem(optVectn, fullProblem, opts)
+keyboard
 S = reshapeParameters(optVect, S, opts);
 
 % Calculate the error function value

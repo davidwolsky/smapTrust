@@ -1,46 +1,76 @@
-% TODO_DWW: Remove
-function problem = denormaliseProblem(nProb, originalProb, optsParE)
+% TODO_DWW: Rename denormaliseOptVect?
+function x0 = denormaliseProblem(optVectn, originalProb, optsParE)
 
-parameterCount = size(nProb.lb,1);
-assert(size(nProb.ub,1) == parameterCount, 'The number of parameters must all match.')
-assert(size(nProb.x0,1) == parameterCount, 'The number of parameters must all match.')
+% parameterCount = size(nProb.lb,1);
+% assert(size(nProb.ub,1) == parameterCount, 'The number of parameters must all match.')
+% assert(size(nProb.x0,1) == parameterCount, 'The number of parameters must all match.')
 
-problem = nProb;
-
+Nn = optsParE.Nn;
+Nq = optsParE.Nq;
 firstPos = optsParE.firstPos;
 lastPos = optsParE.lastPos;
+% lenA = optsParE.lenVect(1);
+% lenB = optsParE.lenVect(2);
+% lenc = optsParE.lenVect(3);
+% lenG = optsParE.lenVect(4);
+% lenxp = optsParE.lenVect(5);
+% lenF = optsParE.lenVect(6);
+
+% Extract individual parameters and bounds
+An  = [optVectn(firstPos(1):lastPos(1))];
+Bn  = [optVectn(firstPos(2):lastPos(2))];
+cn  = [optVectn(firstPos(3):lastPos(3))];
+Gn  = [optVectn(firstPos(4):lastPos(4))];
+xpn = [optVectn(firstPos(5):lastPos(5))];
+Fn  = [optVectn(firstPos(6):lastPos(6))];
+
+% --- Extract bounds ---
+xmin(:) = -originalProb.bineq(1 : Nn);
+xmax(:) = originalProb.bineq(Nn+1 : 2*Nn);
+
+xpmin(:) = -originalProb.bineq(2*Nn+1 : 2*Nn+Nq);
+xpmax(:) = originalProb.bineq(2*Nn+Nq+1 : 2*Nn+2*Nq);
+
+% TODO_DWW: Find a better way to turn this off
+if length(originalProb.bineq) > 2*Nn+2*Nq
+    fmin = -originalProb.bineq(end-1);
+    fmax = originalProb.bineq(end);
+end
+
+deltax = xmax - xmin;
+deltaxp = xpmax - xpmin;
+
+% TODO_DWW: Find a better way to turn this off
+if length(originalProb.bineq) > 2*Nn+2*Nq
+    deltaf = fmax - fmin;
+end
+
+% --- Denormalise x0 --- 
+A = An;
+
+B = Bn;
+
+c = cn.*deltax + xmin;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%                c is fucked up                  %%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+GnFact = 10;
+G = Gn/GnFact;
+
+xp = xpn.*deltaxp + xpmin;
 
 keyboard
-% --- A - firstPos(1) ---
-
-% --- B - firstPos(2) ---
-
-% --- c - firstPos(3) ---
-denormaliseInBounds(firstPos(3), lastPos(3))
-
-% --- G - firstPos(4) ---
-
-% --- xp - firstPos(5) ---
-
-% --- F - firstPos(6) ---
-
-
-% nProblem.lb = prob.lb - prob.lb
-% nProblem.ub = prob.ub ./ prob.ub
-% nProblem.x0 = (prob.x0 - prob.lb)./(prob.ub - prob.lb)
-
-% ======================================
-% ========= begin subfunctions =========
-% ======================================
-
-function denormaliseInBounds(startValue, endValue)
-for nn = startValue:endValue
-    if ( isfinite(originalProb.ub(nn)) )
-        problem.lb(nn) = originalProb.lb(nn);
-        problem.ub(nn) = originalProb.ub(nn);
-        problem.x0(nn) = (nProb.x0(nn))*(originalProb.ub(nn) - originalProb.lb(nn)) + originalProb.lb(nn);
-    end
+% TODO_DWW: Find a better way to turn this off
+if length(originalProb.bineq) > 2*Nn+2*Nq
+    F1 = Fn(1);
+    F2 = Fn(2).*deltaf + fmin;
+    F = [F1;F2];
+else
+    F = [1;0];
 end
-end % denormaliseInBounds function
+
+x0 = [A(:); B(:); c(:); G(:); xp(:); F(:)];
 
 end % denormaliseProblem function
