@@ -1,9 +1,9 @@
-function nProblem = normaliseProblem(prob, optsParE)
+function nProb = normaliseProblem(prob, optsParE)
 
 parameterCount = size(prob.lb,1);
 assert(size(prob.ub,1) == parameterCount, 'The number of parameters must all match.')
 assert(size(prob.x0,1) == parameterCount, 'The number of parameters must all match.')
-nProblem = prob;
+nProb = prob;
 
 Nn = optsParE.Nn;
 Nq = optsParE.Nq;
@@ -45,22 +45,22 @@ xmax(:) = prob.bineq(Nn+1 : 2*Nn);
 xpmin(:) = -prob.bineq(2*Nn+1 : 2*Nn+Nq);
 xpmax(:) = prob.bineq(2*Nn+Nq+1 : 2*Nn+2*Nq);
 
-keyboard
-% TODO_DWW: Find a better way to turn this off
-if length(prob.bineq) > 2*Nn+2*Nq
+% keyboard
+% % TODO_DWW: Find a better way to turn this off
+% if length(prob.bineq) > 2*Nn+2*Nq
     fmin = -prob.bineq(2*Nn+2*Nq+1);
     fmax = prob.bineq(2*Nn+2*Nq+2);
-end
+% end
 
 deltax = xmax - xmin;
 deltaxp = xpmax - xpmin;
 
-% TODO_DWW: Find a better way to turn this off
-if length(prob.bineq) > 2*Nn+2*Nq
+% % TODO_DWW: Find a better way to turn this off
+% if length(prob.bineq) > 2*Nn+2*Nq
     deltaf = fmax - fmin;
 % else 
     % deltaf = 0
-end
+% end
 
 % --- Normalise x0 and bounds --- 
 An = A;
@@ -85,8 +85,8 @@ plbn = (pmin- xpmin) ./ (deltaxp);
 pubn = (pmax- xpmin) ./ (deltaxp);
 
 
-% TODO_DWW: Find a better way to turn this off
-if length(prob.bineq) > 2*Nn+2*Nq
+% % TODO_DWW: Find a better way to turn this off
+% if length(prob.bineq) > 2*Nn+2*Nq
     F1n = F(1);
     F1lbn = Fmin(1);
     F1ubn = Fmax(1);
@@ -98,11 +98,11 @@ if length(prob.bineq) > 2*Nn+2*Nq
     Fn = [F1n;F2n];
     Flbn = [F1lbn;F2lbn];
     Fubn = [F1ubn;F2ubn];
-else
-    Fn = [1;0]
-    Flbn = [1;0]
-    Fubn = [1;0]
-end
+% else
+%     Fn = [1;0]
+%     Flbn = [1;0]
+%     Fubn = [1;0]
+% end
 
 nProb.x0 = [An(:); Bn(:); cn(:); Gn(:); xpn(:); Fn(:)];
 nProb.lb = [Albn; Blbn; clbn; Glbn; plbn; Flbn];
@@ -121,17 +121,17 @@ nProb.Aineq(rxpStart:rxpStart+Nq,        firstPos(5):lastPos(5)) = -deltaxp_mat;
 nProb.Aineq(rxpStart+Nq+1:rxpStart+2*Nq, firstPos(5):lastPos(5)) = deltaxp_mat;
 
 
-% TODO_DWW: Find a better way to turn this off
-if length(prob.bineq) > 2*Nn+2*Nq
+% % TODO_DWW: Find a better way to turn this off
+% if length(prob.bineq) > 2*Nn+2*Nq
     nProb.Aineq(end-1,  end) = -deltaf;
     nProb.Aineq(end,    end) = deltaf;
-else
-    nProb.Aineq(end-1,  end) = 0;
-    nProb.Aineq(end,    end) = 0;
-    fmin = []
-end
+% else
+    % nProb.Aineq(end-1,  end) = 0;
+    % nProb.Aineq(end,    end) = 0;
+    % fmin = []
+% end
 
-keyboard
+% keyboard
 RHSnTerm = [-xmin; xmin; -xpmin; xpmin; -fmin; fmin];
 nProb.bineq = prob.bineq - RHSnTerm;
 

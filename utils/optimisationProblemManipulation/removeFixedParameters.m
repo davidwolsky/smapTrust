@@ -38,7 +38,7 @@ while nn <= size(reducedProblem.lb,1)
         reducedProblem.ub(nn) = [];
         % Remove any influence of the removed parameters have on the bineq (RHS vector). 
         % The optimisation parameter affects the entire columb in the Aineq (LHS matrix).
-%         keyboard
+        % keyboard
         reducedProblem.bineq = reducedProblem.bineq - reducedProblem.Aineq(:,nn).*reducedProblem.x0(nn);
         reducedProblem.Aineq(:,nn) = [];
         reducedProblem.x0(nn) = [];

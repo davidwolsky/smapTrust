@@ -60,7 +60,8 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %        uses the number of SM types requested (implying the number of unknowns)
 %        to keep track of how many fine model points to include. Ones are used for
 %        the weight of the number of SM types for the most recent fine points 
-%        and a zero weight is applied to all previous entries.
+%        and a zero weight is applied to all previous entries. 
+%        If wk is empty then only one fine model will be passed in.
 %   vk - weights to determine the error function in the Jacobian fitting when
 %        more than one fine point is included. Can be the same length 
 %        as the number of cells in xi and Rfi. Default all (0). See eq
@@ -233,13 +234,12 @@ if isfield(opts,'getd'), getd = opts.getd; end
 if isfield(opts,'getE'), getE = opts.getE; end
 if isfield(opts,'getF'), getF = opts.getF; end
 
-if isfield(S,'f')
-    % TODO_DWW: Move to somewhere more logical or bac up and fix usage logic with getF
-    if getF
-        fmin = 0.9*min(S.f);
-        fmax = 1.1*max(S.f);
-    end
+if ~isfield(S,'f')
+    % If no frequency is provided use indices
+    S.f = 1:Nm;
 end
+fmin = 0.9*min(S.f);
+fmax = 1.1*max(S.f);
 
 NSMUnknowns = getNSMUnknowns();
 
@@ -248,7 +248,6 @@ optsFminS = optimset('display','none');
 globOpt = 0;
 % M_PBIL = 8;
 % optsPBIL = [];
-% CRC_DDV: I dont think 2 is the correct default?
 errNorm = 2;
 errW = 1;
 plotAlignmentFlag = 0;
@@ -288,11 +287,8 @@ if isfield(opts,'Amin'), Amin = opts.Amin; end
 if isfield(opts,'Amax'), Amax = opts.Amax; end
 if isfield(opts,'xpmin'), xpmin = opts.xpmin; end
 if isfield(opts,'xpmax'), xpmax = opts.xpmax; end
-if isfield(opts,'Fmin'), Fmin = opts.Fmin; end
-if isfield(opts,'Fmax'), Fmax = opts.Fmax; end
-% TODO_DWW: Move this to inside an getF scope
-% if isfield(opts,'fmin'), fmin = opts.fmin; end
-% if isfield(opts,'fmax'), fmax = opts.fmax; end
+if isfield(opts,'fmin'), fmin = opts.fmin; end
+if isfield(opts,'fmax'), fmax = opts.fmax; end
 
 % Get user optimization parameters
 if isfield(opts,'optsFminS'), optsFminS = opts.optsFminS; end
@@ -501,12 +497,16 @@ if getF
     else
         F_init = [1;0];
     end
-    F1min = -0.5;
-    F1max = 0.5;
+    F1min = 0.5;
+    F1max = 2.0;
     F2min = fmin - F1max*max(S.f);
     F2max = fmax - F1min*min(S.f);
+
     Fmin = [F1min; F2min];
     Fmax = [F1max; F2max];
+
+    if isfield(opts,'Fmin'), Fmin = opts.Fmin; end
+    if isfield(opts,'Fmax'), Fmax = opts.Fmax; end
 
 else  % F not requested - revert to default and clamp box limits.  Do here since user can supply limits.
     [F_init,Fmin,Fmax] = deal([1;0]);
@@ -551,6 +551,9 @@ if strcmp(inputType,'F') || strcmp(inputType,'AF') && Nc == 1 % Special cases wh
     % end
 %     Fvect = fminsearchcon(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),F_init,[0, -inf],[],[-min(S.f),0;0,-1],[0;0],[],optsFminS);     % Positive multiplier, and minimum frequency
     % TODO_DWW: Follow through here...
+    %           Match this and the bottom errf as a function.
+    %           spline acting on complex values here - try use linear
+    %           Want to use optimisation toolbox instead of fminsearch.
     Fvect = fminsearchcon(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),F_init,[0, -inf],[],[-min(S.f),-1],[0],[],optsFminS);     % Positive multiplier, and minimum frequency
     
     fs = Fvect(1).*S.f + Fvect(2);
@@ -589,8 +592,8 @@ elseif strcmp(inputType,'A') && Nc == 1  % Special case without optimization
     optVect(firstPos(1):lastPos(1)) = A;
 else
     % Set up the linear constraints
-    keyboard
-    Ncon = 2*Nn + 2*Nq + 2*(getF>0);
+%     keyboard
+    Ncon = 2*Nn + 2*Nq + 2;
     LHS_mat = zeros(Ncon,length(initVect));
     
     lhsA_mat = zeros(size(A_init));        
@@ -658,10 +661,9 @@ else
         LHS_mat(rUB,:) = xpUBrow; % Upper bound row
     end
     % And frequency shifts
-    if getF
-        LHS_mat(2*(Nn+Nq)+1,end-1:end) = [-min(S.f),-1];
-        LHS_mat(2*(Nn+Nq)+2,end-1:end) = [max(S.f),1];
-    end
+    LHS_mat(2*(Nn+Nq)+1,end-1:end) = [-min(S.f),-1];
+    LHS_mat(2*(Nn+Nq)+2,end-1:end) = [max(S.f),1];
+    
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     display(['--- TODO_DWW: Starting parameter extraction ---'])
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -670,7 +672,7 @@ else
 %   - normalise incoming between 0 and 1.
 %   - the goal functions are also normalised.
     
-    keyboard
+%     keyboard
     fullProblem = {};
     fullProblem.x0 = initVect;
     fullProblem.Aineq = LHS_mat;
@@ -679,10 +681,10 @@ else
     fullProblem.ub = maxVect;
 
     % TODO_DWW: Clean up
-    [nProblem] = normaliseProblem(fullProblem, optsParE);
+    [normalisedProblem] = normaliseProblem(fullProblem, optsParE);
 %     [x0] = denormaliseProblem(nProblem, fullProblem, optsParE);
 
-    [reducedProblem] = removeFixedParameters(nProblem);
+    [reducedProblem] = removeFixedParameters(normalisedProblem);
 
 
     % TODO_DWW: Clean up - not used if not plotted... 
@@ -691,7 +693,7 @@ else
     if ( plotAlignmentFlag == 1 )
         % Plot initial error before alignment
         plotOpts.plotTitle = 'Starting alignment';
-        startingError = erri(reducedProblem.x0,xi,Rfi,S,wk,vk,optsParE, fullProblem, plotAlignmentFlag, plotOpts)
+        startingError = erri(reducedProblem.x0,xi,Rfi,S,wk,vk,optsParE, normalisedProblem, fullProblem,plotAlignmentFlag, plotOpts)
     end
 
     problem = {};
@@ -705,7 +707,7 @@ else
     problem.nonlcon = [];
     if globOpt
         problem.solver = 'ga';
-        problem.fitnessfcn = @(tempOptVect) erri(tempOptVect,xi,Rfi,S,wk,vk,optsParE,fullProblem, false, plotOpts);
+        problem.fitnessfcn = @(tempOptVect) erri(tempOptVect,xi,Rfi,S,wk,vk,optsParE,normalisedProblem, fullProblem, false, plotOpts);
         problem.nvars = length(reducedProblem.x0);
         problem.options = optimoptions('ga')
         [optVectGlobalReduced,fval,exitflag,output] = ga(problem)
@@ -713,7 +715,7 @@ else
         problem.x0 = optVectGlobalReduced
     end
     problem.solver = 'fmincon';
-    problem.objective = @(tempOptVect) erri(tempOptVect,xi,Rfi,S,wk,vk,optsParE, fullProblem, false, plotOpts);
+    problem.objective = @(tempOptVect) erri(tempOptVect,xi,Rfi,S,wk,vk,optsParE, normalisedProblem, fullProblem, false, plotOpts);
     problem.options = optimoptions('fmincon',...
                                    'Display','iter-detailed',...
                                    'Diagnostics','on',...
@@ -725,7 +727,7 @@ else
     if ( plotAlignmentFlag == 1 )
         % Plot errors after alignment
         plotOpts.plotTitle = 'Alignment complete'
-        completionError = erri(optVectReduced,xi,Rfi,S,wk,vk,optsParE, fullProblem, plotAlignmentFlag, plotOpts);
+        completionError = erri(optVectReduced,xi,Rfi,S,wk,vk,optsParE, normalisedProblem, fullProblem, plotAlignmentFlag, plotOpts);
 
         assert(completionError == fval, 'The optimised parameters should return the same error as the optimiser received.')
         % TODO_DWW: Clean up - not used if not plotted... 
@@ -733,7 +735,8 @@ else
     end
 
     % Put the results together again before asigning to the surrogate
-    optVect = reconstructWithFixedParameters(optVectReduced, fullProblem);
+    optVectn = reconstructWithFixedParameters(optVectReduced, normalisedProblem);
+    optVect = denormaliseProblem(optVectn, fullProblem, optsParE)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     display(['=== TODO_DWW: Ending parameter extraction ==='])
@@ -946,7 +949,7 @@ end % reshapeParameters function
 
 % ======================================
 
-function e = erri(reducedOptVect,xi,Rfi,S,wk,vk,opts, fullProblem, plotFlag, plotOpts)
+function e = erri(reducedOptVect,xi,Rfi,S,wk,vk,opts, normalisedProblem, fullProblem, plotFlag, plotOpts)
 % Error function for optimization
 % Aguments: 
 %   see buildSurr for an explanation of the other arguments.
@@ -961,9 +964,8 @@ function e = erri(reducedOptVect,xi,Rfi,S,wk,vk,opts, fullProblem, plotFlag, plo
 %       calculated for each fine model step for each output parameter. The surrogate is evaluated for each 
 %       output parameter at each of the fine model steps.
 
-optVectn = reconstructWithFixedParameters(reducedOptVect, fullProblem);
-optVect = denormaliseProblem(optVectn, fullProblem, opts)
-keyboard
+optVectn = reconstructWithFixedParameters(reducedOptVect, normalisedProblem);
+optVect = denormaliseProblem(optVectn, fullProblem, opts);
 S = reshapeParameters(optVect, S, opts);
 
 % Calculate the error function value
@@ -984,8 +986,10 @@ for cc = 1:Nc
     [Nm,Np] = size(Rs{cc});
     % Errors for each output parameter (e.g. s-parameters) aggregated
     for pp = 1:Np
+%     keyboard
         diffR{cc}{pp} = errW.*(Rfi{cc}(:,pp) - Rs{cc}(:,pp));
-        errorValue{cc}{pp} = norm(diffR{cc}{pp},opts.errNorm);
+%         errorValue{cc}{pp} = norm(diffR{cc}{pp},opts.errNorm);
+        errorValue{cc}{pp} = sum(abs(diffR{cc}{pp}));
         ev = ev + errorValue{cc}{pp};
     end
     ec(cc) = wk(cc).*ev;

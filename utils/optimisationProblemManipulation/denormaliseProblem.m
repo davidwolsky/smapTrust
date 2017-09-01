@@ -31,19 +31,19 @@ xmax(:) = originalProb.bineq(Nn+1 : 2*Nn);
 xpmin(:) = -originalProb.bineq(2*Nn+1 : 2*Nn+Nq);
 xpmax(:) = originalProb.bineq(2*Nn+Nq+1 : 2*Nn+2*Nq);
 
-% TODO_DWW: Find a better way to turn this off
-if length(originalProb.bineq) > 2*Nn+2*Nq
+% % TODO_DWW: Find a better way to turn this off
+% if length(originalProb.bineq) > 2*Nn+2*Nq
     fmin = -originalProb.bineq(end-1);
     fmax = originalProb.bineq(end);
-end
+% end
 
 deltax = xmax - xmin;
 deltaxp = xpmax - xpmin;
 
-% TODO_DWW: Find a better way to turn this off
-if length(originalProb.bineq) > 2*Nn+2*Nq
+% % TODO_DWW: Find a better way to turn this off
+% if length(originalProb.bineq) > 2*Nn+2*Nq
     deltaf = fmax - fmin;
-end
+% end
 
 % --- Denormalise x0 --- 
 A = An;
@@ -52,24 +52,20 @@ B = Bn;
 
 c = cn.*deltax + xmin;
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%                c is fucked up                  %%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 GnFact = 10;
 G = Gn/GnFact;
 
 xp = xpn.*deltaxp + xpmin;
 
-keyboard
-% TODO_DWW: Find a better way to turn this off
-if length(originalProb.bineq) > 2*Nn+2*Nq
+% keyboard
+% % TODO_DWW: Find a better way to turn this off
+% if length(originalProb.bineq) > 2*Nn+2*Nq
     F1 = Fn(1);
     F2 = Fn(2).*deltaf + fmin;
     F = [F1;F2];
-else
-    F = [1;0];
-end
+% else
+%     F = [1;0];
+% end
 
 x0 = [A(:); B(:); c(:); G(:); xp(:); F(:)];
 
