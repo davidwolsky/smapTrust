@@ -21,7 +21,7 @@ foundMathingType = false;
 Nr = length(R);
 tt = 1;
 while tt <= Nr
-    if isfield(R{tt},'t') && strncmp(R{tt}.t, goalResType, find(goalResType=='_')-1)
+    if isfield(R{tt},'t') && ( strcmp(R{tt}.t, goalResType) || strncmp(R{tt}.t, goalResType, find(goalResType=='_')-1) )
         Ri = convertResponse(R{tt}, goalResType);
         foundMathingType = true;
         break;

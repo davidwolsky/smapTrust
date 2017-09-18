@@ -338,11 +338,10 @@ if ~testEnabled
     problem.objective = @(tempXin) costSurr(tempXin,Sinit,OPTopts)
     problem.options = optimoptions('fmincon',...
                                    'Display','iter-detailed',...
-                                   'Diagnostics','on',...
-                                   'PlotFcn',@optimplotconstrviolation,...
-                                   'DiffMinChange',1e-4)
-%                                    'DiffMinChange',0.00000000001)
-%                                    'PlotFcn',@optimplotstepsize,...
+                                   'Diagnostics','on')
+    % problem.options.PlotFcn = @optimplotconstrviolation;
+    problem.options.DiffMinChange = 1e-4;
+
     [xin{1}, costS{1}, exitflag, output] = fmincon(problem)
 
 else
@@ -601,8 +600,8 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
 
             % TODO_DWW: Remember to update this to a better default
             % createLog('SMLog_MSstub.mat', space);
-            % createLog('SMLog.mat', space);
-            createLog(['SMLog_',Mf.name,'.mat'], space);
+            createLog('SMLog.mat', space);
+%             createLog(['SMLog_',Mf.name,'.mat'], space);
             % Make a (crude) log file
             % save SMLog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c TolX_achieved Ti TRterminate
 
@@ -1202,9 +1201,11 @@ Ni = length(Ti.xi_all);    % Number of iterations
 % end
 % legend('show') 
 % title('costs')
-
 subplot(2,2,[1 2])
-if strcmp(extractUnitString(OPTopts.goalResType{1}),'complex')
+if strcmp(OPTopts.goalResType{1},'Gen')
+    plot(cell2mat(Ti.costF_all), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+    plotGoals()
+elseif strcmp(extractUnitString(OPTopts.goalResType{1}),'complex')
     plot(real(cell2mat(Ti.costF_all)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     plot(imag(cell2mat(Ti.costF_all)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     legend('real','imag');
@@ -1222,7 +1223,9 @@ title('Ti.costF\_all')
 
 % Meaningless -> just for debugging
 subplot(2,2,3)
-if strcmp(extractUnitString(OPTopts.goalResType{1}),'complex')
+if strcmp(OPTopts.goalResType{1},'Gen')
+    plot(cell2mat(costS), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+elseif strcmp(extractUnitString(OPTopts.goalResType{1}),'complex')
     plot(real(cell2mat(costS)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     plot(imag(cell2mat(costS)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     legend('real','imag')
@@ -1236,7 +1239,10 @@ xlabel('Iterations success points')
 title('costS - fairly meaningless')
 
 subplot(2,2,4)
-if strcmp(extractUnitString(OPTopts.goalResType{1}),'complex')
+if strcmp(OPTopts.goalResType{1},'Gen')
+    plot(cell2mat(costF), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+    plotGoals()
+elseif strcmp(extractUnitString(OPTopts.goalResType{1}),'complex')
     plot(real(cell2mat(costF)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     plot(imag(cell2mat(costF)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     legend('real','imag')

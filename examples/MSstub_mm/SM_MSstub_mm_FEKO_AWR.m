@@ -81,13 +81,30 @@ OPTopts.globOptSM = 0;
 % OPTopts.goalStop = {1.45e9};
 % OPTopts.errNorm = {1};
 %
-OPTopts.goalType = {'lt', 'gt'};
-OPTopts.goalResType = {'S1,1_dB', 'S1,1_dB'};
-OPTopts.goalVal = {-20, -10};
-OPTopts.goalWeight = {1, 1};
-OPTopts.goalStart = {1.30e9, 1.60e9};
-OPTopts.goalStop = {1.45e9, 1.75e9};
-OPTopts.errNorm = {1,1};
+% OPTopts.goalType = {'gt'};
+% OPTopts.goalResType = {'S1,1_dB'};
+% OPTopts.goalVal = {-10};
+% OPTopts.goalWeight = {1};
+% OPTopts.goalStart = {1.60e9};
+% OPTopts.goalStop = {1.75e9};
+% OPTopts.errNorm = {1};
+
+OPTopts.goalType = {'lt'};
+OPTopts.goalResType = {'S1,1_dB'};
+OPTopts.goalVal = {-20};
+OPTopts.goalWeight = {1};
+OPTopts.goalStart = {1.30e9};
+OPTopts.goalStop = {1.45e9};
+OPTopts.errNorm = {1};
+
+
+% OPTopts.goalType = {'lt', 'gt'};
+% OPTopts.goalResType = {'S1,1_dB', 'S1,1_dB'};
+% OPTopts.goalVal = {-20, -10};
+% OPTopts.goalWeight = {1, 1};
+% OPTopts.goalStart = {1.30e9, 1.60e9};
+% OPTopts.goalStop = {1.45e9, 1.75e9};
+% OPTopts.errNorm = {1,1};
 %
 OPTopts.optsPBIL.display =  'iter'; 
 OPTopts.optsPBIL.Nfeval = 5000;
@@ -116,10 +133,10 @@ SMopts.optsPBIL.Nfeval = 5000;
 % SMopts.errNorm = 1;
 SMopts.errNorm = 2;
 % errW = 1
-% errW = zeros(size(Mf.freq));
-errW = ones(size(Mf.freq)).*0.2;
+errW = zeros(size(Mf.freq));
+% errW = ones(size(Mf.freq)).*0.2;
 errW(Mf.freq > OPTopts.goalStart{1} & Mf.freq < OPTopts.goalStop{1}) = 1;
-errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1
+% errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1
 SMopts.errW = errW;
 % SMopts.wk = 5;
 SMopts.wk = 0;

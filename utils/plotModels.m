@@ -14,15 +14,20 @@ function plotModels(plotFlag, itNum, Rci, Rfi, Rsi, Rsai, OPTopts)
 
 if plotFlag && valuesAreValid()
     figure()
-    freq = Rfi{1}{1}.f;
+    freq = [];
+    if isfield(Rfi{1}{1},'f')
+        freq = Rfi{1}{1}.f;
+    else
+        freq = 1:length(Rfi{1}{1}.r);
+    end
 
     Ng = length(OPTopts.goalType);
     for gg = 1:Ng
         goalType = OPTopts.goalType{gg};
         splits = regexp(OPTopts.goalResType{gg}, '\_', 'split');
-        assert(length(splits) == 2, ['Expecting two parts to the goalResType, found: ', cell2mat(splits), ' from: ', OPTopts.goalResType]);
+%         assert(length(splits) == 2, ['Expecting two parts to the goalResType, found: ', cell2mat(splits), ' from: ', OPTopts.goalResType]);
         
-        if strcmp(splits{2},'complex')
+        if (length(splits) == 2) && (strcmp(splits{2},'complex'))
             subplot(Ng, 2, gg*2-1)
             plotResponse([splits{1}, '_real']);
             plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, real(OPTopts.goalVal{gg}), goalType, freq)
@@ -35,7 +40,9 @@ if plotFlag && valuesAreValid()
         else
             subplot(Ng, 2, [gg*2-1, gg*2])
             plotResponse(OPTopts.goalResType{gg});
-            plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, OPTopts.goalVal{gg}, goalType, freq)
+            if isfield(OPTopts, 'goalVal')
+                plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, OPTopts.goalVal{gg}, goalType, freq)
+            end
             
             % legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', goalType)
         end
@@ -53,7 +60,6 @@ RsaiMatch = findResponseFor(Rsai{itNum}, goalResType);
 % Assuming all responses are based off the same freq
 if isfield(RciMatch,'f')
     freq = RciMatch.f;
-    % TODO_DWW: This `, grid on, hold on' can just be done when the figure is called. on the subplot
     plot(freq, RfiMatch.r,'k','LineWidth',1.5), grid on, hold on
     plot(freq, RciMatch.r,'r','LineWidth',1.5), grid on, hold on
     plot(freq, RsiMatch.r,'b','LineWidth',1.5), grid on, hold on

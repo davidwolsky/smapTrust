@@ -97,6 +97,7 @@ OPTopts.eta1 = 0.05;
 OPTopts.eta2 = 0.9;
 OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
+OPTopts.DeltaInit = 0.25;
 OPTopts.testEnabled = 0;
 % OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
 

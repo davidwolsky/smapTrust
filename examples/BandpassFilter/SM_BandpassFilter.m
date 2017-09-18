@@ -13,7 +13,6 @@ fmax = 5.5e9;
 Nm = 41;	% Number of frequencies
 
 % Initial input parameters
-% Initial input parameters
 %       {'L1',  'L2',   'L3',   'L4',   'g'}
 xinit = [6.784, 4.890,  6.256,  5.280,  0.0956]';  
 % Initial implicit parameters
@@ -44,7 +43,7 @@ Mc.params = {'L1',  'L2',   'L3',   'L4',   'g'};
 Mc.ximin = Mf.ximin;
 Mc.ximax = Mf.ximax;
 Mc.Iparams ={'eps_r1',  'eps_r2',   'h1',   'h2'};
-Mc.xpmin =  [6.0,       6.0,        0.25,   0.50]';
+Mc.xpmin =  [8.0,       8.0,        0.25,   0.50]';
 Mc.xpmax =  [10.0,      10.0,       0.661,   1.30]';
 % Mc.xpmin =  [6.0,       6.0,        0.50,   0.50]';
 % Mc.xpmax =  [10.0,      10.0,       1.30,   1.30]';
@@ -80,16 +79,23 @@ OPTopts.Ni = 5;
 OPTopts.TRNi = OPTopts.Ni;
 OPTopts.Rtype = {'S2,1'};
 OPTopts.globOpt = 0;
-% OPTopts.globOptSM = 0;
-OPTopts.globOptSM = 1;
+OPTopts.globOptSM = 0;
+% OPTopts.globOptSM = 1;
 %
-OPTopts.goalType =      {'lt',      'gt',       'lt'};
-OPTopts.goalResType =   {'S2,1_dB', 'S2,1_dB',  'S2,1_dB'};
-OPTopts.goalVal =       {-20,       -3,         -20};
-OPTopts.goalWeight =    {1,         1,          1};
-OPTopts.goalStart =     {4.5e9,     4.9e9,      5.3e9};
-OPTopts.goalStop =      {4.7e9,     5.1e9,      5.5e9};
-OPTopts.errNorm =       {1,         1,          1};
+OPTopts.goalType =      {'lt',      'gt'};
+OPTopts.goalResType =   {'S2,1_dB', 'S2,1_dB'};
+OPTopts.goalVal =       {-20,       -3};
+OPTopts.goalWeight =    {1,         1};
+OPTopts.goalStart =     {4.5e9,     4.9e9};
+OPTopts.goalStop =      {4.7e9,     5.1e9};
+OPTopts.errNorm =       {1,         1};
+% OPTopts.goalType =      {'lt',      'gt',       'lt'};
+% OPTopts.goalResType =   {'S2,1_dB', 'S2,1_dB',  'S2,1_dB'};
+% OPTopts.goalVal =       {-20,       -3,         -20};
+% OPTopts.goalWeight =    {1,         1,          1};
+% OPTopts.goalStart =     {4.5e9,     4.9e9,      5.3e9};
+% OPTopts.goalStop =      {4.7e9,     5.1e9,      5.5e9};
+% OPTopts.errNorm =       {1,         1,          1};
 %
 OPTopts.optsPBIL.display =  'iter'; 
 OPTopts.optsPBIL.Nfeval = 5000;
@@ -120,7 +126,7 @@ SMopts.errNorm = 2;
 errW = zeros(size(Mf.freq));
 errW(Mf.freq > OPTopts.goalStart{1} & Mf.freq < OPTopts.goalStop{1}) = 1
 errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1
-errW(Mf.freq > OPTopts.goalStart{3} & Mf.freq < OPTopts.goalStop{3}) = 1
+% errW(Mf.freq > OPTopts.goalStart{3} & Mf.freq < OPTopts.goalStop{3}) = 1
 SMopts.errW = errW;
 % SMopts.wk = 5;
 SMopts.wk = 0; % <---
