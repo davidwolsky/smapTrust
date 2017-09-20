@@ -46,20 +46,6 @@ Mc.xpmin = [1.8]';
 Mc.xpmax = [3.0]';
 Mc.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 
-% ------ Set up the SM ------ 
-% The initial SM structure
-Sinit.xp = xpinit;
-
-% All the standard SM options - not all shown here... (buildSurr.m for details)
-SMopts.getA = 0;
-SMopts.getB = 0;
-SMopts.getc = 1;
-SMopts.getG = 0;
-SMopts.getxp = 1;
-SMopts.getF = 0;
-SMopts.getE = 0;
-SMopts.getd = 0;
-
 % Set up the optimization
 OPTopts.ximin = Mf.ximin;
 OPTopts.ximax = Mf.ximax;
@@ -67,11 +53,18 @@ OPTopts.Ni = 3;
 % OPTopts.TRNi = OPTopts.Ni*2;
 OPTopts.TRNi = OPTopts.Ni;
 OPTopts.Rtype = {'S1,1'};
-% TODO_DWW: name this nicely and follow through with an assertion
 OPTopts.globOpt = 0;
+% OPTopts.globOpt = 1;
 OPTopts.globOptSM = 0;
 % OPTopts.globOptSM = 1;
-
+OPTopts.globalSolver = 'ga';
+OPTopts.optsGlobalOptim = optimoptions('ga');
+OPTopts.optsGlobalOptim.Display = 'final';
+OPTopts.localSolver = 'fmincon';
+OPTopts.optsLocalOptim = optimoptions('fmincon');
+OPTopts.optsLocalOptim.Display = 'iter-detailed';
+OPTopts.optsLocalOptim.DiffMinChange = 1e-4;
+OPTopts.optsLocalOptim.Diagnostics = 'on';
 %
 % OPTopts.goalType = {'minimax'};
 % OPTopts.goalResType = {'S1,1_complex'};
@@ -89,23 +82,23 @@ OPTopts.globOptSM = 0;
 % OPTopts.goalStop = {1.75e9};
 % OPTopts.errNorm = {1};
 
-OPTopts.goalType = {'lt'};
-OPTopts.goalResType = {'S1,1_dB'};
-OPTopts.goalVal = {-20};
-OPTopts.goalWeight = {1};
-OPTopts.goalStart = {1.30e9};
-OPTopts.goalStop = {1.45e9};
-OPTopts.errNorm = {1};
+% OPTopts.goalType = {'lt'};
+% OPTopts.goalResType = {'S1,1_dB'};
+% OPTopts.goalVal = {-20};
+% OPTopts.goalWeight = {1};
+% OPTopts.goalStart = {1.30e9};
+% OPTopts.goalStop = {1.45e9};
+% OPTopts.errNorm = {1};
 
 
-% OPTopts.goalType = {'lt', 'gt'};
-% OPTopts.goalResType = {'S1,1_dB', 'S1,1_dB'};
-% OPTopts.goalVal = {-20, -10};
-% OPTopts.goalWeight = {1, 1};
-% OPTopts.goalStart = {1.30e9, 1.60e9};
-% OPTopts.goalStop = {1.45e9, 1.75e9};
-% OPTopts.errNorm = {1,1};
-%
+OPTopts.goalType = {'lt', 'gt'};
+OPTopts.goalResType = {'S1,1_dB', 'S1,1_dB'};
+OPTopts.goalVal = {-20, -10};
+OPTopts.goalWeight = {1, 1};
+OPTopts.goalStart = {1.30e9, 1.60e9};
+OPTopts.goalStop = {1.45e9, 1.75e9};
+OPTopts.errNorm = {1,1};
+
 OPTopts.optsPBIL.display =  'iter'; 
 OPTopts.optsPBIL.Nfeval = 5000;
 OPTopts.optsPBIL.Nbest = 10; % DOM
@@ -119,9 +112,40 @@ OPTopts.eta1 = 0.05;
 OPTopts.eta2 = 0.9;
 OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
-OPTopts.DeltaInit = 0.25;
-OPTopts.testEnabled = true;
+% OPTopts.DeltaInit = 0.25;
+OPTopts.DeltaInit = 0.35;
+OPTopts.testEnabled = 1;
 % OPTopts.prepopulatedSpaceFile = '.mat';
+
+
+% ------ Set up the SM ------ 
+% The initial SM structure
+Sinit.xp = xpinit;
+
+% All the standard SM options - not all shown here... (buildSurr.m for details)
+SMopts.getA = 0;
+SMopts.getB = 0;
+SMopts.getc = 1;
+SMopts.getG = 0;
+SMopts.getxp = 1;
+SMopts.getF = 0;
+SMopts.getE = 0;
+SMopts.getd = 0;
+
+SMopts.globalSolver = 'ga';
+SMopts.optsGlobalOptim = optimoptions('ga');
+SMopts.optsGlobalOptim.Display = 'final';
+
+SMopts.localSolver = 'fmincon';
+SMopts.optsLocalOptim = optimoptions('fmincon');
+SMopts.optsLocalOptim.Display = 'iter-detailed';
+SMopts.optsLocalOptim.Diagnostics = 'on';
+% SMopts.normaliseAlignmentParameters = 0;
+% SMopts.optsLocalOptim.DiffMinChange = 1e-5;
+SMopts.normaliseAlignmentParameters = 1;
+SMopts.optsLocalOptim.DiffMinChange = 1e-4;
+SMopts.plotAlignmentFlag = 0;
+% SMopts.plotAlignmentFlag = 1;
 
 SMopts.ximin = Mc.ximin;
 SMopts.ximax = Mc.ximax;
@@ -136,11 +160,10 @@ SMopts.errNorm = 2;
 errW = zeros(size(Mf.freq));
 % errW = ones(size(Mf.freq)).*0.2;
 errW(Mf.freq > OPTopts.goalStart{1} & Mf.freq < OPTopts.goalStop{1}) = 1;
-% errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1
+errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1
 SMopts.errW = errW;
 % SMopts.wk = 5;
 SMopts.wk = 0;
-SMopts.plotAlignmentFlag = 1;
 
 %% Run the main loop
 [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts);

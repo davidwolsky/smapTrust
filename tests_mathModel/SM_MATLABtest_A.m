@@ -74,19 +74,23 @@ SMopts.xpmax = Mc.xpmax;
 % SMopts.optsFminS = optimset('display','none','TolX',1e-6,'TolFun',1e-6);
 % SMopts.optsPBIL.Nfeval = 5000;
 
+SMopts.globalSolver = 'ga';
+SMopts.optsGlobalOptim = optimoptions('ga');
+SMopts.optsGlobalOptim.Display = 'final';
+
 SMopts.localSolver = 'fmincon';
 SMopts.optsLocalOptim = optimoptions('fmincon');
 SMopts.optsLocalOptim.Display = 'iter-detailed';
 SMopts.optsLocalOptim.Diagnostics = 'on';
 SMopts.optsLocalOptim.DiffMinChange = 1e-10;
-% SMopts.optsLocalOptim.DiffMinChange = 1e-20;
+SMopts.normaliseAlignmentParameters = 1;
+% SMopts.optsLocalOptim.DiffMinChange = 1e-10;
+% SMopts.normaliseAlignmentParameters = 0;
 
-% SMopts.wk = 1.0;
-SMopts.wk = 0;
-SMopts.normaliseAlignmentParameters = 0;
-% SMopts.normaliseAlignmentParameters = 1;
 SMopts.plotAlignmentFlag = 0;
 % SMopts.plotAlignmentFlag = 1;
+% SMopts.wk = 1.0;
+SMopts.wk = 0;
 
 % Set up the optimization
 OPTopts.ximin = Mf.ximin;
@@ -95,9 +99,12 @@ OPTopts.ximax = Mf.ximax;
 OPTopts.Ni = 6;
 OPTopts.TRNi = OPTopts.Ni*2;
 % OPTopts.TRNi = 1;
-OPTopts.Rtype = {'Gen'};
+OPTopts.globOpt = 1;
+OPTopts.globOptSM = 0;
 % OPTopts.globOpt = 1;
-OPTopts.globOpt = 0;
+% OPTopts.globOptSM = 1;
+% OPTopts.globOptSM = 2;
+OPTopts.Rtype = {'Gen'};
 OPTopts.goalType = {'minimax'};
 OPTopts.goalResType = {'Gen'};
 % OPTopts.goalVal = {-20};
@@ -118,9 +125,9 @@ OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
 % OPTopts.DeltaInit = 0.25;
 % TODO_DWW: This give an unexpectedly good result... 
-% OPTopts.DeltaInit = 0.35;
-OPTopts.DeltaInit = 0.50;
-OPTopts.testEnabled = true;
+OPTopts.DeltaInit = 0.35;
+% OPTopts.DeltaInit = 0.50;
+OPTopts.testEnabled = 1;
 % OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
 
 

@@ -101,8 +101,6 @@ nProb.Aineq(1:Nn,      firstPos(3):lastPos(3)) = -deltax_mat;
 nProb.Aineq(Nn+1:2*Nn, firstPos(3):lastPos(3)) = deltax_mat;
 
 deltaxp_mat = diag(deltaxp);
-% rxpStart = 2*Nn+1;
-% keyboard
 nProb.Aineq(2*Nn+1:   2*Nn+Nq,   firstPos(5):lastPos(5)) = -deltaxp_mat;
 nProb.Aineq(2*Nn+Nq+1:2*Nn+2*Nq, firstPos(5):lastPos(5)) = deltaxp_mat;
 

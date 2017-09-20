@@ -69,6 +69,12 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   optsFminS:  options for the fminsearch local optimizer
 %   TODO_DWW: Update this... now this uses problem.options = optimoptions(....
 
+% TODO_DWW: 
+% globalSolver
+% optsGlobalOptim
+% localSolver
+% optsLocalOptim
+
 %   optsPBIL:   options for the PBIL global optimizer
 %   plotIter:   Flag to plot the responses after each iteration
 %   eta1:       A factor used by the TR to define the bound governing when to keep or reduce the radius.
@@ -146,9 +152,15 @@ TRNi = Ni;  % Maximum number of iterations for the Trust region loop
 TolX = 10^-2;
 TolXnorm = 0;
 globOpt = 0;
-M_PBIL = 8;
+localSolver = 'fmincon';
+optsLocalOptim = optimoptions('fmincon');
+globalSolver = 'ga';
+optsGlobalOptim = optimoptions('ga');
 globOptSM = 0;
+% TODO_DWW: Deprecate
+M_PBIL = 8;
 optsFminS = optimset('display','none');
+% TODO_DWW: Deprecate
 optsPBIL = [];
 plotIter = 1;
 eta1 = 0.05;
@@ -163,10 +175,15 @@ if isfield(OPTopts,'Ni'), Ni = OPTopts.Ni; end
 if isfield(OPTopts,'TRNi'), TRNi = OPTopts.TRNi; end
 if isfield(OPTopts,'TolX'), TolX = abs(OPTopts.TolX); end % Force positive
 if isfield(OPTopts,'globOpt'), globOpt = OPTopts.globOpt; end
-if isfield(OPTopts,'M_PBIL'), M_PBIL = OPTopts.M_PBIL; end
 if isfield(OPTopts,'globOptSM'), globOptSM = OPTopts.globOptSM; end
+if isfield(OPTopts,'localSolver'), localSolver = OPTopts.localSolver; end
+if isfield(OPTopts,'optsLocalOptim'), optsLocalOptim = OPTopts.optsLocalOptim; end
+if isfield(OPTopts,'globalSolver'), globalSolver = OPTopts.globalSolver; end
+if isfield(OPTopts,'optsGlobalOptim'), optsGlobalOptim = OPTopts.optsGlobalOptim; end
+% TODO_DWW: Deprecate
 if isfield(OPTopts,'optsFminS'), optsFminS = OPTopts.optsFminS; end
 if isfield(OPTopts,'M_PBIL'), M_PBIL = OPTopts.M_PBIL; end
+% TODO_DWW: Deprecate
 if isfield(OPTopts,'optsPBIL'), optsPBIL = OPTopts.optsPBIL; end
 if isfield(OPTopts,'plotIter'), plotIter = OPTopts.plotIter; end
 if isfield(OPTopts,'eta1'), eta1 = OPTopts.eta1; end
@@ -315,16 +332,6 @@ Ti.Delta{1} = DeltaInit.*(OPTopts.ximax - OPTopts.ximin);
 
 if ~testEnabled
     % Optimize coarse model to find initial alignment position
-    % if globOpt
-    % TODO_DWW: Do this next
-    %     % CRC_DWW: for global optimisation work.
-    %     error('TODO_DWW: implement this.');
-    %     % [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Sinit,OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
-    %     [xin{1}, costS{1}] = ga(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
-    %     xinitn = reshape(xinitn,Nn,1);
-    % end
-%     [xin{1}, costS{1}] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
-
     problem = {};
     problem.x0 = xinitn;
     problem.Aineq = LHSmat;
@@ -334,14 +341,32 @@ if ~testEnabled
     problem.lb = ximinn;
     problem.ub = ximaxn;
     problem.nonlcon = [];
-    problem.solver = 'fmincon';
-    problem.objective = @(tempXin) costSurr(tempXin,Sinit,OPTopts)
-    problem.options = optimoptions('fmincon',...
-                                   'Display','iter-detailed',...
-                                   'Diagnostics','on')
-    % problem.options.PlotFcn = @optimplotconstrviolation;
-    problem.options.DiffMinChange = 1e-4;
+    % TODO_DWW: Do this next
+    % keyboard
+    if globOpt
+        % CRC_DWW: for global optimisation work.
+        % keyboard
+        % error('TODO_DWW: implement this.');
+        % [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Sinit,OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
+        % [xin{1}, costS{1}] = ga(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
+        % xinitn = reshape(xinitn,Nn,1);
 
+        problem.fitnessfcn = @(tempXinGlobal) costSurr(tempXinGlobal,Sinit,OPTopts)
+        % problem.fitnessfcn = @(tempOptVect) costSurr(xin,Sinit,OPTopts), xinitn, ximinn, ximaxn, LHSmat, RHSvect, nonLcon, optsFminS)
+        problem.nvars = length(problem.x0);
+        problem.solver = globalSolver;
+        problem.options = optsGlobalOptim;
+        [xinGlobal,fval,exitflag,output] = ga(problem);
+        xinGlobal = reshape(xinGlobal, length(xinGlobal),1)
+        % Start with global search to get initial value.
+        problem.x0 = xinGlobal;
+    end
+    % TODO_DWW: Clean up
+%     [xin{1}, costS{1}] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
+
+    problem.objective = @(tempXin) costSurr(tempXin,Sinit,OPTopts)
+    problem.solver = localSolver;
+    problem.options = optsLocalOptim;
     [xin{1}, costS{1}, exitflag, output] = fmincon(problem)
 
 else
@@ -368,12 +393,13 @@ if length(prepopulatedSpaceFile) > 1
     Ti.xi_all{end+1} = xi{1};
     Ti.Rfi_all{end+1} = Rfi{1};
 
+    keyboard
     for rr = 1:Nr
         r = {};
-        % if globOptSM > 0, SMopts.globOpt = 1; end
         for iii = 1:length(Ti.Rfi_all)
             r{end+1} = Ti.Rfi_all{iii}{rr}.r;
         end
+        if globOptSM > 0, SMopts.globOpt = 1; end
         Si{1}{rr} = buildSurr(Ti.xi_all,r,Sinit,SMopts);
         Rsi{1}{rr}.r = evalSurr(xi{1},Si{1}{rr});
         Rsi{1}{rr}.t = Rci{1}{rr}.t;
@@ -449,19 +475,53 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
             end
 
             % Do optimization
-            if globOpt == 2
-                error('TODO_DWW: Test this!');
-                [tempxin,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinnTR,ximaxnTR,M_PBIL,optsPBIL);
-                xin{ii} = reshape(tempxin,Nn,1);
-                % [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinnTR,ximaxnTR,M_PBIL,optsPBIL);
-                % xinitn = reshape(xinitn,Nn,1);
-            end
+            % if globOpt == 2
+            %     error('TODO_DWW: Test this!');
+            %     [tempxin,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinnTR,ximaxnTR,M_PBIL,optsPBIL);
+            %     xin{ii} = reshape(tempxin,Nn,1);
+            %     % [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinnTR,ximaxnTR,M_PBIL,optsPBIL);
+            %     % xinitn = reshape(xinitn,Nn,1);
+            % end
             LHSmat = [];
             RHSvect = [];
             nonLcon = [];
             
             display(['--- TODO_DWW:loop optimisation ', num2str(ii), ' ---'])
-            [xin{ii+1}, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xin{ii},ximinnTR,ximaxnTR,LHSmat,RHSvect,nonLcon,optsFminS);
+            problem = {};
+            problem.x0 = xin{ii};
+            problem.Aineq = LHSmat;
+            problem.bineq = RHSvect;
+            problem.Aeq = [];
+            problem.beq = [];
+            problem.lb = ximinnTR;
+            problem.ub = ximaxnTR;
+            problem.nonlcon = [];
+            % TODO_DWW: Do this next
+            if globOpt == 2
+                % error('TODO_DWW: Test this!');
+                % CRC_DWW: for global optimisation work.
+                % keyboard
+                % error('TODO_DWW: implement this.');
+                % [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Sinit,OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
+                % [xin{1}, costS{1}] = ga(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
+                % xinitn = reshape(xinitn,Nn,1);
+
+                problem.fitnessfcn = @(tempXinGlobal) costSurr(tempXinGlobal, Si{ii}{:}, OPTopts)
+                % problem.fitnessfcn = @(tempOptVect) costSurr(xin,Sinit,OPTopts), xinitn, ximinn, ximaxn, LHSmat, RHSvect, nonLcon, optsFminS)
+                problem.nvars = length(problem.x0);
+                problem.solver = globalSolver;
+                problem.options = optsGlobalOptim;
+                [xinGlobal,fval,exitflag,output] = ga(problem);
+                xinGlobal = reshape(xinGlobal, length(xinGlobal),1)
+                % Start with global search to get initial value.
+                problem.x0 = xinGlobal;
+            end
+            % TODO_DWW: Clean up
+            % [xin{ii+1}, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xin{ii},ximinnTR,ximaxnTR,LHSmat,RHSvect,nonLcon,optsFminS);
+            problem.objective = @(tempXin) costSurr(tempXin, Si{ii}{:}, OPTopts)
+            problem.solver = localSolver;
+            problem.options = optsLocalOptim;
+            [xin{ii+1}, costSi, exitflag, output] = fmincon(problem)
             assert( costS{ii} >= costSi ); % The cost must have gotten better else chaos!
 			Ti.costS_all{end+1} = costSi;
 
