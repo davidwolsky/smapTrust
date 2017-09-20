@@ -184,6 +184,8 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %             the global optimiser and to reduce the complexity for debugging.
 % 2017-08-14: Introduced a plotting flag and function to make a graph showing the error before and 
 %             after the alignment phase.
+% 2017-09-18: Introduced normalisation of alignment parameters.
+% 2017-09-19: Reintroducing globOpt, really thought it was working again already.
 
 % ToDo: Implement E (first order OSM)
 % ToDo: Jacobian fitting in error functions (vk)
@@ -316,8 +318,10 @@ if isfield(opts,'localSolver'), localSolver = opts.localSolver; end
 if isfield(opts,'optsLocalOptim'), optsLocalOptim = opts.optsLocalOptim; end
 if isfield(opts,'globalSolver'), globalSolver = opts.globalSolver; end
 if isfield(opts,'optsGlobalOptim'), optsGlobalOptim = opts.optsGlobalOptim; end
+% TODO_DWW: Depricate
 % if isfield(opts,'M_PBIL'), M_PBIL = opts.M_PBIL; end
 % if isfield(opts,'optsPBIL'), optsPBIL = opts.optsPBIL; end
+if isfield(opts,'globOpt'), globOpt = opts.globOpt; end
 if isfield(opts,'errNorm'), errNorm = opts.errNorm; end
 if isfield(opts,'errW'), errW = opts.errW; end
 if isfield(opts,'normaliseAlignmentParameters'), normaliseAlignmentParameters = opts.normaliseAlignmentParameters; end
