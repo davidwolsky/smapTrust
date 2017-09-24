@@ -268,7 +268,8 @@ optsGlobalOptim = optimoptions('ga');
 globOpt = 0;
 % M_PBIL = 8;
 % optsPBIL = [];
-errNorm = 2;
+% TODO_DWW: Change the error norm to one throughout the other examples!
+errNorm = 1;
 errW = 1;
 normaliseAlignmentParameters = 0;
 plotAlignmentFlag = 0;
@@ -312,7 +313,7 @@ if isfield(opts,'fmin'), fmin = opts.fmin; end
 if isfield(opts,'fmax'), fmax = opts.fmax; end
 
 % Get user optimization parameters
-% TODO_DWW: Depricate
+% TODO_DWW: Depricate -  do it.
 if isfield(opts,'optsFminS'), optsFminS = opts.optsFminS; end
 if isfield(opts,'localSolver'), localSolver = opts.localSolver; end
 if isfield(opts,'optsLocalOptim'), optsLocalOptim = opts.optsLocalOptim; end
@@ -744,7 +745,9 @@ else
         problem.nvars = length(reducedProblem.x0);
         problem.solver = globalSolver;
         problem.options = optsGlobalOptim;
-        [optVectGlobalReduced,fval,exitflag,output] = ga(problem);
+        % TODO_DWW: Check this work with function handle from outside- rather case it...
+        % [optVectGlobalReduced,fval,exitflag,output] = ga(problem);
+        [optVectGlobalReduced,fval,exitflag,output] = doOptimisation(problem);
         % Start with global search to get initial value.
         problem.x0 = optVectGlobalReduced;
     end
@@ -753,7 +756,10 @@ else
                                             false, plotOpts);
     problem.solver = localSolver;
     problem.options = optsLocalOptim;
-    [optVectReduced,fval,exitflag,output] = fmincon(problem);
+    % TODO_DWW: Check this work with function handle from outside - rather case it...
+    % [optVectReduced,fval,exitflag,output] = fmincon(problem);
+    [optVectReduced,fval,exitflag,output] = doOptimisation(problem);
+    
     if ( plotAlignmentFlag == 1 )
         % Plot errors after alignment
         plotOpts.plotTitle = 'Alignment complete';
@@ -939,7 +945,11 @@ for cc = 1:Nc
     % Errors for each output parameter (e.g. s-parameters) aggregated
     for pp = 1:Np
         diffR{cc}{pp} = errW.*(Rfi{cc}(:,pp) - Rs{cc}(:,pp));
+        % keyboard
+        % A one norm gives the distance between functions in the complex plane.
         errorValue{cc}{pp} = norm(diffR{cc}{pp},opts.errNorm);
+        % TODO_DWW: rather use this, better to explain 
+        % the same as the one norm.
         % errorValue{cc}{pp} = sum(abs(diffR{cc}{pp}));
         ev = ev + errorValue{cc}{pp};
     end

@@ -114,7 +114,7 @@ OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
 % OPTopts.DeltaInit = 0.25;
 OPTopts.DeltaInit = 0.35;
-OPTopts.testEnabled = 1;
+OPTopts.startWithIterationZero = 1;
 % OPTopts.prepopulatedSpaceFile = '.mat';
 
 

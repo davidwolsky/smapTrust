@@ -21,7 +21,7 @@ end
 
 % x_init = [0.5,1.5,0.03,0.5,0.5]';
 % x_init = [0.5,1.5,0.03]';
-% CRC_TestEnabled: using values from previously test-run known c 
+% CRC_startWithIterationZero: using values from previously test-run known c 
 x_init = [0.964612260448512, 0.930319809324020, 0.865129843255812]';
 % x_init = [0.5,1.5]';
 xp_init = [2,1]';
@@ -127,7 +127,7 @@ OPTopts.alp2 = 0.25;
 % TODO_DWW: This give an unexpectedly good result... 
 OPTopts.DeltaInit = 0.35;
 % OPTopts.DeltaInit = 0.50;
-OPTopts.testEnabled = 1;
+OPTopts.startWithIterationZero = 1;
 % OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
 
 
@@ -149,7 +149,7 @@ if any(type == 'B')
 end
 if any(type == 'c')
     % c = (rand(Nn,1) - 0.5)./5;
-    % CRC_TestEnabled: Changed for specific test run:
+    % CRC_startWithIterationZero: Changed for specific test run:
     c = [-0.019217570882377;-0.080709094966322;-0.073605341478733];
 %     c = x_init./10;
     modPar.c = c

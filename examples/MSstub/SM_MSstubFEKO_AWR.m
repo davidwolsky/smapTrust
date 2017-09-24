@@ -132,7 +132,7 @@ OPTopts.eta2 = 0.9;
 OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
 OPTopts.DeltaInit = 0.25;
-% OPTopts.testEnabled = true;
+% OPTopts.startWithIterationZero = true;
 % OPTopts.prepopulatedSpaceFile = 'SMLog_MSstub.mat';
 
 SMopts.ximin = Mc.ximin;

@@ -115,7 +115,7 @@ OPTopts.eta2 = 0.9;
 OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
 OPTopts.DeltaInit = 0.25;
-OPTopts.testEnabled = true;
+OPTopts.startWithIterationZero = true;
 
 %% Run the main loop
 [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts);

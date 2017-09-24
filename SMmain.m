@@ -82,6 +82,8 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   alp1:       A factor used by the TR to define the rate at which the radius grows with a very successful run.
 %   alp2:       A factor used by the TR to define the rate at which the radius shrinks for divergent fine and surrogate runs.
 %   DeltaInit:  The initial trust region radius.
+%   startWithIterationZero: Starts with the xinit value right away. This is typrically used for reproducing test cases
+%                           where it is not desired for an initial optimisation phase to take place.  
 %   prepopulatedSpaceFile: File name used to preload fine model runs so that a better surrogate can be calculated.
 
 % Returns:
@@ -157,7 +159,7 @@ optsLocalOptim = optimoptions('fmincon');
 globalSolver = 'ga';
 optsGlobalOptim = optimoptions('ga');
 globOptSM = 0;
-% TODO_DWW: Deprecate
+% TODO_DWW: Deprecate - do it
 M_PBIL = 8;
 optsFminS = optimset('display','none');
 % TODO_DWW: Deprecate
@@ -167,7 +169,7 @@ eta1 = 0.05;
 eta2 = 0.9;
 alp1 = 2.5;
 alp2 = 0.25;
-testEnabled = 0;
+startWithIterationZero = 0;
 prepopulatedSpaceFile = '';
 DeltaInit = 0.25;
 
@@ -191,7 +193,7 @@ if isfield(OPTopts,'eta2'), eta2 = OPTopts.eta2; end
 if isfield(OPTopts,'alp1'), alp1 = OPTopts.alp1; end
 if isfield(OPTopts,'alp2'), alp2 = OPTopts.alp2; end
 if isfield(OPTopts,'DeltaInit'), DeltaInit = OPTopts.DeltaInit; end
-if isfield(OPTopts,'testEnabled'), testEnabled = OPTopts.testEnabled; end
+if isfield(OPTopts,'startWithIterationZero'), startWithIterationZero = OPTopts.startWithIterationZero; end
 if isfield(OPTopts,'prepopulatedSpaceFile'), prepopulatedSpaceFile = OPTopts.prepopulatedSpaceFile; end
 
 % Set up models - bookkeeping
@@ -330,7 +332,7 @@ xinitn = (xinit - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
 Ti.Deltan{1} = DeltaInit;
 Ti.Delta{1} = DeltaInit.*(OPTopts.ximax - OPTopts.ximin);
 
-if ~testEnabled
+if ~startWithIterationZero
     % Optimize coarse model to find initial alignment position
     problem = {};
     problem.x0 = xinitn;
@@ -356,7 +358,9 @@ if ~testEnabled
         problem.nvars = length(problem.x0);
         problem.solver = globalSolver;
         problem.options = optsGlobalOptim;
-        [xinGlobal,fval,exitflag,output] = ga(problem);
+        % TODO_DWW: lcean up
+        % [xinGlobal,fval,exitflag,output] = ga(problem);
+        [xinGlobal,fval,exitflag,output] = doOptimisation(problem);
         xinGlobal = reshape(xinGlobal, length(xinGlobal),1)
         % Start with global search to get initial value.
         problem.x0 = xinGlobal;
@@ -367,10 +371,13 @@ if ~testEnabled
     problem.objective = @(tempXin) costSurr(tempXin,Sinit,OPTopts)
     problem.solver = localSolver;
     problem.options = optsLocalOptim;
-    [xin{1}, costS{1}, exitflag, output] = fmincon(problem)
+    % TODO_DWW: clean up
+    % [xin{1}, costS{1}, exitflag, output] = fmincon(problem)
+    [xin{1}, costS{1}, exitflag, output] = doOptimisation(problem)
 
 else
-    testEnabled
+    % TODO_DWW: rename - optIterationZero
+    startWithIterationZero
     xin{1} = xinitn;
 end
 
@@ -420,6 +427,7 @@ if length(prepopulatedSpaceFile) > 1
     Ti.costChangeF{1} = costF{1}; 
 
 else 
+    % TODO_DWW: Leave this in and formalise... 
     display(['--- TODO_DWW: Initialising ---'])
     Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
     Rfi{1} = fineMod(Mf,xi{1});
@@ -482,21 +490,18 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
             %     % [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinnTR,ximaxnTR,M_PBIL,optsPBIL);
             %     % xinitn = reshape(xinitn,Nn,1);
             % end
-            LHSmat = [];
-            RHSvect = [];
             nonLcon = [];
             
             display(['--- TODO_DWW:loop optimisation ', num2str(ii), ' ---'])
             problem = {};
             problem.x0 = xin{ii};
-            problem.Aineq = LHSmat;
-            problem.bineq = RHSvect;
+            problem.Aineq = [];
+            problem.bineq = [];
             problem.Aeq = [];
             problem.beq = [];
             problem.lb = ximinnTR;
             problem.ub = ximaxnTR;
             problem.nonlcon = [];
-            % TODO_DWW: Do this next
             if globOpt == 2
                 % error('TODO_DWW: Test this!');
                 % CRC_DWW: for global optimisation work.
@@ -511,7 +516,9 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                 problem.nvars = length(problem.x0);
                 problem.solver = globalSolver;
                 problem.options = optsGlobalOptim;
-                [xinGlobal,fval,exitflag,output] = ga(problem);
+                % TODO_DWW: Clean up
+                % [xinGlobal,fval,exitflag,output] = ga(problem);
+                [xinGlobal,fval,exitflag,output] = doOptimisation(problem);
                 xinGlobal = reshape(xinGlobal, length(xinGlobal),1)
                 % Start with global search to get initial value.
                 problem.x0 = xinGlobal;
@@ -521,7 +528,9 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
             problem.objective = @(tempXin) costSurr(tempXin, Si{ii}{:}, OPTopts)
             problem.solver = localSolver;
             problem.options = optsLocalOptim;
-            [xin{ii+1}, costSi, exitflag, output] = fmincon(problem)
+            % TODO_DWW: Clean up
+            % [xin{ii+1}, costSi, exitflag, output] = fmincon(problem)
+            [xin{ii+1}, costSi, exitflag, output] = doOptimisation(problem)
             assert( costS{ii} >= costSi ); % The cost must have gotten better else chaos!
 			Ti.costS_all{end+1} = costSi;
 
