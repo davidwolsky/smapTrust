@@ -97,7 +97,6 @@ OPTopts.Ni = 3;
 % OPTopts.TRNi = OPTopts.Ni*2;
 OPTopts.TRNi = OPTopts.Ni;
 OPTopts.Rtype = {'S1,1'};
-% TODO_DWW: name this nicely and follow through with an assertion
 OPTopts.globOpt = 0;
 % OPTopts.globOpt = 1;
 % OPTopts.globOptSM = 0;

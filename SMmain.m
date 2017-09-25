@@ -306,22 +306,6 @@ ximaxn = OPTopts.ximax./OPTopts.ximax;
 Ti.Deltan{1} = DeltaInit;
 Ti.Delta{1} = DeltaInit.*(OPTopts.ximax - OPTopts.ximin);
 
-LHSmat = [];
-RHSvect = [];
-nonLcon = [];
-
-% CRC_DWW: for global optimisation work.
-% prob = {}
-% prob.objective = @(xin) costSurr(xin,Sinit,OPTopts);
-% prob.x0 = xinitn;
-% prob.Aineq = LHSmat
-% prob.bineq = RHSvect
-% prob.Aeq = [];
-% prob.beq = [];
-% prob.lb = ximinn
-% prob.ub = ximaxn
-% prob.nonlcon = nonLcon
-
 % For the initial starting point ii=1
 ii = 1;
 % Normalize the optimization parameters
@@ -336,47 +320,28 @@ if ~startWithIterationZero
     % Optimize coarse model to find initial alignment position
     problem = {};
     problem.x0 = xinitn;
-    problem.Aineq = LHSmat;
-    problem.bineq = RHSvect;
+    problem.Aineq = [];
+    problem.bineq = [];
     problem.Aeq = [];
     problem.beq = [];
     problem.lb = ximinn;
     problem.ub = ximaxn;
     problem.nonlcon = [];
-    % TODO_DWW: Do this next
-    % keyboard
     if globOpt
-        % CRC_DWW: for global optimisation work.
-        % keyboard
-        % error('TODO_DWW: implement this.');
-        % [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Sinit,OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
-        % [xin{1}, costS{1}] = ga(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
-        % xinitn = reshape(xinitn,Nn,1);
-
         problem.fitnessfcn = @(tempXinGlobal) costSurr(tempXinGlobal,Sinit,OPTopts)
-        % problem.fitnessfcn = @(tempOptVect) costSurr(xin,Sinit,OPTopts), xinitn, ximinn, ximaxn, LHSmat, RHSvect, nonLcon, optsFminS)
         problem.nvars = length(problem.x0);
         problem.solver = globalSolver;
         problem.options = optsGlobalOptim;
-        % TODO_DWW: lcean up
-        % [xinGlobal,fval,exitflag,output] = ga(problem);
         [xinGlobal,fval,exitflag,output] = doOptimisation(problem);
         xinGlobal = reshape(xinGlobal, length(xinGlobal),1)
         % Start with global search to get initial value.
         problem.x0 = xinGlobal;
     end
-    % TODO_DWW: Clean up
-%     [xin{1}, costS{1}] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
-
     problem.objective = @(tempXin) costSurr(tempXin,Sinit,OPTopts)
     problem.solver = localSolver;
     problem.options = optsLocalOptim;
-    % TODO_DWW: clean up
-    % [xin{1}, costS{1}, exitflag, output] = fmincon(problem)
     [xin{1}, costS{1}, exitflag, output] = doOptimisation(problem)
-
 else
-    % TODO_DWW: rename - optIterationZero
     startWithIterationZero
     xin{1} = xinitn;
 end
@@ -394,13 +359,12 @@ if length(prepopulatedSpaceFile) > 1
     Ti.Rfi_all = space.Ti.Rfi_all;
     Ti.costF_all = space.Ti.costF_all;
 
-    Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
-    Rfi{1} = fineMod(Mf,xi{1});
+    Rci{1} = coarseMod(Mc, xi{1}, Sinit.xp, fc);
+    Rfi{1} = fineMod(Mf, xi{1});
 
     Ti.xi_all{end+1} = xi{1};
     Ti.Rfi_all{end+1} = Rfi{1};
 
-    keyboard
     for rr = 1:Nr
         r = {};
         for iii = 1:length(Ti.Rfi_all)
@@ -481,16 +445,6 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                 ximinnTR = max((xin{ii} - Ti.Deltan{ii}),ximinn);
                 ximaxnTR = min((xin{ii} + Ti.Deltan{ii}),ximaxn);
             end
-
-            % Do optimization
-            % if globOpt == 2
-            %     error('TODO_DWW: Test this!');
-            %     [tempxin,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinnTR,ximaxnTR,M_PBIL,optsPBIL);
-            %     xin{ii} = reshape(tempxin,Nn,1);
-            %     % [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinnTR,ximaxnTR,M_PBIL,optsPBIL);
-            %     % xinitn = reshape(xinitn,Nn,1);
-            % end
-            nonLcon = [];
             
             display(['--- TODO_DWW:loop optimisation ', num2str(ii), ' ---'])
             problem = {};
@@ -503,33 +457,18 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
             problem.ub = ximaxnTR;
             problem.nonlcon = [];
             if globOpt == 2
-                % error('TODO_DWW: Test this!');
-                % CRC_DWW: for global optimisation work.
-                % keyboard
-                % error('TODO_DWW: implement this.');
-                % [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Sinit,OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
-                % [xin{1}, costS{1}] = ga(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
-                % xinitn = reshape(xinitn,Nn,1);
-
                 problem.fitnessfcn = @(tempXinGlobal) costSurr(tempXinGlobal, Si{ii}{:}, OPTopts)
-                % problem.fitnessfcn = @(tempOptVect) costSurr(xin,Sinit,OPTopts), xinitn, ximinn, ximaxn, LHSmat, RHSvect, nonLcon, optsFminS)
                 problem.nvars = length(problem.x0);
                 problem.solver = globalSolver;
                 problem.options = optsGlobalOptim;
-                % TODO_DWW: Clean up
-                % [xinGlobal,fval,exitflag,output] = ga(problem);
                 [xinGlobal,fval,exitflag,output] = doOptimisation(problem);
                 xinGlobal = reshape(xinGlobal, length(xinGlobal),1)
                 % Start with global search to get initial value.
                 problem.x0 = xinGlobal;
             end
-            % TODO_DWW: Clean up
-            % [xin{ii+1}, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xin{ii},ximinnTR,ximaxnTR,LHSmat,RHSvect,nonLcon,optsFminS);
             problem.objective = @(tempXin) costSurr(tempXin, Si{ii}{:}, OPTopts)
             problem.solver = localSolver;
             problem.options = optsLocalOptim;
-            % TODO_DWW: Clean up
-            % [xin{ii+1}, costSi, exitflag, output] = fmincon(problem)
             [xin{ii+1}, costSi, exitflag, output] = doOptimisation(problem)
             assert( costS{ii} >= costSi ); % The cost must have gotten better else chaos!
 			Ti.costS_all{end+1} = costSi;
@@ -798,125 +737,31 @@ if isfield(M,'ximax')
 	end
 end
 
-Nn = length(xi);
 % Get number of responses requested
 if length(M.Rtype) == 1 && ~iscell(M.Rtype)
     Rtype = {M.Rtype};  % Special case - make a cell
 else
     Rtype = M.Rtype;
 end
-Nr = length(Rtype);
-Rf = cell(1,Nr);
 
 % Call the correct solver
 switch M.solver
-    
     case 'AWR'
-        case 'AWR'
         error('AWR solver not implemented yet for fine model evaluations')
-
     case 'CST'
-        % Start CST activeX
-        cst = actxserver('CSTSTUDIO.Application');
-        % Get handle to the model
-        mws = invoke(cst,'OpenFile',[M.path,M.name,'.cst']);
-        % Update parameters
-        for nn = 1:Nn
-            invoke(mws,'StoreParameter',M.params{nn},xi(nn));
-        end
-        invoke(mws,'Rebuild');
-        % Run simulation
-        solver = invoke(mws,'Solver');
-        invoke(solver,'Start');
-        
-        % Generate output
-        for rr = 1:Nr
-            % TODO_DWW: This needs to be updated
-            if strcmp(Rtype{rr},'S1,1_dB')
-                result = invoke(mws,'Result1D','d1(1)1(1)');    % Sb,a in dB
-                % Get nr of frequency points in the plot
-                nRead = invoke(result,'GetN');
-                [fin,Sbain] = deal(zeros(nRead,1));
-                for nn = 1:nRead
-                    fin(nn) = invoke(result,'GetX',nn-1);        % Typically in GHz
-                    Sbain(nn) = invoke(result,'GetY',nn-1);
-                end
-                if isfield(M,'freq')
-                    Nm = length(M.freq);
-                    Rf{rr}.r = reshape(interp1(fin,Sbain,M.freq,'spline'),Nm,1);
-                    Rf{rr}.f = M.freq;
-                else
-                    Nm = nRead;
-                    Rf{rr}.r = Sbain;
-                    Rf{rr}.f = fin;
-                end
-                Rf{rr}.t = Rtype{rr};
-                release(result);
-            elseif strcmp(Rtype{rr},'S1,1_complex')
-                resultA = invoke(mws,'Result1D','a1(1)1(1)');    % amplitude of Sb,a
-                resultP = invoke(mws,'Result1D','p1(1)1(1)');    % phase of Sb,a
-                % Get nr of frequency points in the plots
-                nRead = invoke(resultA,'GetN');
-                [fin,Sbain] = deal(zeros(nRead,1));
-                for nn = 1:nRead
-                    fin(nn) = invoke(resultA,'GetX',nn-1);        % Typically in GHz
-                    amp = invoke(resultA,'GetY',nn-1);
-                    phase = rad(invoke(resultP,'GetY',nn-1));
-                    Sbain(nn) = amp.*exp(1i*phase);
-                end
-                if isfield(M,'freq')
-                    Nm = length(M.freq);
-                    Rreal = reshape(interp1(fin,real(Sbain),M.freq,'spline'),Nm,1);
-                    Rimag = reshape(interp1(fin,imag(Sbain),M.freq,'spline'),Nm,1);
-                    Rf{rr}.r = Rreal + 1i*Rimag;
-                    Rf{rr}.f = M.freq;
-                else
-                    Nm = nRead;
-                    Rf{rr}.r = Sbain;
-                    Rf{rr}.f = fin;
-                end
-                Rf{rr}.t = Rtype{rr};
-                release(resultA);
-                release(resultP);
-            end
-        end
-        invoke(mws,'Save');
-        invoke(mws,'Quit');
-        
+        Rf = cstMod(M, xi, [], Rtype, []);
     case 'FEKO'
-        Rf = fekoMod(M,xi,Rtype);
-        
+        Rf = fekoMod(M, xi, [], Rtype, []);
     case 'MATLAB'
-        Ni = length(M.params);  % This is interpreted as the number of inputs to the function
-        inType = [];
-        for ii = 1:Ni
-            inType = [inType,M.params{ii}];   % Initialise
-        end
-        switch inType
-            case 'xf'
-                Rfi = M.name(xi,M.freq);
-            otherwise
-                Rfi = M.name(xi);
-        end
-        % Distribute the responses
-        % For MATLAB case the model should the return the specified responses
-        % columnwise...
-        for rr = 1:Nr
-            Rf{rr}.r = Rfi(:,rr);
-            Rf{rr}.t = Rtype{rr};
-            if exist('f','var')
-                Rf{rr}.f = f;
-            end
-        end
-        
+        Rf = matlabMod(M, xi, [], Rtype, []);
     otherwise
         error(['M.solver unknown for fine model evaluation'])
 end
 
-end % fineMod
+end % fineMod function
 
 
-function Rc = coarseMod(M,xi,xp,f)
+function Rc = coarseMod(M, xi, xp, f)
 
 % Rc: is a cell array of structures containing the response in Rc.r, the type Rc.t, and the
 % (optional) domain (typically frequency) in Rc.f.  Same length as M.Rtype
@@ -942,21 +787,20 @@ function Rc = coarseMod(M,xi,xp,f)
 %               Valid types:
 %               'Sb,a_dB'
 %               'Sb,a_complex'
-% TODO_DWW: Flesh out
 %               'Gen'
 
 % Limit the inputs - this should really never happen...
 if isfield(M,'ximin')
     minI = xi < M.ximin;
-    if any(minI)
+    if ( any(minI) )
         xi(minI) = M.ximin(minI);
 		warning( strcat('Out of bounds coarse model evaluation encountered on ximin = ', ...
 			mat2str(M.ximin), ', xi = ', mat2str(xi)) )
-	end
+    end
 end
 if isfield(M,'ximax')
     maxI = xi > M.ximax;
-    if any(maxI)
+    if ( any(maxI) )
         xi(maxI) = M.ximax(maxI);
 		warning( strcat('Out of bounds coarse model evaluation encountered on ximax', ...
 			mat2str(M.ximax), ', xi = ', mat2str(xi)) )
@@ -964,236 +808,45 @@ if isfield(M,'ximax')
 end
 if isfield(M,'xpmin')
     minIp = xp < M.xpmin;
-    if any(minIp)
+    if ( any(minIp) )
         xp(minIp) = M.xpmin(minIp);
 		warning( strcat('Out of bounds coarse model evaluation encountered on xpmin', ...
 			mat2str(M.xpmin), ', xi = ', mat2str(xi)) )
-	end
+    end
 end
 if isfield(M,'xpmax')
     maxIp = xp > M.xpmax;
-    if any(maxIp)
+    if ( any(maxIp) )
         xp(maxIp) = M.xpmax(maxIp);
 		warning( strcat('Out of bounds coarse model evaluation encountered on xpmax', ...
 			mat2str(M.xpmax), ', xi = ', mat2str(xi)) )
-	end
+    end
 end
 
-Nn = length(xi);
-Nq = length(xp);
-Nm = length(f);
 % Get number of responses requested
 if length(M.Rtype) == 1 && ~iscell(M.Rtype)
     Rtype = {M.Rtype};  % Special case - make a cell
 else
     Rtype = M.Rtype;
 end
-Nr = length(Rtype);
-Rc = cell(1,Nr);
 
 % Call the correct solver
 switch M.solver
     case 'CST'
         error('CST solver not implemented yet for coarse model evaluations')
-        
     case 'FEKO'
-        Rc = fekoMod(M,xi,Rtype);
-
+        Rc = fekoMod(M, xi, [], Rtype, []);
     case 'AWR'
-        % Ensure that NI AWR is open and that all projects have been closed.
-        awr = actxserver('AWR.MWOffice');
-        % pause(0.001);
-        if ( awr.ProjectOpen() )
-            proj = awr.Project;
-        else
-            [M.path,M.name,'.emp']
-            awr.invoke('Open', [M.path,M.name,'.emp']);
-            proj = awr.Project;
-            proj.Frequencies.Clear();
-            for mm = 1:Nm
-                awr.Project.Frequencies.Add(M.freq(mm));
-            end
-        end
-
-        eqns = proj.GlobalDefinitionDocuments.Item(1).Equations;
-
-        for nn = 1:Nn
-            if ~eqns.Exists(M.params{nn}) 
-                error(strcat('AWR parameter not found: ', M.params{nn}))
-            end
-            parStr = [M.params{nn},'=',num2str(xi(nn))];
-            eqns.Item(M.params{nn}).Expression = parStr;
-        end
-        % Also include possible implicit parameters
-        for qq = 1:Nq
-            if ~eqns.Exists(M.Iparams{qq}) 
-                error(['AWR parameter not found: ', M.Iparams{qq}])
-            end
-            parStr = [M.Iparams{qq},'=',num2str(xp(qq))];
-            eqns.Item(M.Iparams{qq}).Expression = parStr;
-        end
-
-        % Generate output
-        for rr = 1:Nr
-            if strncmp(Rtype{rr},'S',1)
-                assert(~contains(Rtype{rr},'_'), 'S-parameters are always complex therefore specifying units here does not make sense. The goal type can have units though.')
-                RTypeString = replace(Rtype{rr},',','_');
-                portsString = [Rtype{rr}(2:end)];
-
-                % Adding a graph and measurement 
-                graphs = proj.Graphs;
-                if graphs.Exists([RTypeString,'_Mag Graph'])
-                    graph = graphs.Item([RTypeString,'_Mag Graph']);
-                else
-                    graph = graphs.Add([RTypeString,'_Mag Graph'],'mwGT_Rectangular');
-                end
-                measurement_Sxx_Mag = graph.Measurements.Add(M.name,['|S(', portsString, ')|']);
-
-                if graphs.Exists([RTypeString,'_Ang Graph'])
-                    graph = graphs.Item([RTypeString,'_Ang Graph']);
-                else
-                    graph = graphs.Add([RTypeString,'_Ang Graph'],'mwGT_Rectangular');
-                end
-                measurement_Sxx_Ang = graph.Measurements.Add(M.name,['Ang(S(', portsString, '))']);
-
-                proj.Simulator.Analyze;
-                
-                switch proj.ErrorState
-                    case 'mwET_Fatal'
-                        % Rc{rr}.hasError = true;
-                        error(['AWR proj.ErrorState gave mwET_Fatal.'])
-                    case 'mwET_Error'
-                        % Rc{rr}.hasError = true;
-                        error(['AWR proj.ErrorState gave mwET_Error.'])
-                    case 'mwET_Warning'
-                        % Rc{rr}.hasError = true;
-                        error(['AWR proj.ErrorState gave mwET_Warning.'])
-                    case 'mwET_None'
-                        % Rc{rr}.hasError = false;
-                        % Do nothing, continue
-                    otherwise
-                        % Rc{rr}.hasError = true;
-                        error(['AWR proj.ErrorState unknown result from simulation.'])
-                end
-
-                nRead = measurement_Sxx_Mag.XPointCount;
-                [fin,Sxxin] = deal(zeros(nRead,1));
-                fin = measurement_Sxx_Mag.XValues;
-
-                for nn = 1:nRead
-                    amp = measurement_Sxx_Mag.YValue(nn,1);
-                    phase = measurement_Sxx_Ang.YValue(nn,1);
-                    Sxxin(nn) = amp.*exp(1i*phase);
-                end
-
-                if isfield(M,'freq')
-                    Nm = length(M.freq);
-                    Rreal = reshape(interp1(fin,real(Sxxin),M.freq,'spline'),Nm,1);
-                    Rimag = reshape(interp1(fin,imag(Sxxin),M.freq,'spline'),Nm,1);
-                    Rc{rr}.r = Rreal + 1i*Rimag;
-                    Rc{rr}.f = M.freq;
-                else
-                    Nm = nRead;
-                    Rc{rr}.r = Sxxin;
-                    Rc{rr}.f = fin;
-                end
-                Rc{rr}.t = Rtype{rr};
-            else
-                error(['Unrecognised Rtype request ', Rtype{rr}]);
-            end
-        end % for Nr
-        % awr.Project.Close(false)
-        % awr.Quit()
-        release(awr)
-
+        Rc = awrMod(M, xi, xp, Rtype, []);
     case 'ADS'
         error('ADS solver not implemented yet for coarse model evaluations')
-        
     case 'MATLAB'
-        Ni = length(M.params);  % This is interpreted as the number of inputs to the function
-        inType = [];
-        for ii = 1:Ni
-            inType = [inType,M.params{ii}];   % Initialise
-        end
-        switch inType
-            case 'xxpf'
-                Rci = M.name(xi,xp,f);
-            case 'xf'
-                Rci = M.name(xi,f);
-            case 'xxp'
-                Rci = M.name(xi,xp);
-            otherwise
-                Rci = M.name(xi);
-        end
-        % Distribute the responses
-        % For MATLAB case the model should return the specified responses
-        % columnwise...
-        for rr = 1:Nr
-            Rc{rr}.r = Rci(:,rr);
-            Rc{rr}.t = Rtype{rr};
-            if exist('f','var')
-                Rc{rr}.f = f;
-            end
-        end
+        Rc = matlabMod(M, xi, xp, Rtype, f);
     otherwise
         error(['M.solver unknown for coarse model evaluation'])
 end
-end % coarseMod
 
-
-function R = fekoMod(M,xi,Rtype)
-
-% TODO_DWW: Add functunality for coarse model xp
-Nn = length(xi);
-Nr = length(Rtype);
-
-% Build parameter string
-parStr = [];
-for nn = 1:Nn
-    parStr = [parStr,' -#',M.params{nn},'=',num2str(xi(nn))];
-end
-% Remesh the structure with the new parameters
-FEKOmesh = ['cadfeko_batch ',[M.path,M.name,'.cfx'],parStr];
-[statusMesh, cmdoutMesh] = system(FEKOmesh);
-% Run FEKO - cannot run with path, so change the directory
-curDir = pwd;
-cd(M.path);
-FEKOrun = ['runfeko ', [M.name,'.cfx']];
-[statusRun, cmdoutRun] = system(FEKOrun);
-cd(curDir);
-% Generate output
-for rr = 1:Nr
-    if strncmp(Rtype{rr},'S',1)
-        portB = Rtype{rr}(2:find(Rtype{rr}==',')-1);
-        portB_num = str2double(portB);
-        portA = Rtype{rr}(find(Rtype{rr}==',')+1:end);
-        portA_num = str2double(portA);
-        % Read the Sb_a touchstone file - must be exported by the FEKO
-        % file with the correct name - Name_S1_1.s*p!
-        fileName = [M.name,'_S',portB,'_',portA,'.s*p'];
-        wildPos = find(fileName=='*');
-        fileDir = dir([M.path,fileName]);
-        portCount = str2double(fileDir.name(wildPos));
-        file = [fileDir.folder, '\', fileDir.name];
-        [Spar,freq] = touchread(file,portCount);
-        Sba = reshape(Spar(portB_num,portA_num,:),length(freq),1);
-        R{rr}.f = freq;
-    else
-        error(['Unrecognised Rtype{rr} for FEKO run. Rtype{',rr,'} = ', Rtype{rr}])
-    end
-    R{rr}.r = Sba;
-    R{rr}.t = Rtype{rr};
-end
-save FEKOLog statusMesh cmdoutMesh statusRun cmdoutRun;
-
-fid=fopen('FEKOLog.txt','w');
-% fprintf(fid, [ cmdoutMesh '\n\n' statusRun '\n\n' cmdoutRun]);
-fprintf(fid, '%s \n\n', [cmdoutMesh]');
-fprintf(fid, '%s \n\n', [statusRun]');
-fprintf(fid, '%s \n\n', [cmdoutRun]');
-fclose(fid);
-
-end % fekoMod function
+end % coarseMod function
 
 
 function cost = costSurr(xin,S,OPTopts)
