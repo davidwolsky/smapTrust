@@ -1,11 +1,10 @@
-function Si = buildSurr(xi,Rfi,S,opts)
+function Si = buildSurr(xi, Rfi, S, SMopts)
 
-% function Si = buildSurr(xi,Rfi,S,opts)
 % function to build a surrogate model structure S, using the input fine 
 % model response pairs {xi,Rfi}.  More than one input response pair can be
 % specified, as is typical in space mapping modelling instead of
 % optimization applications.  User specified options - mainly flags to
-% specify SM types - are provided in opts.
+% specify SM types - are provided in SMopts.
 %
 % Based on the 2006 MTT paper by Koziel et al on a SM Framework
 %
@@ -27,7 +26,7 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %          the implicit (pre-assigned) parameters.
 %  S.xp - Optional pre-assigned variables (depending on the coarse model [Nq,1]
 %  S.f - Optional frequency vector where the responses are calculated [Nm,1] (must be included for FSM)
-% opts: User options structure - mostly flags to specify type of SM (defaults)
+% SMopts: User options structure - mostly flags to specify type of SM (defaults)
 %   getA - flag to get multiplicative OSM (set to 2 to get M factors), typically 1 to force 
 %          single factor for all outputs which is much faster and often works well (0).
 %   getB - flag to get multiplicative input SM (0)
@@ -86,16 +85,15 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %          remove a certain element from the search space
 %   fmin - minimum shifted frequency when using getF
 %   fmax - maximum shifted frequency when using getF
-%TODO_DWW: remove this option once it is obsolete
-%   optsFminS - options for the fminsearch local optimizer in the PE
-%   localSolver     - option choosing the solver for the  local parameter extraction (alignment).
-%   optsLocalOptim  - problem options for the local optimiser. 
-% TODO_DWW: To make this totally set from the outside a function handle to the optimiser would also need to be set.
-%   globalSolver    - option choosing the solver for the  global parameter extraction (alignment).
-%   optsGlobalOptim - problem options for the global optimiser. 
-%   globOpt - flag to include global search (PBILreal) in the PE (Not currently working)
-%   M_PBIL - number of bits per parameter in the PBIL global search (8)
-%   optsPBIL - options for the PBIL global optimizer in the PE
+%   globOpt - flag to include global search in the PE.
+%   globalSolver    - string representing the choosen solver for the global parameter extraction 
+%                     (alignment), default 'ga'.
+%   optsGlobalOptim - problem options for the global optimiser, e.g. optimoptions('ga').
+%                     This needs to be specified when a non-default solver is chosen.
+%   localSolver     - string representing the choosen solver for the global parameter extraction 
+%                     (alignment), default 'fmincon'.
+%   optsLocalOptim  - problem options for the local optimiser, e.g. optimoptions('fmincon'). 
+%                     This needs to be specified when a non-default solver is chosen.
 %   errNorm - Type of error norm to use for parameter extraction (1,2,inf)
 %   errW - Vector of weights (typically binary but can be any real number),
 %          of length Nm, to calculate the extraction error.  Can be used to 
@@ -147,7 +145,7 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %             Include c and B cases, and simplify Bc case (no constraints)   
 % 2015-03-04: Include AB, Ac, ABc, G, xp, cxp cases
 %             Simplify Gxp case (no constraints)
-%             Include AlimMin/Max as opts parameter 
+%             Include AlimMin/Max as SMopts parameter 
 %             Include Gv_init variable for consistency with Bv_init
 % 2015-03-05: Include globalOpt in BcGxp case
 %             Include BG, cG, BcG, BGxp, cGxp cases
@@ -239,14 +237,14 @@ Amin = 0.5;
 Amax = 2.0;
 
 % Get user SM type request
-if isfield(opts,'getA'), getA = opts.getA; end
-if isfield(opts,'getB'), getB = opts.getB; end
-if isfield(opts,'getc'), getc = opts.getc; end
-if isfield(opts,'getG'), getG = opts.getG; end
-if isfield(opts,'getxp'), getxp = opts.getxp; end
-if isfield(opts,'getd'), getd = opts.getd; end
-if isfield(opts,'getE'), getE = opts.getE; end
-if isfield(opts,'getF'), getF = opts.getF; end
+if isfield(SMopts,'getA'), getA = SMopts.getA; end
+if isfield(SMopts,'getB'), getB = SMopts.getB; end
+if isfield(SMopts,'getc'), getc = SMopts.getc; end
+if isfield(SMopts,'getG'), getG = SMopts.getG; end
+if isfield(SMopts,'getxp'), getxp = SMopts.getxp; end
+if isfield(SMopts,'getd'), getd = SMopts.getd; end
+if isfield(SMopts,'getE'), getE = SMopts.getE; end
+if isfield(SMopts,'getF'), getF = SMopts.getF; end
 
 if ~isfield(S,'f')
     % If no frequency is provided use indices
@@ -258,23 +256,18 @@ fmax = 1.1*max(S.f);
 NSMUnknowns = getNSMUnknowns();
 
 % Default optimization parameters
-% TODO_DWW: Depricating
-optsFminS = optimset('display','none');
 localSolver = 'fmincon';
 optsLocalOptim = optimoptions('fmincon');
 globalSolver = 'ga';
 optsGlobalOptim = optimoptions('ga');
 
 globOpt = 0;
-% M_PBIL = 8;
-% optsPBIL = [];
-% TODO_DWW: Change the error norm to one throughout the other examples!
 errNorm = 1;
 errW = 1;
 normaliseAlignmentParameters = 0;
 plotAlignmentFlag = 0;
-if isfield(opts,'wk') 
-    wk = opts.wk
+if isfield(SMopts,'wk') 
+    wk = SMopts.wk
     if length(wk) == 1
         if (wk == 0) 
             wk = ones(1,Nc);
@@ -291,9 +284,9 @@ else
     wk = ones(1,Nc)
 end
 
-if isfield(opts,'vk') 
+if isfield(SMopts,'vk') 
     % CRC_DDV: DWW: Should the weighting for model fitting be applied to this Jacobian fitting too?
-    vk = opts.vk;
+    vk = SMopts.vk;
     if length(vk) == 1
         vk = vk.^[1:Nc];
     end
@@ -303,30 +296,25 @@ else
 end
 
 % Get user constraints
-if isfield(opts,'ximin'), ximin = opts.ximin; end
-if isfield(opts,'ximax'), ximax = opts.ximax; end
-if isfield(opts,'Amin'), Amin = opts.Amin; end
-if isfield(opts,'Amax'), Amax = opts.Amax; end
-if isfield(opts,'xpmin'), xpmin = opts.xpmin; end
-if isfield(opts,'xpmax'), xpmax = opts.xpmax; end
-if isfield(opts,'fmin'), fmin = opts.fmin; end
-if isfield(opts,'fmax'), fmax = opts.fmax; end
+if isfield(SMopts,'ximin'), ximin = SMopts.ximin; end
+if isfield(SMopts,'ximax'), ximax = SMopts.ximax; end
+if isfield(SMopts,'Amin'), Amin = SMopts.Amin; end
+if isfield(SMopts,'Amax'), Amax = SMopts.Amax; end
+if isfield(SMopts,'xpmin'), xpmin = SMopts.xpmin; end
+if isfield(SMopts,'xpmax'), xpmax = SMopts.xpmax; end
+if isfield(SMopts,'fmin'), fmin = SMopts.fmin; end
+if isfield(SMopts,'fmax'), fmax = SMopts.fmax; end
 
 % Get user optimization parameters
-% TODO_DWW: Depricate -  do it.
-if isfield(opts,'optsFminS'), optsFminS = opts.optsFminS; end
-if isfield(opts,'localSolver'), localSolver = opts.localSolver; end
-if isfield(opts,'optsLocalOptim'), optsLocalOptim = opts.optsLocalOptim; end
-if isfield(opts,'globalSolver'), globalSolver = opts.globalSolver; end
-if isfield(opts,'optsGlobalOptim'), optsGlobalOptim = opts.optsGlobalOptim; end
-% TODO_DWW: Depricate
-% if isfield(opts,'M_PBIL'), M_PBIL = opts.M_PBIL; end
-% if isfield(opts,'optsPBIL'), optsPBIL = opts.optsPBIL; end
-if isfield(opts,'globOpt'), globOpt = opts.globOpt; end
-if isfield(opts,'errNorm'), errNorm = opts.errNorm; end
-if isfield(opts,'errW'), errW = opts.errW; end
-if isfield(opts,'normaliseAlignmentParameters'), normaliseAlignmentParameters = opts.normaliseAlignmentParameters; end
-if isfield(opts,'plotAlignmentFlag'), plotAlignmentFlag = opts.plotAlignmentFlag; end
+if isfield(SMopts,'localSolver'), localSolver = SMopts.localSolver; end
+if isfield(SMopts,'optsLocalOptim'), optsLocalOptim = SMopts.optsLocalOptim; end
+if isfield(SMopts,'globalSolver'), globalSolver = SMopts.globalSolver; end
+if isfield(SMopts,'optsGlobalOptim'), optsGlobalOptim = SMopts.optsGlobalOptim; end
+if isfield(SMopts,'globOpt'), globOpt = SMopts.globOpt; end
+if isfield(SMopts,'errNorm'), errNorm = SMopts.errNorm; end
+if isfield(SMopts,'errW'), errW = SMopts.errW; end
+if isfield(SMopts,'normaliseAlignmentParameters'), normaliseAlignmentParameters = SMopts.normaliseAlignmentParameters; end
+if isfield(SMopts,'plotAlignmentFlag'), plotAlignmentFlag = SMopts.plotAlignmentFlag; end
 
 % Assign current iteration S-model
 Si = S;
@@ -426,8 +414,8 @@ if any(getB)
     end
 
     % Override defaults with user input
-    if isfield(opts,'Bmin'), BminM = opts.Bmin; end
-    if isfield(opts,'Bmax'), BmaxM = opts.Bmax; end
+    if isfield(SMopts,'Bmin'), BminM = SMopts.Bmin; end
+    if isfield(SMopts,'Bmax'), BmaxM = SMopts.Bmax; end
 
     Bv_init = reshape(B_init,lenB,1);
     Bmin = reshape(BminM,lenB,1);
@@ -447,8 +435,8 @@ if getc
     cmax = ximax - reshape(Bmin, Nn, Nn)*ximin;
 
     % Override defaults with user input
-    if isfield(opts,'cmin'), cmin = opts.cmin; end
-    if isfield(opts,'cmax'), cmax = opts.cmax; end
+    if isfield(SMopts,'cmin'), cmin = SMopts.cmin; end
+    if isfield(SMopts,'cmax'), cmax = SMopts.cmax; end
 end
 
 % --- getxp and getG ----
@@ -489,8 +477,8 @@ if isfield(S,'xp')
         end
         
         % Override defaults with user input
-        if isfield(opts,'Gmin'), GminM = opts.Gmin; end
-        if isfield(opts,'Gmax'), GmaxM = opts.Gmax; end
+        if isfield(SMopts,'Gmin'), GminM = SMopts.Gmin; end
+        if isfield(SMopts,'Gmax'), GmaxM = SMopts.Gmax; end
         
         Gv_init = reshape(G_init,lenG,1);
         Gmin = reshape(GminM,lenG,1);
@@ -534,8 +522,8 @@ if getF
     Fmin = [F1min; F2min];
     Fmax = [F1max; F2max];
 
-    if isfield(opts,'Fmin'), Fmin = opts.Fmin; end
-    if isfield(opts,'Fmax'), Fmax = opts.Fmax; end
+    if isfield(SMopts,'Fmin'), Fmin = SMopts.Fmin; end
+    if isfield(SMopts,'Fmax'), Fmax = SMopts.Fmax; end
 
 else  % F not requested - revert to default and clamp box limits.  Do here since user can supply limits.
     [F_init,Fmin,Fmax] = deal([1;0]);
@@ -745,9 +733,7 @@ else
         problem.nvars = length(reducedProblem.x0);
         problem.solver = globalSolver;
         problem.options = optsGlobalOptim;
-        % TODO_DWW: Check this work with function handle from outside- rather case it...
-        % [optVectGlobalReduced,fval,exitflag,output] = ga(problem);
-        [optVectGlobalReduced,fval,exitflag,output] = doOptimisation(problem);
+        [optVectGlobalReduced, fval, exitflag, output] = doOptimisation(problem);
         % Start with global search to get initial value.
         problem.x0 = optVectGlobalReduced;
     end
@@ -756,9 +742,7 @@ else
                                             false, plotOpts);
     problem.solver = localSolver;
     problem.options = optsLocalOptim;
-    % TODO_DWW: Check this work with function handle from outside - rather case it...
-    % [optVectReduced,fval,exitflag,output] = fmincon(problem);
-    [optVectReduced,fval,exitflag,output] = doOptimisation(problem);
+    [optVectReduced, fval, exitflag, output] = doOptimisation(problem);
     
     if ( plotAlignmentFlag == 1 )
         % Plot errors after alignment
@@ -856,7 +840,7 @@ end % buildSurr function
 
 
 % ======================================
-% ========= begin subfunctions =========
+% =========    subfunctions    =========
 % ======================================
 
 function [S] = reshapeParameters(optVect, S, optsParE)
@@ -900,7 +884,7 @@ end % reshapeParameters function
 
 % ======================================
 
-function e = erri(reducedOptVect, xi, Rfi, S, wk, vk, opts, ...
+function e = erri(reducedOptVect, xi, Rfi, S, wk, vk, SMopts, ...
                   normaliseAlignmentParameters,  baseProblem, originalProblem, ...
                   plotFlag, plotOpts)
 % Error function for optimization
@@ -920,20 +904,20 @@ function e = erri(reducedOptVect, xi, Rfi, S, wk, vk, opts, ...
 
 if ( normaliseAlignmentParameters == 1 )
     optVectn = reconstructWithFixedParameters(reducedOptVect, baseProblem);
-    optVect = denormaliseOptVect(optVectn, originalProblem, opts);
+    optVect = denormaliseOptVect(optVectn, originalProblem, SMopts);
 else
     optVect = reconstructWithFixedParameters(reducedOptVect, baseProblem);
 end
-S = reshapeParameters(optVect, S, opts);
+S = reshapeParameters(optVect, S, SMopts);
 
 % Calculate the error function value
 Nc = length(wk);
 ec = zeros(1,Nc);
-if length(opts.errW) == 1
+if length(SMopts.errW) == 1
     errW = Rfi{1}./Rfi{1};
     errW(isnan(errW)) = 1;  % In case of 0 error...
 else
-    errW = opts.errW;
+    errW = SMopts.errW;
 end
 diffR = {};
 errorValue = {};
@@ -945,12 +929,10 @@ for cc = 1:Nc
     % Errors for each output parameter (e.g. s-parameters) aggregated
     for pp = 1:Np
         diffR{cc}{pp} = errW.*(Rfi{cc}(:,pp) - Rs{cc}(:,pp));
-        % keyboard
-        % A one norm gives the distance between functions in the complex plane.
-        errorValue{cc}{pp} = norm(diffR{cc}{pp},opts.errNorm);
-        % TODO_DWW: rather use this, better to explain 
-        % the same as the one norm.
-        % errorValue{cc}{pp} = sum(abs(diffR{cc}{pp}));
+        % A 1-norm gives the distance between points in the functions on the complex plane.
+        errorValue{cc}{pp} = norm(diffR{cc}{pp}, SMopts.errNorm);
+        % This is the same as the 1-norm.
+        % errorValue{cc}{pp} = sum(abs(diffR{cc}{pp}));        
         ev = ev + errorValue{cc}{pp};
     end
     ec(cc) = wk(cc).*ev;
@@ -958,14 +940,14 @@ end
 e = sum(ec)./Nc;
 
 if ( plotFlag == 1 )
-    plotErri(Nc, Rfi, Rs, diffR, errorValue, opts.errNorm, ec, e, plotOpts);
+    plotErri(Nc, Rfi, Rs, diffR, errW, errorValue, SMopts.errNorm, ec, e, plotOpts);
 end
 
 end % erri function 
 
 % ======================================
 
-function plotErri(Nc, Rfi, Rs, diffR, errorValue, errorNorm, ec, e, plotOpts)
+function plotErri(Nc, Rfi, Rs, diffR, errW, errorValue, errorNorm, ec, e, plotOpts)
 % Plots the error between the fine models and the response of the surrogate.
 
 % Parameters:
@@ -982,44 +964,44 @@ fig = figure();
 [Nm,Np] = size(Rs{1});
 for cc = 1:Nc
     for pp = 1:Np
-        diffAll = Rfi{cc}(:,pp) - Rs{cc}(:,pp);
+        % diffAll = Rfi{cc}(:,pp) - Rs{cc}(:,pp);
+        norm1 = norm(diffR{cc}{pp}, 1);
+        norm2 = norm(diffR{cc}{pp}, 2);
+        % sum(abs(diffR{cc}{pp}))
+
+        usedRfi = errW.*(Rfi{cc}(:,pp));
+        usedRfi(usedRfi==0) = [];
+        usedRs = errW.*(Rs{cc}(:,pp));
+        usedRs(usedRs==0) = [];
 
         subplot(Nc,Np*2, (Np*(cc-1)*2) + pp*2-1), grid on, hold on
-        plot(real(Rfi{cc}),'k', 'LineWidth',2)
-        plot(real(Rs{cc}),'--r', 'LineWidth',2)
-        plot(real(diffR{cc}{pp}),'og', 'LineWidth',2)
-        plot(abs(real(diffAll)),'+m', 'LineWidth',2)
+        plot((Rfi{cc}),'k', 'LineWidth',2)
+        plot(usedRfi,'ko', 'LineWidth',2)
+        plot((Rs{cc}),'--r', 'LineWidth',2)
+        plot(usedRs,'ro', 'LineWidth',2)
         title({[plotTitle], ...
-            [' - Real:'], ...
             ['Fine model ', num2str(cc), 'of', num2str(Nc), ', Output param: ', num2str(pp), 'of', num2str(Np)], ...
             ['Outpus parameter error = ', num2str(errorValue{cc}{pp})], ...
             ['Combined normalised error = ', num2str(ec(cc))], ...
             [' using norm ', num2str(errorNorm), ', final error:', num2str(e)]})
-        % legend('real(Rfi)','real(Rs)','real(diffR)','(abs(real(diffAll))')
-        ylabel('Value')
-        xlabel('Point')
+        % legend('Rfi', 'compared Rfi points', 'Rs', 'compared Rs points')
+        ylabel('Imag')
+        xlabel('Real')
 
         subplot(Nc,Np*2, (Np*(cc-1)*2) + pp*2), grid on, hold on
-        plot(imag(Rfi{cc}),'k', 'LineWidth',2)
-        plot(imag(Rs{cc}),'--r', 'LineWidth',2)
-        plot(imag(diffR{cc}{pp}),'og', 'LineWidth',2)
-        plot(abs(imag(diffAll)),'+m', 'LineWidth',2)
-        title({[plotTitle], .... 
-            [' - Imag:'], ...
-            ['Fine model ', num2str(cc), 'of', num2str(Nc), ', Output param: ', num2str(pp), 'of', num2str(Np)], ...
-            ['Outpus parameter error = ', num2str(errorValue{cc}{pp})], ...
-            ['Combined normalised error = ', num2str(ec(cc))], ...
-            [' using norm ', num2str(errorNorm), ', final error:', num2str(e)]})
-        % legend('imag(Rfi)','imag(Rs)','imag(diffR)','(abs(imag(diffAll))')
-        ylabel('Value')
-        xlabel('Point')
+        plotv([(real(diffR{cc}{pp}))'; (imag(diffR{cc}{pp}))'])
+        title({['Vector difference between used points.'], .... 
+            ['L1 norm = ', num2str(norm1)], ...
+            ['L2 norm = ', num2str(norm2)]})
+        ylabel('Imag')
+        xlabel('Real')
     end
 end
 end % plotErri function
 
 % ======================================
 
-function e = erriF(Fvect,Rfi,Rc,f,opts)
+function e = erriF(Fvect,Rfi,Rc,f,SMopts)
 % Special case error function where only F is optimized and the coarse
 % model is not re-evaluated - interpolation/extrapolation is used on the
 % provided coarse model response...
@@ -1045,16 +1027,18 @@ end
 Rs = interp1(fClean,RsCompClean,f,'spline');
 
 diffR = Rfi{1} - reshape(Rs,length(f),1);
-e = norm(diffR,opts.errNorm);
+e = norm(diffR, SMopts.errNorm);
 
-% if isequal(opts.errNorm,'L1')
+% if isequal(SMopts.errNorm,'L1')
 %     e = sum(abs(diffR));  % Error vector [Nm,1]
-% elseif isequal(opts.errNorm,'L2')
+% elseif isequal(SMopts.errNorm,'L2')
 %     e = sum(abs(diffR).^2);  % Error vector [Nm,1]
-% elseif isequal(opts.errNorm,'Linf')
+% elseif isequal(SMopts.errNorm,'Linf')
 %     e = max(abs(diffR));  % Error vector [Nm,1]
 % else
-%     error(['Unknown norm: ' opts.errNorm,'.  Should be L1, L2 or Linf']);
+%     error(['Unknown norm: ' SMopts.errNorm,'.  Should be L1, L2 or Linf']);
 % end
 
 end % erriF function
+
+% ======================================

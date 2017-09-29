@@ -59,9 +59,6 @@ SMopts.ximin = Mc.ximin;
 SMopts.ximax = Mc.ximax;
 SMopts.xpmin = Mc.xpmin;
 SMopts.xpmax = Mc.xpmax;
-SMopts.optsFminS = optimset('display','iter');
-SMopts.optsPBIL.display =  'iter';
-SMopts.optsPBIL.Nfeval = 5000;
 SMopts.wk = 1.15;
 
 % Set up the optimization
@@ -77,11 +74,6 @@ OPTopts.goalWeight = {1};
 OPTopts.goalStart = {9};
 OPTopts.goalStop = {11};
 OPTopts.errNorm = {1};
-OPTopts.optsPBIL.display =  'iter'; 
-OPTopts.optsPBIL.Nfeval = 5000;
-OPTopts.optsPBIL.Nbest = 10; % DOM
-OPTopts.M_PBIL = 6;
-OPTopts.optsFminS = optimset('display','iter');
 
 %% Run the main loop
 [Ri,Si,Pi] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts);

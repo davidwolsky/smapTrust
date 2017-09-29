@@ -13,9 +13,6 @@ end
 % opts.getd = 0;
 % opts.getE = 1;
 
-opts.optsFminS = optimset('display','none');
-
-
 % x_init = [0.5,1.5,0.03,0.5,0.5]';
 x_init = [0.5,1.5,0.03]';
 % x_init = [0.5,1.5]';
@@ -65,8 +62,6 @@ SMopts.ximin = Mc.ximin;
 SMopts.ximax = Mc.ximax;
 SMopts.xpmin = Mc.xpmin;
 SMopts.xpmax = Mc.xpmax;
-% SMopts.optsFminS = optimset('display','none','TolX',1e-6,'TolFun',1e-6);
-% SMopts.optsPBIL.Nfeval = 5000;
 SMopts.globalSolver = 'ga';
 SMopts.optsGlobalOptim = optimoptions('ga');
 % SMopts.optsGlobalOptim.Display = 'final';
@@ -95,11 +90,6 @@ OPTopts.goalWeight = {1};
 OPTopts.goalStart = {3};
 OPTopts.goalStop = {7};
 OPTopts.errNorm = {2};
-OPTopts.optsPBIL.display =  'none'; 
-OPTopts.optsPBIL.Nfeval = 5000;
-OPTopts.optsPBIL.Nbest = 10; % DOM
-OPTopts.M_PBIL = 4;
-OPTopts.optsFminS = optimset('display','none');
 OPTopts.TolX = 10e-4;
 OPTopts.eta1 = 0.05;
 OPTopts.eta2 = 0.9;
@@ -107,9 +97,6 @@ OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
 OPTopts.DeltaInit = 0.25;
 OPTopts.startWithIterationZero = 0;
-% OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
-
-
 
 %% Build the models
 
