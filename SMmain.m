@@ -298,6 +298,8 @@ ii = 1;
 % Normalize the optimization parameters
 ximinn = OPTopts.ximin - OPTopts.ximin;
 ximaxn = OPTopts.ximax./OPTopts.ximax;
+% CRC_DDV: DWW: We need to come up with better names for these xinitn, init, xin.
+% camel case or paskal or with underscores or something >.< 
 xinitn = (xinit - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
 % The initial trust region radius
 Ti.Deltan{1} = DeltaInit;
@@ -332,7 +334,6 @@ else
     startWithIterationZero
     xin{1} = xinitn;
 end
-
 % De-normalize input vector
 xi{1} = xin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
 
