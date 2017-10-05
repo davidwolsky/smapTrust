@@ -1,4 +1,4 @@
-function [] = SM_MATLABtest(type)
+function [] = SM_MATLABtest_A(type)
 
 if nargin < 1
     type = 'c';
@@ -11,12 +11,15 @@ opts.getG = 0;
 opts.getxp = 0;
 opts.getF = 0;
 opts.getd = 0;
-opts.getE = 0;
+opts.getE = 1;
 
-opts.optsFminS = optimset('display','iter');
+opts.optsFminS = optimset('display','none');
 
 
-x_init = [0.5,1.5,0.03]';
+% x_init = [0.5,1.5,0.03,0.5,0.5]';
+% x_init = [0.5,1.5,0.03]';
+% CRC_TestEnabled: using values from previously testrun known c 
+x_init = [0.964612260448512, 0.930319809324020, 0.865129843255812]';
 % x_init = [0.5,1.5]';
 xp_init = [2,1]';
 
@@ -64,16 +67,19 @@ SMopts.ximin = Mc.ximin;
 SMopts.ximax = Mc.ximax;
 SMopts.xpmin = Mc.xpmin;
 SMopts.xpmax = Mc.xpmax;
-SMopts.optsFminS = optimset('display','iter','TolX',1e-6,'TolFun',1e-6);
+SMopts.optsFminS = optimset('display','none','TolX',1e-6,'TolFun',1e-6);
 SMopts.optsPBIL.Nfeval = 5000;
 SMopts.wk = 1.0;
 
 % Set up the optimization
 OPTopts.ximin = Mf.ximin;
 OPTopts.ximax = Mf.ximax;
-OPTopts.Ni = 5;
+OPTopts.Ni = 15;
+OPTopts.TRNi = OPTopts.Ni*2;
+% OPTopts.TRNi = 1;
 OPTopts.Rtype = {'Gen'};
-OPTopts.globOpt = 1;
+% OPTopts.globOpt = 1;
+OPTopts.globOpt = 0;
 OPTopts.goalType = {'minimax'};
 OPTopts.goalResType = {'Gen'};
 % OPTopts.goalVal = {-20};
@@ -81,12 +87,19 @@ OPTopts.goalWeight = {1};
 OPTopts.goalStart = {3};
 OPTopts.goalStop = {7};
 OPTopts.errNorm = {2};
-OPTopts.optsPBIL.display =  'iter'; 
+OPTopts.optsPBIL.display =  'none'; 
 OPTopts.optsPBIL.Nfeval = 5000;
 OPTopts.optsPBIL.Nbest = 10; % DOM
 OPTopts.M_PBIL = 4;
 OPTopts.optsFminS = optimset('display','none');
+OPTopts.plotIter = 1;
 OPTopts.TolX = 10e-4;
+OPTopts.eta1 = 0.05;
+OPTopts.eta2 = 0.9;
+OPTopts.alp1 = 2.5;
+OPTopts.alp2 = 0.25;
+OPTopts.DeltaInit = 0.25;
+OPTopts.testEnabled = true;
 % OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
 
 
@@ -108,7 +121,9 @@ if any(type == 'B')
     SMopts.getB = 1;
 end
 if any(type == 'c')
-    c = (rand(Nn,1) - 0.5)./5;
+    % c = (rand(Nn,1) - 0.5)./5;
+    % CRC_TestEnabled: Changed for specific test run:
+    c = [-0.019217570882377;-0.080709094966322;-0.073605341478733]
 %     c = x_init./10;
     modPar.c = c;
     SMopts.getc = 1;
@@ -148,36 +163,12 @@ end
 
 
 %% Run the main loop
-[Ri,Si,Pi,Ci,Oi,Li,TRi] = SMmain(x_init,Sinit,SMopts,Mf,Mc,OPTopts);
+[Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(x_init,Sinit,SMopts,Mf,Mc,OPTopts);
 
+plotNormalised = false;
+% plotIterations(true, Pi, Ti.Delta, OPTopts, plotNormalised, 'universalised -- _A');
+keyboard;
 
-	% iterateSiXp = zeros(1,length(Si));
-	% for ii = 1+1:length(Si)+1
-		% iterateSiXp(ii-1) = ii;
-    % end
-
-% transPi = [1.0000    1.0000    0.9999; 0.9930    0.9312    1.0466; 1.1675 0.9095    0.8870; 1.0273    0.9820    0.7862; 1.0580    1.0528 0.9155; 1.0585    1.0538    0.9173; 1.0585    1.0538    0.9173]
-
-
-	figure()
-    markerstr = {'s','o','x','+','*','d','.','^','v','>','<','p','h'};
-    colourstr = {'k','b','r','g','m','c','y'};
-    transPi = transpose(cell2mat(Pi))
-	transTRi = transpose(cell2mat(TRi))
-	c
-    for jj=1:size(transPi,2)
-		% plot(transPi(:,jj), strcat(markerstr{jj},colourstr{jj}),'LineWidth',2,'MarkerSize',10 ), grid on, hold on
-		errorbar(transPi(:,jj), transTRi(:,jj), strcat(markerstr{jj},colourstr{jj}),'LineWidth',1.5,'MarkerSize',10 ), grid on, hold on
-    end
-    xlabel('Iteration')
-	ylabel('Pi Value')
-	title({	'Pi Values '})
-	% OPTopts.goalStart
-	% OPTopts.goalStop
-	legend()
-
-	keyboard;
-	Si{1}{1}.c
 
 
 function Rf = modelF(xi,f)
@@ -227,11 +218,11 @@ f = F(1).*fi + F(2);
 % R = sin(f);
 g = 0;
 for nn = 1:Nn-1
-%     R = R + x(nn).*sin((2*nn-1).*f) + (x(nn) - 2).^(nn./3);
-%     R = R + x(nn).*sin((2*nn-1).*f) + x(nn).*(f./100).^(Nn-nn);
-% R = R + (f - x(nn)).^(2);
-g = g + 100.*(x(nn+1) - x(nn).^2).^2 + (x(nn) - 1).^2;
-% g = g + x(nn).^2;
+    %     R = R + x(nn).*sin((2*nn-1).*f) + (x(nn) - 2).^(nn./3);
+    %     R = R + x(nn).*sin((2*nn-1).*f) + x(nn).*(f./100).^(Nn-nn);
+    % R = R + (f - x(nn)).^(2);
+    g = g + 100.*(x(nn+1) - x(nn).^2).^2 + (x(nn) - 1).^2;
+    % g = g + x(nn).^2;
 end
 R = abs((f - 5).^(2+log(g+1)));
 

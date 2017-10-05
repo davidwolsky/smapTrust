@@ -93,7 +93,6 @@ else
 %     fc = S.f;
 end
 
-
 % Evaluate the coarse model to find the response vector size
 Rc = [];
 for pp = 1:Np

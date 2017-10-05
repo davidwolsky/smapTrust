@@ -4,6 +4,54 @@
 		"selected_items":
 		[
 			[
+				"tol",
+				"TolX_achieved"
+			],
+			[
+				"TR",
+				"TRNi"
+			],
+			[
+				"costS",
+				"costSi"
+			],
+			[
+				"S_",
+				"S_obs"
+			],
+			[
+				"Si",
+				"Si_all"
+			],
+			[
+				"succs",
+				"successCount"
+			],
+			[
+				"Ni",
+				"Ni"
+			],
+			[
+				"if",
+				"ifeif\tif … elseif … end"
+			],
+			[
+				"plott",
+				"plotIterations"
+			],
+			[
+				"test",
+				"testEnabled"
+			],
+			[
+				"De",
+				"De-normalize"
+			],
+			[
+				"trans",
+				"transDelta"
+			],
+			[
 				"plo",
 				"plotIter"
 			],
@@ -19,7 +67,8 @@
 			"file": "SMmain.m",
 			"settings":
 			{
-				"buffer_size": 28093,
+				"buffer_size": 36003,
+				"encoding": "UTF-8",
 				"line_ending": "Windows"
 			}
 		},
@@ -27,7 +76,60 @@
 			"file": "SM_MATLABtest.m",
 			"settings":
 			{
-				"buffer_size": 4039,
+				"buffer_size": 4255,
+				"encoding": "UTF-8",
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "buildSurr.m",
+			"settings":
+			{
+				"buffer_size": 28199,
+				"encoding": "UTF-8",
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "tests_mathModel/SM_MATLABtest_A.m",
+			"settings":
+			{
+				"buffer_size": 4701,
+				"encoding": "UTF-8",
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "utils/plotModels.m",
+			"settings":
+			{
+				"buffer_size": 1461,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "evalSurr.m",
+			"settings":
+			{
+				"buffer_size": 4749,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "examples/MSstub/SM_MSstubFEKO.m",
+			"settings":
+			{
+				"buffer_size": 3311,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "utils/plotIterations.m",
+			"settings":
+			{
+				"buffer_size": 4398,
+				"encoding": "UTF-8",
 				"line_ending": "Windows"
 			}
 		}
@@ -39,12 +141,12 @@
 	"build_varint": "",
 	"command_palette":
 	{
-		"height": 0.0,
+		"height": 490.0,
 		"last_filter": "",
 		"selected_items":
 		[
 		],
-		"width": 0.0
+		"width": 516.0
 	},
 	"console":
 	{
@@ -64,10 +166,15 @@
 	},
 	"expanded_folders":
 	[
-		"/C/Users/Rib/Documents/GitHub/masters/smapTrust"
+		"/C/Users/19718330/Documents/GitHub/masters/ws_smap/smapTrust"
 	],
 	"file_history":
 	[
+		"/C/Users/19718330/Documents/GitHub/masters/ws_smap/smapTrust/utils/plotCosts.m",
+		"/C/Users/19718330/Documents/GitHub/masters/ws_smap/smapTrust/buildSurr.m",
+		"/C/Users/19718330/Documents/GitHub/masters/ws_smap/smapTrust/utils/plotModels.m",
+		"/C/Users/19718330/Documents/GitHub/masters/ws_smap/smapTrust/utils/plotIterations.m",
+		"/C/Users/19718330/Documents/GitHub/masters/ws_smap/smapTrust/SMmain.m",
 		"/C/Users/Rib/Documents/GitHub/masters/smapTrust/FMINSEARCHBND/FMINSEARCHBND/fminsearchcon.m",
 		"/C/Users/Rib/Documents/GitHub/masters/smapTrust/utils/PBIL.m",
 		"/C/Users/Rib/Documents/GitHub/masters/smapTrust/utils/PBILreal.m",
@@ -77,13 +184,15 @@
 	],
 	"find":
 	{
-		"height": 34.0
+		"height": 43.0
 	},
 	"find_in_files":
 	{
-		"height": 0.0,
+		"height": 117.0,
 		"where_history":
 		[
+			"<open folders>",
+			""
 		]
 	},
 	"find_state":
@@ -91,6 +200,106 @@
 		"case_sensitive": false,
 		"find_history":
 		[
+			"Sinit",
+			"ximin",
+			"erriF",
+			"type",
+			"Rci",
+			"Rsi",
+			"xinitn",
+			"costS",
+			"xin_all",
+			"Si_all",
+			"costS",
+			"count_all",
+			"Ti",
+			"Rfi",
+			"buildSurr",
+			"Rsi",
+			"successCount",
+			"ni",
+			"Ni",
+			"tol",
+			"costSi",
+			"xinitn",
+			"rho_all",
+			"xi_all",
+			"};\n",
+			"costSurr",
+			"cost",
+			"si_a",
+			"key",
+			"costFunc",
+			"costS_all",
+			"costChangeF",
+			"buildSurr",
+			"costS",
+			"costSurr",
+			"costSi",
+			"Nr",
+			"+1-1",
+			"Si{ii}",
+			"costSi",
+			"Nc",
+			"Rfi",
+			"Si_all",
+			"Ti.rho",
+			"costS_all",
+			"costF_all",
+			"count_all",
+			"ximinnTR = max((xin{ii} - Ti.Deltan{ii}),ximinn);\n            ximaxnTR = min((xin{ii} + Ti.Deltan{ii}),ximaxn);",
+			"ximinn",
+			"DeltaInit",
+			"TREnabled",
+			"plotNomalised",
+			"modelF",
+			"TREnabled",
+			"OPTopts.TREnabled",
+			"Ndi",
+			"DeltaInit",
+			"TREnabled",
+			"ximinn",
+			"TREnabled",
+			"optopts",
+			"plot",
+			"plotIter",
+			"testEnabled",
+			"coarseMod",
+			"Si_all",
+			"costSurr",
+			"xin",
+			"modPar",
+			"globOpt",
+			"TRNi",
+			"Ni",
+			"TRNi",
+			"alp1",
+			"OPTopts",
+			"alp2",
+			"eta",
+			"eta1",
+			"Ti",
+			"xi_all",
+			"Rfi_all",
+			"xi_all",
+			"xin_all",
+			"xi_all",
+			"Si_all",
+			"costS_all",
+			"Si_all",
+			"xi_all",
+			"Delta",
+			"eta1",
+			"plotIterations",
+			"dww",
+			"Delta",
+			"plot",
+			"todo",
+			"todo_D",
+			"plotIterations",
+			"Delta",
+			"plotIterations",
+			"Ni",
 			"Rci",
 			"OPTopts",
 			"TolX",
@@ -118,8 +327,7 @@
 			"cell",
 			"reshape",
 			"resize",
-			"figure",
-			"plot"
+			"figure"
 		],
 		"highlight": true,
 		"in_selection": false,
@@ -127,6 +335,8 @@
 		"regex": false,
 		"replace_history":
 		[
+			"plotNormalised",
+			"TR.eta1"
 		],
 		"reverse": false,
 		"show_context": true,
@@ -137,7 +347,7 @@
 	"groups":
 	[
 		{
-			"selected": 0,
+			"selected": 2,
 			"sheets":
 			[
 				{
@@ -146,64 +356,29 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 28093,
+						"buffer_size": 36003,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								24031,
-								24031
+								1802,
+								1802
 							]
 						],
 						"settings":
 						{
+							"spell_check": true,
 							"syntax": "Packages/Matlab/Matlab.sublime-syntax",
 							"tab_size": 4,
 							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 7397.0,
+						"translation.y": 152.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 1,
-					"type": "text"
-				}
-			]
-		},
-		{
-			"selected": 0,
-			"sheets":
-			[
-				{
-					"buffer": 0,
-					"file": "SMmain.m",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 28093,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								12638,
-								12638
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/Matlab/Matlab.sublime-syntax",
-							"tab_size": 4,
-							"translate_tabs_to_spaces": true
-						},
-						"translation.x": 0.0,
-						"translation.y": 3747.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 0,
+					"stack_index": 6,
 					"type": "text"
 				},
 				{
@@ -212,15 +387,233 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 4039,
+						"buffer_size": 4255,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								4039,
-								4039
+								1796,
+								1796
+							]
+						],
+						"settings":
+						{
+							"history_list_is_closing": true,
+							"syntax": "Packages/Matlab/Matlab.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 1241.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 3,
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "buildSurr.m",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 28199,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								27834,
+								27841
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Matlab/Matlab.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 13218.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 0,
+					"type": "text"
+				}
+			]
+		},
+		{
+			"selected": 1,
+			"sheets":
+			[
+				{
+					"buffer": 3,
+					"file": "tests_mathModel/SM_MATLABtest_A.m",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 4701,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1611,
+								1611
+							]
+						],
+						"settings":
+						{
+							"history_list_is_closing": true,
+							"syntax": "Packages/Matlab/Matlab.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 1964.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 8,
+					"type": "text"
+				},
+				{
+					"buffer": 4,
+					"file": "utils/plotModels.m",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 1461,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								341,
+								298
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Objective-C/Objective-C.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 1,
+					"type": "text"
+				},
+				{
+					"buffer": 0,
+					"file": "SMmain.m",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 36003,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								13484,
+								13484
+							]
+						],
+						"settings":
+						{
+							"spell_check": true,
+							"syntax": "Packages/Matlab/Matlab.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 5333.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 2,
+					"type": "text"
+				},
+				{
+					"buffer": 5,
+					"file": "evalSurr.m",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 4749,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								4028,
+								4028
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Matlab/Matlab.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 2273.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 5,
+					"type": "text"
+				},
+				{
+					"buffer": 6,
+					"file": "examples/MSstub/SM_MSstubFEKO.m",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 3311,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"history_list_is_closing": true,
+							"syntax": "Packages/Matlab/Matlab.sublime-syntax"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 4,
+					"type": "text"
+				},
+				{
+					"buffer": 7,
+					"file": "utils/plotIterations.m",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 4398,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								78,
+								0
 							]
 						],
 						"settings":
@@ -233,7 +626,38 @@
 						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 2,
+					"stack_index": 9,
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "SM_MATLABtest.m",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 4255,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								3176,
+								3176
+							]
+						],
+						"settings":
+						{
+							"history_list_is_closing": true,
+							"syntax": "Packages/Matlab/Matlab.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 3656.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 7,
 					"type": "text"
 				}
 			]
@@ -241,7 +665,7 @@
 	],
 	"incremental_find":
 	{
-		"height": 21.0
+		"height": 28.0
 	},
 	"input":
 	{
@@ -267,7 +691,7 @@
 		"cols":
 		[
 			0.0,
-			0.406617647058,
+			0.83882127193,
 			1.0
 		],
 		"rows":
@@ -285,7 +709,7 @@
 	"project": "sm.sublime-project",
 	"replace":
 	{
-		"height": 38.0
+		"height": 52.0
 	},
 	"save_all_on_build": true,
 	"select_file":
@@ -294,6 +718,38 @@
 		"last_filter": "",
 		"selected_items":
 		[
+			[
+				"plot",
+				"utils\\plotModels.m"
+			],
+			[
+				"sm_mat",
+				"SM_MATLABtest.m"
+			],
+			[
+				"sm_ms",
+				"examples\\MSstub\\SM_MSstubFEKO.m"
+			],
+			[
+				"evalsu",
+				"evalSurr.m"
+			],
+			[
+				"plotm",
+				"utils\\plotModels.m"
+			],
+			[
+				"main",
+				"SMmain.m"
+			],
+			[
+				"plo",
+				"utils\\plotIterations.m"
+			],
+			[
+				"buil",
+				"buildSurr.m"
+			],
 			[
 				"test",
 				"SM_MATLABtest.m"
@@ -312,14 +768,18 @@
 	},
 	"select_symbol":
 	{
-		"height": 0.0,
+		"height": 490.0,
 		"last_filter": "",
 		"selected_items":
 		[
+			[
+				"",
+				"fineMod"
+			]
 		],
-		"width": 0.0
+		"width": 490.0
 	},
-	"selected_group": 1,
+	"selected_group": 0,
 	"settings":
 	{
 	},

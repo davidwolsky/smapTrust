@@ -9,9 +9,14 @@ function cost = costFunc(R,GOALS)
 % GOALS can contain (typically a subset of OPTopts used in the main function):
 %   goalResType:Cell array of response names to consider for the different goals {1,Ng}
 %               Valid types:
-%               'S11dB' 
-%               'S11complex' - ToDo?
-%               'Gen' - Ignored (default)
+%               'Sb,a_complex'
+%               'Sb,a_real'
+%               'Sb,a_imag'
+%               'Sb,a_dB'
+%               'Sb,a_abs'
+%               'Sb,a_angle'
+%               'Sb,a_deg' - degrees
+%               'Gen' - general 
 %   goalType:   Cell array of goal types {1,Ng}
 %               Valid types:
 %                   'lt' (Less than)
@@ -29,10 +34,10 @@ function cost = costFunc(R,GOALS)
 %                   
 % Date created: 2015-06-26
 % Dirk de Villiers 
-% Last Modified: 2015-06-26
+% Last Modified: 2017-04-24
 % Updates:
 % 2015-06-26: Write function shell and basic functionality from SMmain.m migration
-
+% 2017-04-24: Introduced findResponseFor function to share code to find a response matching the goal in question.
 
 % Make R a structure if only a vector is passed
 if ~isstruct(R) && ~iscell(R), R.r = R; end;
@@ -51,34 +56,14 @@ for gg = 1:Ng
     if isfield(GOALS,'goalStart'), G.goalStart = GOALS.goalStart{gg}; end
     if isfield(GOALS,'goalStop'), G.goalStop = GOALS.goalStop{gg}; end
     if isfield(GOALS,'goalCent'), G.goalCent = GOALS.goalCent{gg}; end
-    G.errNorm = 'L1';
+    G.errNorm = 1;
     if isfield(GOALS,'errNorm'), G.errNorm = GOALS.errNorm{gg}; end
     G.goalWeight = 1;
     if isfield(GOALS,'goalWeight'), G.goalWeight = GOALS.goalWeight{gg}; end
     wSum = wSum + G.goalWeight;
     
-    % Special case for complex and dB S11 goals...
-    if isfield(R{1},'t') && isfield(GOALS,'goalResType') && strcmp(R{1}.t,'S11complex') && strcmp(G.goalResType,'S11dB')
-        Ri = R{1};
-        Ri.r = dB20(R{1}.r);
-    else
-        Ri = R{1};
-    end
-    tt = 1;
-    while tt < Nr
-        if strcmp(R{tt}.t,GOALS.goalResType{gg})
-            Ri = R{tt};
-            break;
-        end
-        % Special case for complex and dB S11 goals...
-        if isfield(R{tt},'t') && isfield(GOALS,'goalResType') && strcmp(R{tt}.t,'S11complex') && strcmp(G.goalResType,'S11dB')
-            Ri = R{1};
-            Ri.r = dB20(R{1}.r);
-            break;
-        end
-        tt = tt + 1;
-    end
-    
+    Ri = findResponseFor(R, GOALS.goalResType{gg});
+
     % Sort out the centre, start and stop positions - use index if no frequency is
     % specified in the response structure
     Nm = length(Ri.r);
@@ -155,7 +140,7 @@ for gg = 1:Ng
                   c0 = -min(i2-iCent,iCent-i1) +  beta*norm(yi,2);
             end
         otherwise
-            error('Unknown goalType');
+            error(['Unknown goalType',G.goalType]);
     end
     
     cSum = cSum + G.goalWeight*c0;

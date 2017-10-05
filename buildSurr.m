@@ -11,7 +11,7 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %
 % In general the extraction performs best when all input variables,
 % including implicit variables, are of the degree 1.  This is because the
-% internal optimizer attemps to optimize additive as well as multiplicative
+% internal optimizer attempts to optimize additive as well as multiplicative
 % variables - the latter typically normalized to 1 - at the same time.
 %
 % Inputs:
@@ -27,17 +27,18 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %          the implicit (pre-assigned) parameters.
 %  S.xp - Optional pre-assigned variables (depending on the coarse model [Nq,1]
 %  S.f - Optional frequency vector where the responses are calculated [Nm,1] (must be included for FSM)
-% opts: User options structure - mostly flags to specifiy type of SM (defaults)
-%   getA - flag to get multiplicative OSM (set to 2 to get M factors), typically 1 to force single factor for all outputs which is much faster and often works well (0)
+% opts: User options structure - mostly flags to specify type of SM (defaults)
+%   getA - flag to get multiplicative OSM (set to 2 to get M factors), typically 1 to force 
+%          single factor for all outputs which is much faster and often works well (0).
 %   getB - flag to get multiplicative input SM (0)
 %          If getB == 1 the full matrix will be extracted
 %          If getB == 2 only diagonal entries will be extracted (uncoupled system)
 %          If getB is a boolean vector of length Nn, only the 'true'
 %          entries on the diagonal will be extracted.  This is an uncoupled
-%          system with only a subset of the paramaters allowed to have
+%          system with only a subset of the parameters allowed to have
 %          a linear variation.
 %   getc - flag to get additive input SM (1)
-%   getG - flag to get multiplicative ISM (0)
+%   getG - flag to get multiplicative part of ISM (0)
 %          If getG == 1 the full matrix will be extracted
 %          If getG is a boolean vector of length Nn, only the 'true'
 %          columns be extracted.  This can be used to remove dependence on
@@ -45,21 +46,26 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %          If getG is a boolean Matrix of size [Nq,Nn], only the 'true'
 %          entries will be optimized.  This allow the user full control of
 %          dependencies between optimization and implicit parameters
-%   getxp- flag to optimize additive ISM (0)
+%   getxp- flag to optimize additive part of ISM (0) 
 %   getd - flag to get additive OSM (0)
 %   getE - flag to get first order OSM (0)
 %   getF - flag to get frequency mapping (0)
 %   wk - weights to determine the error function in the model fitting when
-%        more than one fine point is included.  Can be the same length 
-%        as the number of cells in xi and Rfi.  Default all (1). See eq
+%        more than one fine point is included. Can be the same length 
+%        as the number of cells in xi and Rfi. Default all (1). See eq
 %        (11) in the reference. If length(xi) > 1 and length(wk) == 1 then
 %        wk will be generated internally as an exponential function,
 %        growing by the factor wk ie: wk.^[1:length(xi)]
+%        Additional option added for wk == 0 with length(xi) == 1. This option
+%        uses the number of SM types requested (implying the number of unknowns)
+%        to keep track of how many fine model points to include. Ones are used for
+%        the weight of the number of SM types for the most recent fine points 
+%        and a zero weight is applied to all previous entries.
 %   vk - weights to determine the error function in the Jacobian fitting when
-%        more than one fine point is included.  Can be the same length 
-%        as the number of cells in xi and Rfi.  Default all (0). See eq
+%        more than one fine point is included. Can be the same length 
+%        as the number of cells in xi and Rfi. Default all (0). See eq
 %        (11) in the reference. If length(xi) > 1 and length(vk) == 1 then
-%        wk will be generated internally as an exponential function,
+%        vk will be generated internally as an exponential function,
 %        growing by the factor vk ie: vk.^[1:length(xi)]
 %   ximin - vector of minimum values for xi to constrain the search space [Nn,1]
 %   ximax - vector of maximum values for xi to constrain the search space [Nn,1]
@@ -95,7 +101,7 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %          the implicit (pre-assigned) parameters.
 % A:       Multiplicative OSM factor diag[Nm,Nm]
 % B:       Multiplicative input SM factor [Nn,Nn]
-% c:       Additative input SM term [Nn,1]
+% c:       Additive input SM term [Nn,1]
 % G:       Multiplicative ISM factor [Nq,Nm]
 % xp:      Pre-assigned parameters [Nq,1]
 % d:       Additive zeroth order OSM term [Nm,1]
@@ -110,7 +116,7 @@ function Si = buildSurr(xi,Rfi,S,opts)
 % Updates:
 % 2014-11-09: Write function shell and basic functionality
 % 2014-11-10: Fix constraints of input SM (case 1), cases 2 - 5
-% 2014-11-11: Impliment add OSM (d), Fix B to diagonal matrix
+% 2014-11-11: Implement add OSM (d), Fix B to diagonal matrix
 % 2014-11-13: Add some more 2 variable cases. Include global search flag
 %             and constraint flags. Add global search to case 5.
 % 2014-11-14: Add error norm and error weight options
@@ -144,15 +150,18 @@ function Si = buildSurr(xi,Rfi,S,opts)
 % 2016-02-26: Fixed serious issue with FSM
 % 2016-02-29: Start redesign to include the bounds while using
 %             fminsearchcon
-% 2016-03-01: Continue redisign to handle bounds properly - get rid of
+% 2016-03-01: Continue redesign to handle bounds properly - get rid of
 %             globOpt option for now
 % 2016-03-07: Continue with new bounds design - change standard workflow to
 %             always include all the types of SM in the S model.  Keep defaults if not
 %             requested in PE.
+% 2017-03-08: Introduced a wk == 0  option that used the number of SM types to determine how
+%             how many of the most recent fine points to use when calculating the error function
+%             for model fitting. 
 
-% ToDo: Impliment E (first order OSM)
+% ToDo: Implement E (first order OSM)
 % ToDo: Jacobian fitting in error functions (vk)
-% ToDo: Re-indtroduce globOpt option
+% ToDo: Re-introduce globOpt option
 % ToDo: Include more optimizer options - start with fmincon
 
 % Preassign some variables
@@ -165,14 +174,14 @@ function Si = buildSurr(xi,Rfi,S,opts)
 if iscell(xi) && iscell(Rfi) && (length(xi) == length(Rfi))   % Basic error checking - if any issue here only first point will be used
     Nc = length(xi);  % Number of input point cells
 else     % Force only first point to be used, and make cell arrays
-    if ~iscell(xi), xi = mat2cell(xi); end 
-    if ~iscell(Rfi), Rfi = mat2cell(Rfi); end 
+    if ~iscell(xi), xi = {xi}; end 
+    if ~iscell(Rfi), Rfi = {Rfi}; end 
     Nc = 1;
 end
 
 % Get vector sizes
-Nn = length(xi{Nc});
-Nm = length(Rfi{1});
+Nn = length(xi{Nc});    % Number of input parameters
+Nm = length(Rfi{1});    % Number of responses
 
 % Default SM type requests
 getA = 0;
@@ -203,30 +212,6 @@ if isfield(S,'f')
     Fmax = [inf,inf]';
 end
 
-% Default optimization parameters
-optsFminS = optimset('display','none');
-globOpt = 0;
-M_PBIL = 8;
-optsPBIL = [];
-errNorm = 2;
-errW = 1;
-if isfield(opts,'wk') 
-    wk = opts.wk;
-    if length(wk) == 1
-        wk = wk.^[1:Nc];
-    end
-else
-    wk = ones(1,Nc);
-end
-if isfield(opts,'vk') 
-    vk = opts.vk;
-    if length(vk) == 1
-        vk = vk.^[1:Nc];
-    end
-else
-    vk = ones(1,Nc);
-end
-
 % Get user SM type request
 if isfield(opts,'getA'), getA = opts.getA; end
 if isfield(opts,'getB'), getB = opts.getB; end
@@ -236,6 +221,44 @@ if isfield(opts,'getxp'), getxp = opts.getxp; end
 if isfield(opts,'getd'), getd = opts.getd; end
 if isfield(opts,'getE'), getE = opts.getE; end
 if isfield(opts,'getF'), getF = opts.getF; end
+
+NSMUnknowns = getNSMUnknowns();
+
+% Default optimization parameters
+optsFminS = optimset('display','none');
+globOpt = 0;
+% M_PBIL = 8;
+% optsPBIL = [];
+errNorm = 2;
+errW = 1;
+if isfield(opts,'wk') 
+    wk = opts.wk;
+    if length(wk) == 1
+        if (wk == 0) 
+            wk = ones(1,Nc);
+            % If the error function for the model fitting becomes overdetermined 
+            % and can give a skewed model.
+            if (Nc > NSMUnknowns)
+                wk(1:end-NSMUnknowns) = 0;
+            end
+        else
+            wk = wk.^[1:Nc];
+        end
+    end
+else
+    wk = ones(1,Nc);
+end
+
+if isfield(opts,'vk') 
+    % CRC_DDV: DWW: Should the weighting for model fitting be applied to this Jacobian fitting too?
+    vk = opts.vk;
+    if length(vk) == 1
+        vk = vk.^[1:Nc];
+    end
+else
+    % CRC_DDV: DWW: The documentation says that this should be zeros by default?
+    vk = ones(1,Nc);
+end
 
 % Get user constraints
 if isfield(opts,'ximin'), ximin = opts.ximin; end
@@ -250,10 +273,9 @@ if isfield(opts,'Fmax'), Fmax = opts.Fmax; end
 
 % Get user optimization parameters
 if isfield(opts,'optsFminS'), optsFminS = opts.optsFminS; end
-% if isfield(opts,'globOpt'), globOpt = opts.globOpt; end
-if isfield(opts,'globOpt'), warning('Global optimization not currently implimented - just using local constrained search'); end
-if isfield(opts,'M_PBIL'), M_PBIL = opts.M_PBIL; end
-if isfield(opts,'optsPBIL'), optsPBIL = opts.optsPBIL; end
+if isfield(opts,'globOpt'), globOpt = opts.globOpt; end
+% if isfield(opts,'M_PBIL'), M_PBIL = opts.M_PBIL; end
+% if isfield(opts,'optsPBIL'), optsPBIL = opts.optsPBIL; end
 if isfield(opts,'errNorm'), errNorm = opts.errNorm; end
 if isfield(opts,'errW'), errW = opts.errW; end
 
@@ -279,6 +301,7 @@ if getA
 %         % Have to run the coarse model to find the response size
 %         Rc = evalSurr(xi{Nc},S);
 %         [Nm,Np] = size(Rc);
+%   want to take the number of paramaters requried as the number of actual values used. 
         lenA = Nm;
         if isfield(S,'A')
             A_init = S.A;
@@ -461,9 +484,9 @@ if strcmp(inputType,'F') || strcmp(inputType,'AF') && Nc == 1 % Special cases wh
     S.F = [1,0];
     Rc = evalSurr(xi{Nc},S);
     
-    if 0 && globOpt    % Only use local optimizer for FSM
-        F_init = PBILreal(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),Fmin,Fmax,M_PBIL,optsPBIL);
-    end
+    % if 0 && globOpt    % Only use local optimizer for FSM
+        % F_init = PBILreal(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),Fmin,Fmax,M_PBIL,optsPBIL);
+    % end
 %     Fvect = fminsearchcon(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),F_init,[0, -inf],[],[-min(S.f),0;0,-1],[0;0],[],optsFminS);     % Positive multiplier, and minimum frequency
     Fvect = fminsearchcon(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),F_init,[0, -inf],[],[-min(S.f),-1],[0],[],optsFminS);     % Positive multiplier, and minimum frequency
     
@@ -574,13 +597,34 @@ else
     if getF
         LHS_mat(2*(Nn+Nq)+1,end-1:end) = [-min(S.f),-1];
     end
-    
-    if 0 && globOpt     % Not implimented yet
+
+    % CRC_DWW: for global optimisation work.
+    % prob = {}
+    % prob.objective = @(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE);
+    % prob.fitnessfcn = @(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE);
+    % prob.nvars = length(xi)
+    % prob.x0 = [];
+    % prob.Aineq = LHSmat
+    % prob.bineq = RHSvect
+    % prob.Aeq = [];
+    % prob.beq = [];
+    % prob.lb = ximinn
+    % prob.ub = ximaxn
+    % prob.nonlcon = nonLcon
+
+    if 0 && globOpt
+        [initVect] = ga(prob);
         % Start with global search to get initial value
-        [initVect] = PBILreal(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),minVect,maxVect,M_PBIL,optsPBIL);
+        % PBIL Not implimented yet
+        % [initVect] = PBILreal(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),minVect,maxVect,M_PBIL,optsPBIL);
     end
 %     optVect = fminsearch(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),initVect,optsFminS);
+%     keyboard
+    % TODO_DWW:
     optVect = fminsearchcon(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),initVect,minVect,maxVect,LHS_mat,RHS_vect,[],optsFminS);
+%     optsFminS.OptimalityTolerance = 1e-12
+%     [optVect,f,outputs,next] = fmincon(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),initVect,LHS_mat,RHS_vect,[],[],minVect,maxVect,[],optsFminS);
+    
 end
 % Rebuild the individual parameters from the vector
 A = diag(optVect(firstPos(1):lastPos(1)));
@@ -604,7 +648,64 @@ Si.d = d;
 
 % Additive first order OSM - ToDo
 
-end
+function NSMUnknowns = getNSMUnknowns()    
+% NSMUnknowns - The number of SM request types represent the number of unknowns that need to be solved. 
+    NSMUnknowns = 0;
+    % --- getA ---
+    if getA == 1
+        % Diagonal
+        NSMUnknowns = NSMUnknowns + 1;
+    elseif getA == 2
+        % Single factor
+        NSMUnknowns = NSMUnknowns + 1*Nm;
+    end
+
+    % --- getB ---
+    if getB == 1
+        % Full
+        NSMUnknowns = NSMUnknowns + Nn*Nn;
+    elseif getB == 2
+        % Diagonal
+        NSMUnknowns = NSMUnknowns + Nn*1;
+    else
+        % Custom diagonal
+        NSMUnknowns = NSMUnknowns + sum(getB);
+    end
+
+    % --- getc --- Additive SM
+    if getc == 1
+        NSMUnknowns = NSMUnknowns + Nn*1;
+    end
+
+    % --- getG --- Multiplicative ISM
+    if getG == 1
+        % Full
+        NSMUnknowns = NSMUnknowns + Nq*Nn;
+    else
+        % Custom diagonal
+        NSMUnknowns = NSMUnknowns + (sum(getB)*Nq);
+    end
+
+    % --- getxp --- Explicit
+    if getxp == 1
+        NSMUnknowns = NSMUnknowns + Nq;
+    end
+
+    % --- getd ---
+    if getd == 1
+        NSMUnknowns = NSMUnknowns + Nm*1;
+    end
+
+    % --- getE ---
+    % Do nothing yet
+
+    % --- getF ---
+    if getd == 1
+        NSMUnknowns = NSMUnknowns + 1;
+    end
+end % end getNSMUnknowns
+
+end % end buildSurr
 
 
 % Error function for optimization

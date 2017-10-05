@@ -11,11 +11,12 @@ opts.getG = 0;
 opts.getxp = 0;
 opts.getF = 0;
 opts.getd = 0;
-opts.getE = 0;
+opts.getE = 1;
 
-opts.optsFminS = optimset('display','iter');
+opts.optsFminS = optimset('display','none');
 
 
+% x_init = [0.5,1.5,0.03,0.5,0.5]';
 x_init = [0.5,1.5,0.03]';
 % x_init = [0.5,1.5]';
 xp_init = [2,1]';
@@ -64,16 +65,21 @@ SMopts.ximin = Mc.ximin;
 SMopts.ximax = Mc.ximax;
 SMopts.xpmin = Mc.xpmin;
 SMopts.xpmax = Mc.xpmax;
-SMopts.optsFminS = optimset('display','iter','TolX',1e-6,'TolFun',1e-6);
+SMopts.optsFminS = optimset('display','none','TolX',1e-6,'TolFun',1e-6);
 SMopts.optsPBIL.Nfeval = 5000;
-SMopts.wk = 1.0;
+% SMopts.wk = 10;
+SMopts.wk = 0;
 
 % Set up the optimization
 OPTopts.ximin = Mf.ximin;
 OPTopts.ximax = Mf.ximax;
-OPTopts.Ni = 5;
+OPTopts.Ni = 2;
+% OPTopts.TRNi = OPTopts.Ni;
+OPTopts.TRNi = 2*OPTopts.Ni;
+% OPTopts.TRNi = 1;
 OPTopts.Rtype = {'Gen'};
-OPTopts.globOpt = 1;
+% OPTopts.globOpt = 1;
+OPTopts.globOpt = 0;
 OPTopts.goalType = {'minimax'};
 OPTopts.goalResType = {'Gen'};
 % OPTopts.goalVal = {-20};
@@ -81,12 +87,17 @@ OPTopts.goalWeight = {1};
 OPTopts.goalStart = {3};
 OPTopts.goalStop = {7};
 OPTopts.errNorm = {2};
-OPTopts.optsPBIL.display =  'iter'; 
+OPTopts.optsPBIL.display =  'none'; 
 OPTopts.optsPBIL.Nfeval = 5000;
 OPTopts.optsPBIL.Nbest = 10; % DOM
 OPTopts.M_PBIL = 4;
 OPTopts.optsFminS = optimset('display','none');
 OPTopts.TolX = 10e-4;
+OPTopts.eta1 = 0.05;
+OPTopts.eta2 = 0.9;
+OPTopts.alp1 = 2.5;
+OPTopts.alp2 = 0.25;
+OPTopts.testEnabled = 0;
 % OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
 
 
@@ -148,7 +159,7 @@ end
 
 
 %% Run the main loop
-[Ri,Si,Pi,Ci,Oi,Li] = SMmain(x_init,Sinit,SMopts,Mf,Mc,OPTopts);
+[Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(x_init,Sinit,SMopts,Mf,Mc,OPTopts);
 
 keyboard;
 
