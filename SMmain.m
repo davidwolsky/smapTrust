@@ -38,9 +38,16 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   Ni:         Maximum number of iterations
 %   TRNi:       Maximum number of iterations for the Trust region loop.
 %               To turn the TR off use TRNi=1.
-%   globOpt:    Flag to run a globabl optimisation routine (1 for only first iteration, 2 for all iterations) (default 0)
-%   M_PBIL:     Vector of bits for the global search variables (see PBILreal.m)
-%   globOptSM:  Flag to run PBIL during the PE process (1 for only first iteration, 2 for all iterations) (default 0)
+%   globOpt:    Flag to run a globabl optimisation routine (1 for only first iteration, 
+%               2 for all iterations) (default 0)
+%   globOptSM:  Flag to run the global optimisation routine during the PE process 
+%               (1 for only first iteration, 2 for all iterations) (default 0)
+%   globalSolver:       String to choose the global optimiser solver type (default 'ga').
+%   optsGlobalOptim:    Problem options for the global optimiser chosen (e.g. optimoptions('ga')).
+%                       This needs to be specified when a non-default solver is chosen.
+%   localSolver:        String to choose the local optimiser solver type (default 'fmincon').
+%   optsLocalOptim:     Problem options for the local optimiser, e.g. optimoptions('fmincon'). 
+%                       This needs to be specified when a non-default solver is chosen.
 %   goalResType:Cell array of response names to consider for the different goals {1,Ng}
 %               Valid types:
 %               'Sb,a_complex'
@@ -66,16 +73,6 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   errNorm:    Cell array of type of error norms to use for optimization {1,Ng}
 %               Valid types: (1,2,inf)
 %   TolX:       Termination tolerance on X [ positive scalar - default 10^-2]
-%   optsFminS:  options for the fminsearch local optimizer
-%   TODO_DWW: Update this... now this uses problem.options = optimoptions(....
-
-% TODO_DWW: 
-% globalSolver
-% optsGlobalOptim
-% localSolver
-% optsLocalOptim
-
-%   optsPBIL:   options for the PBIL global optimizer
 %   plotIter:   Flag to plot the responses after each iteration
 %   eta1:       A factor used by the TR to define the bound governing when to keep or reduce the radius.
 %   eta2:       A factor used by the TR to decide the bound governing when to keep or grow the radius.
@@ -159,11 +156,6 @@ optsLocalOptim = optimoptions('fmincon');
 globalSolver = 'ga';
 optsGlobalOptim = optimoptions('ga');
 globOptSM = 0;
-% TODO_DWW: Deprecate - do it
-M_PBIL = 8;
-optsFminS = optimset('display','none');
-% TODO_DWW: Deprecate
-optsPBIL = [];
 plotIter = 1;
 eta1 = 0.05;
 eta2 = 0.9;
@@ -182,11 +174,6 @@ if isfield(OPTopts,'localSolver'), localSolver = OPTopts.localSolver; end
 if isfield(OPTopts,'optsLocalOptim'), optsLocalOptim = OPTopts.optsLocalOptim; end
 if isfield(OPTopts,'globalSolver'), globalSolver = OPTopts.globalSolver; end
 if isfield(OPTopts,'optsGlobalOptim'), optsGlobalOptim = OPTopts.optsGlobalOptim; end
-% TODO_DWW: Deprecate
-if isfield(OPTopts,'optsFminS'), optsFminS = OPTopts.optsFminS; end
-if isfield(OPTopts,'M_PBIL'), M_PBIL = OPTopts.M_PBIL; end
-% TODO_DWW: Deprecate
-if isfield(OPTopts,'optsPBIL'), optsPBIL = OPTopts.optsPBIL; end
 if isfield(OPTopts,'plotIter'), plotIter = OPTopts.plotIter; end
 if isfield(OPTopts,'eta1'), eta1 = OPTopts.eta1; end
 if isfield(OPTopts,'eta2'), eta2 = OPTopts.eta2; end
@@ -701,6 +688,7 @@ end %enforceFineModelLimits
 
 end % SMmain
 
+% ======================================
 
 function Rf = fineMod(M,xi)
 
@@ -761,16 +749,12 @@ end
 
 end % fineMod function
 
+% ======================================
 
 function Rc = coarseMod(M, xi, xp, f)
 
 % Rc: is a cell array of structures containing the response in Rc.r, the type Rc.t, and the
 % (optional) domain (typically frequency) in Rc.f.  Same length as M.Rtype
-%   hasError:   is true if an error was encountered during the simulation. Results cannot
-%               be trusted if this flag is true.
-%   TODO_DWW: Remove i guess... 
-%   TODO_DWW: flow through system if this is the chosen approach.
-%   TODO_DWW: add to the other methods
 % xi: is an array of input parameters - same order as those specified in M
 % xp: is an array of implicit parameters - same order as those specified in M
 % f: is an array of frequency points where to evaluate the model (optional)
@@ -849,6 +833,7 @@ end
 
 end % coarseMod function
 
+% ======================================
 
 function cost = costSurr(xin,S,OPTopts)
 
@@ -875,36 +860,7 @@ cost = costFunc(Rs,OPTopts);
 
 end % costSurr function
 
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% TODO_DWW: move to a seperate file
-
-function [] = createLog(filename, space)
-
-% Creates a log file from the variables stored in space.
-%   filename:   The filename for the log file that stores the workspace.
-%   space:      A grouping variable that houses all the values that should be stored in the log file.
-
-save(filename, 'space')
-
-end % createLog function
-
-
-function [space] = getPreppopulatedSpaceFrom(filename)
-
-% Load the 'space' varaible from a file. This is a grouping of variables of interest from a previous 
-% workspace/set of runs. This is typically used for loading the Ti.xi_all, Ti.Rfi_all, Ti.costF_all 
-% variables from the previous space. They are used to build a better surrogate.
-%   filename: the filename used to load variables from.
-% Returns 
-%   space: a grouping of variables loaded from a log file.
-
-load(filename, 'space')
-
-end % getPreppopulatedSpaceFrom function
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% ======================================
 
 function plotCosts(Ti, OPTopts, costS, costF)
 markerstr = 'xso+*d^v><ph.xso+*d^v><ph.';
@@ -981,7 +937,8 @@ ylabel('costF')
 xlabel('Iterations success points')
 title('costF')
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% ----- goals -----
 function plotGoals()
 if ( isfield(OPTopts, 'goalVal') )%&& isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
     Ng = length(OPTopts.goalVal);
@@ -1010,6 +967,8 @@ if ( isfield(OPTopts, 'goalVal') )%&& isfield(OPTopts, 'goalStart') && isfield(O
     end
 end % if validation
 end % plotImagGoals function
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% -----  -----
 
 end % plotCosts
+
+% ======================================

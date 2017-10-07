@@ -63,7 +63,8 @@ OPTopts.optsGlobalOptim.Display = 'final';
 OPTopts.localSolver = 'fmincon';
 OPTopts.optsLocalOptim = optimoptions('fmincon');
 OPTopts.optsLocalOptim.Display = 'iter-detailed';
-OPTopts.optsLocalOptim.DiffMinChange = 1e-4;
+% OPTopts.optsLocalOptim.DiffMinChange = 1e-4;
+OPTopts.optsLocalOptim.DiffMinChange = 1e-5;
 OPTopts.optsLocalOptim.Diagnostics = 'on';
 %
 % OPTopts.goalType = {'minimax'};
@@ -99,12 +100,6 @@ OPTopts.goalStart = {1.30e9, 1.60e9};
 OPTopts.goalStop = {1.45e9, 1.75e9};
 OPTopts.errNorm = {1,1};
 
-OPTopts.optsPBIL.display =  'iter'; 
-OPTopts.optsPBIL.Nfeval = 5000;
-OPTopts.optsPBIL.Nbest = 10; % DOM
-OPTopts.M_PBIL = 6;
-OPTopts.optsFminS = optimset('display','iter');
-% OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
 OPTopts.plotIter = 1;
 % Normalised tolerance in main loop
 OPTopts.TolX = 0.1;
@@ -112,8 +107,9 @@ OPTopts.eta1 = 0.05;
 OPTopts.eta2 = 0.9;
 OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
-% OPTopts.DeltaInit = 0.25;
-OPTopts.DeltaInit = 0.35;
+% OPTopts.DeltaInit = 0.15;
+OPTopts.DeltaInit = 0.25;
+% OPTopts.DeltaInit = 0.35;
 OPTopts.startWithIterationZero = 1;
 % OPTopts.prepopulatedSpaceFile = '.mat';
 
@@ -144,17 +140,16 @@ SMopts.optsLocalOptim.Diagnostics = 'on';
 % SMopts.optsLocalOptim.DiffMinChange = 1e-5;
 SMopts.normaliseAlignmentParameters = 1;
 SMopts.optsLocalOptim.DiffMinChange = 1e-4;
-SMopts.plotAlignmentFlag = 0;
-% SMopts.plotAlignmentFlag = 1;
+% SMopts.optsLocalOptim.DiffMinChange = 2e-6;
+% SMopts.plotAlignmentFlag = 0;
+SMopts.plotAlignmentFlag = 1;
 
 SMopts.ximin = Mc.ximin;
 SMopts.ximax = Mc.ximax;
 SMopts.xpmin = Mc.xpmin;
 SMopts.xpmax = Mc.xpmax;
-SMopts.optsFminS = optimset('display','iter');
-SMopts.optsPBIL.display =  'iter';
-SMopts.optsPBIL.Nfeval = 5000;
 % SMopts.errNorm = 1;
+% An L2 norm is required here else the model steps in the wrong direction.
 SMopts.errNorm = 2;
 % errW = 1
 errW = zeros(size(Mf.freq));
@@ -169,3 +164,11 @@ SMopts.wk = 0;
 [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts);
 
 keyboard;
+
+%% Notes:
+% --- Alignment (PE) ---
+% - If this model runs the wrong way it could be a tollerance issue with one of the optimiser options.
+%   The minimum finite-difference gradient change may overstep initially. 
+%   Alignment may not be working at all. (Shouldn't do this but could change the SMopts.errNorm...)
+%   This is applicable to all of the paramets so if one is overstepped then it is a problem.
+% - If there is no step away from the coarse model then the finite-difference gradient may be set too small.

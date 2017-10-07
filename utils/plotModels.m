@@ -62,13 +62,13 @@ if isfield(RciMatch,'f')
     freq = RciMatch.f;
     plot(freq, RfiMatch.r,'k','LineWidth',1.5), grid on, hold on
     plot(freq, RciMatch.r,'r','LineWidth',1.5), grid on, hold on
-    plot(freq, RsiMatch.r,'b','LineWidth',1.5), grid on, hold on
+    plot(freq, RsiMatch.r,'b:','LineWidth',1.5), grid on, hold on
     plot(freq, RsaiMatch.r,'g--','LineWidth',2), grid on, hold on
     xlabel('Frequency')
 else
     plot(RfiMatch.r,'k','LineWidth',1.5), grid on, hold on
     plot(RciMatch.r,'r','LineWidth',1.5), grid on, hold on
-    plot(RsiMatch.r,'b','LineWidth',1.5), grid on, hold on
+    plot(RsiMatch.r,'b:','LineWidth',1.5), grid on, hold on
     plot(RsaiMatch.r,'g--','LineWidth',2), grid on, hold on
     xlabel('Index')
 end
