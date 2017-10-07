@@ -13,43 +13,30 @@ fmax = 2e9;
 Nm = 41;	% Number of frequencies
 
 % Initial input parameters 
-xinit = [70e-3]';  % Initial input parameters (only ls in this case)
+xinit = [67.5]';  % Initial input parameters (only ls in this case)
 xpinit = [2.1]';   % Initial implicit parameters (only eps_r in this case)
 
-filename = mfilename('SM_BandpassFilter.m');
+% filename = mfilename('SM_BandpassFilter.m')
+filename = mfilename('.m');
 fullpath = mfilename('fullpath');
-currentPath = replace(fullpath, filename, '');
+currentPath = replace(fullpath, filename, '')
 
-% Set up fine model
+% ------ Set up fine model ------ 
 %setenv('PATH', [getenv('PATH') ';C:\Program Files\Altair\14.0\feko\bin']);
-Mf.path = [currentPath,'FEKO\'];
+Mf.path = [currentPath,'FEKO\']
 %Mf.path = '/home/rib/Documents/masters/smap/smap/examples/MSstub/FEKO/';
-Mf.name = 'MSstubOpen';
+Mf.name = 'MSstubOpen_mm';
 Mf.solver = 'FEKO';
 Mf.params = {'ls'};
 % Mf.ximin = [0]';
 % Mf.ximax = [1]';
-Mf.ximin = [50e-3]';
-Mf.ximax = [90e-3]';
+Mf.ximin = [50]';
+Mf.ximax = [90]';
 Mf.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
-    
-% % Set up coarse model (MATLAB)
-% Mc.path = [pwd,'\'];
-% Mc.path = 'C:\Users\19718330\Documents\GitHub\masters\ws_smap\smapTrust\examples\MSstub\AWR\';
-% Mc.name = @MSstubCoarse;  % Must pass a function handle if MATLAB is the simulator...
-% Mc.solver = 'MATLAB';
-% Mc.params = {'x';'xp';'f'}; % Must be this order (and names) for MATLAB sims.  Can omit xp or f though...
-% Mc.ximin = Mf.ximin;
-% Mc.ximax = Mf.ximax;
-% Mc.xpmin = [1.8]';
-% Mc.xpmax = [3.0]';
-% % Mc.xpmin = [2]';
-% % Mc.xpmax = [2.2]';
-% Mc.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 
-% Set up coarse model (AWR)
+% ------  Set up coarse model (AWR) ------ 
 Mc.path = [currentPath,'AWR\'];
-Mc.name = 'MSstubCoarse';
+Mc.name = 'MSstubCoarse_mm';
 Mc.solver = 'AWR';
 Mc.params = {'ls'};
 Mc.Iparams = {'eps_r'};
@@ -57,25 +44,81 @@ Mc.ximin = Mf.ximin;
 Mc.ximax = Mf.ximax;
 Mc.xpmin = [1.8]';
 Mc.xpmax = [3.0]';
-% Mc.xpmin = [2]';
-% Mc.xpmax = [2.2]';
 Mc.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 
-% Set up coarse model (FEKO)
-% Mc.path = 'c:\Users\ddv\Dropbox\Work\MATLAB\SpaceMapping\examples\MSstub\FEKO\';
-% Mc.path = 'C:\Users\19718330\Documents\GitHub\masters\ws_smap\smapTrust\examples\MSstub\FEKO\';
-% Mc.name = 'MSstubOpenCoarse';
-% Mc.solver = 'FEKO';
-% Mc.params = {'ls'}; 
-% Mc.ximin = Mf.ximin;
-% Mc.ximax = Mf.ximax;
-% Mc.Iparams = {'eps_r'};
-% Mc.xpmin = [2]';
-% Mc.xpmax = [2.2]';
-% Mc.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
+% Set up the optimization
+OPTopts.ximin = Mf.ximin;
+OPTopts.ximax = Mf.ximax;
+OPTopts.Ni = 3;
+% OPTopts.TRNi = OPTopts.Ni*2;
+OPTopts.TRNi = OPTopts.Ni;
+OPTopts.Rtype = {'S1,1'};
+OPTopts.globOpt = 0;
+% OPTopts.globOpt = 1;
+OPTopts.globOptSM = 0;
+% OPTopts.globOptSM = 1;
+OPTopts.globalSolver = 'ga';
+OPTopts.optsGlobalOptim = optimoptions('ga');
+OPTopts.optsGlobalOptim.Display = 'final';
+OPTopts.localSolver = 'fmincon';
+OPTopts.optsLocalOptim = optimoptions('fmincon');
+OPTopts.optsLocalOptim.Display = 'iter-detailed';
+OPTopts.optsLocalOptim.DiffMinChange = 1e-4;
+OPTopts.optsLocalOptim.Diagnostics = 'on';
+%
+% OPTopts.goalType = {'minimax'};
+% OPTopts.goalResType = {'S1,1_complex'};
+% OPTopts.goalVal = {0.1-1j*0.2};
+% OPTopts.goalWeight = {1};
+% OPTopts.goalStart = {1.30e9};
+% OPTopts.goalStop = {1.45e9};
+% OPTopts.errNorm = {1};
+%
+% OPTopts.goalType = {'gt'};
+% OPTopts.goalResType = {'S1,1_dB'};
+% OPTopts.goalVal = {-10};
+% OPTopts.goalWeight = {1};
+% OPTopts.goalStart = {1.60e9};
+% OPTopts.goalStop = {1.75e9};
+% OPTopts.errNorm = {1};
+
+% OPTopts.goalType = {'lt'};
+% OPTopts.goalResType = {'S1,1_dB'};
+% OPTopts.goalVal = {-20};
+% OPTopts.goalWeight = {1};
+% OPTopts.goalStart = {1.30e9};
+% OPTopts.goalStop = {1.45e9};
+% OPTopts.errNorm = {1};
 
 
-% Set up the SM
+OPTopts.goalType = {'lt', 'gt'};
+OPTopts.goalResType = {'S1,1_dB', 'S1,1_dB'};
+OPTopts.goalVal = {-20, -10};
+OPTopts.goalWeight = {1, 1};
+OPTopts.goalStart = {1.30e9, 1.60e9};
+OPTopts.goalStop = {1.45e9, 1.75e9};
+OPTopts.errNorm = {1,1};
+
+OPTopts.optsPBIL.display =  'iter'; 
+OPTopts.optsPBIL.Nfeval = 5000;
+OPTopts.optsPBIL.Nbest = 10; % DOM
+OPTopts.M_PBIL = 6;
+OPTopts.optsFminS = optimset('display','iter');
+% OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
+OPTopts.plotIter = 1;
+% Normalised tolerance in main loop
+OPTopts.TolX = 0.1;
+OPTopts.eta1 = 0.05;
+OPTopts.eta2 = 0.9;
+OPTopts.alp1 = 2.5;
+OPTopts.alp2 = 0.25;
+% OPTopts.DeltaInit = 0.25;
+OPTopts.DeltaInit = 0.35;
+OPTopts.startWithIterationZero = 1;
+% OPTopts.prepopulatedSpaceFile = '.mat';
+
+
+% ------ Set up the SM ------ 
 % The initial SM structure
 Sinit.xp = xpinit;
 
@@ -89,50 +132,20 @@ SMopts.getF = 0;
 SMopts.getE = 0;
 SMopts.getd = 0;
 
+SMopts.globalSolver = 'ga';
+SMopts.optsGlobalOptim = optimoptions('ga');
+SMopts.optsGlobalOptim.Display = 'final';
 
-% Set up the optimization
-OPTopts.ximin = Mf.ximin;
-OPTopts.ximax = Mf.ximax;
-OPTopts.Ni = 3;
-% OPTopts.TRNi = OPTopts.Ni*2;
-OPTopts.TRNi = OPTopts.Ni;
-OPTopts.Rtype = {'S1,1'};
-OPTopts.globOpt = 0;
-% OPTopts.globOpt = 1;
-% OPTopts.globOptSM = 0;
-OPTopts.globOptSM = 1;
-%
-% OPTopts.goalType = {'minimax'};
-% OPTopts.goalResType = {'S1,1_complex'};
-% OPTopts.goalVal = {0.1-1j*0.2};
-% OPTopts.goalWeight = {1};
-% OPTopts.goalStart = {1.30e9};
-% OPTopts.goalStop = {1.45e9};
-% OPTopts.errNorm = {1};
-%
-OPTopts.goalType = {'lt', 'gt'};
-OPTopts.goalResType = {'S1,1_dB', 'S1,1_dB'};
-OPTopts.goalVal = {-20, -10};
-OPTopts.goalWeight = {1, 1};
-OPTopts.goalStart = {1.30e9, 1.60e9};
-OPTopts.goalStop = {1.45e9, 1.75e9};
-OPTopts.errNorm = {1,1};
-%
-OPTopts.optsPBIL.display =  'iter'; 
-OPTopts.optsPBIL.Nfeval = 5000;
-OPTopts.optsPBIL.Nbest = 10; % DOM
-OPTopts.M_PBIL = 6;
-OPTopts.optsFminS = optimset('display','iter');
-% OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
-OPTopts.plotIter = 1;
-OPTopts.TolX = 10e-2;
-OPTopts.eta1 = 0.05;
-OPTopts.eta2 = 0.9;
-OPTopts.alp1 = 2.5;
-OPTopts.alp2 = 0.25;
-OPTopts.DeltaInit = 0.25;
-% OPTopts.startWithIterationZero = true;
-% OPTopts.prepopulatedSpaceFile = 'SMLog_MSstub.mat';
+SMopts.localSolver = 'fmincon';
+SMopts.optsLocalOptim = optimoptions('fmincon');
+SMopts.optsLocalOptim.Display = 'iter-detailed';
+SMopts.optsLocalOptim.Diagnostics = 'on';
+% SMopts.normaliseAlignmentParameters = 0;
+% SMopts.optsLocalOptim.DiffMinChange = 1e-5;
+SMopts.normaliseAlignmentParameters = 1;
+SMopts.optsLocalOptim.DiffMinChange = 1e-4;
+SMopts.plotAlignmentFlag = 0;
+% SMopts.plotAlignmentFlag = 1;
 
 SMopts.ximin = Mc.ximin;
 SMopts.ximax = Mc.ximax;
@@ -145,12 +158,12 @@ SMopts.optsPBIL.Nfeval = 5000;
 SMopts.errNorm = 2;
 % errW = 1
 errW = zeros(size(Mf.freq));
+% errW = ones(size(Mf.freq)).*0.2;
 errW(Mf.freq > OPTopts.goalStart{1} & Mf.freq < OPTopts.goalStop{1}) = 1;
-errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1;
+errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1
 SMopts.errW = errW;
 % SMopts.wk = 5;
 SMopts.wk = 0;
-SMopts.plotAlignmentFlag = 1;
 
 %% Run the main loop
 [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts);

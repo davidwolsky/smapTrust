@@ -13,30 +13,38 @@ function plotModels(plotFlag, itNum, Rci, Rfi, Rsi, Rsai, OPTopts)
 %   OPTopts:    Operational options, used for determining what the type of response is and goal values.
 
 if plotFlag && valuesAreValid()
-    figure(itNum)
+    figure()
+    freq = [];
+    if isfield(Rfi{1}{1},'f')
+        freq = Rfi{1}{1}.f;
+    else
+        freq = 1:length(Rfi{1}{1}.r);
+    end
 
     Ng = length(OPTopts.goalType);
     for gg = 1:Ng
         goalType = OPTopts.goalType{gg};
         splits = regexp(OPTopts.goalResType{gg}, '\_', 'split');
-        assert(length(splits) == 2, ['Expecting two parts to the goalResType, found: ', cell2mat(splits), ' from: ', OPTopts.goalResType]);
+%         assert(length(splits) == 2, ['Expecting two parts to the goalResType, found: ', cell2mat(splits), ' from: ', OPTopts.goalResType]);
         
-        if strcmp(splits{2},'complex')
+        if (length(splits) == 2) && (strcmp(splits{2},'complex'))
             subplot(Ng, 2, gg*2-1)
             plotResponse([splits{1}, '_real']);
-            plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, real(OPTopts.goalVal{gg}), goalType)
+            plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, real(OPTopts.goalVal{gg}), goalType, freq)
             subplot(Ng, 2, gg*2)
-            legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
+            % legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
             plotResponse([splits{1}, '_imag']);
-            plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, imag(OPTopts.goalVal{gg}), goalType)
+            plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, imag(OPTopts.goalVal{gg}), goalType, freq)
             
-            legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
+            % legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
         else
             subplot(Ng, 2, [gg*2-1, gg*2])
             plotResponse(OPTopts.goalResType{gg});
-            plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, OPTopts.goalVal{gg}, goalType)
+            if isfield(OPTopts, 'goalVal')
+                plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, OPTopts.goalVal{gg}, goalType, freq)
+            end
             
-            legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', goalType)
+            % legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', goalType)
         end
     end % for Ng
 end % if validation
@@ -69,7 +77,7 @@ title(['Iteration: ',num2str(itNum), ', goal of result type : ', goalResType])
 end % plotForRealValuedResponse function
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function plotGoal(goalStart, goalStop, goalValue, goalType)
+function plotGoal(goalStart, goalStop, goalValue, goalType, freq)
 switch goalType
 case 'lt'
     colour = 'c';
@@ -87,6 +95,9 @@ end
 
 if ( isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
     plot([goalStart, goalStop], (goalValue)*ones(1,2), colour, 'LineWidth',3)
+    
+    goalFreqPoints = freq(freq > goalStart & freq < goalStop);
+    plot(goalFreqPoints, (goalValue)*ones(1,length(goalFreqPoints)),['o',colour],'LineWidth',3)
 end
 end % plotGoal function
 

@@ -1,24 +1,27 @@
 function [] = SM_MATLABtest_A(type)
 
+close all
+clear all
+format compact
+
 if nargin < 1
     type = 'c';
 end
 
-opts.getA = 0;
-opts.getB = 0;
-opts.getc = 0;
-opts.getG = 0;
-opts.getxp = 0;
-opts.getF = 0;
-opts.getd = 0;
-opts.getE = 1;
-
-opts.optsFminS = optimset('display','none');
+% opts.getA = 0;
+% opts.getB = 1;
+% opts.getc = 1;
+% opts.getG = 0;
+% opts.getxp = 0;
+% opts.getF = 0;
+% opts.getd = 0;
+% opts.getE = 0;
+% opts.optsFminS = optimset('display','none');
 
 
 % x_init = [0.5,1.5,0.03,0.5,0.5]';
 % x_init = [0.5,1.5,0.03]';
-% CRC_TestEnabled: using values from previously testrun known c 
+% CRC_startWithIterationZero: using values from previously test-run known c 
 x_init = [0.964612260448512, 0.930319809324020, 0.865129843255812]';
 % x_init = [0.5,1.5]';
 xp_init = [2,1]';
@@ -43,8 +46,8 @@ Mf.name = @modelF;
 Mf.solver = 'MATLAB';
 Mf.params = {'x','f'};
 % Mf.ximin = zeros(Nn,1);
-Mf.ximin = -ones(Nn,1).*2;
-Mf.ximax = ones(Nn,1).*2;
+Mf.ximin = ones(Nn,1).*(0.6);
+Mf.ximax = ones(Nn,1).*(1.2);
 Mf.freq = f;
 
 % Set up coarse model 
@@ -67,19 +70,41 @@ SMopts.ximin = Mc.ximin;
 SMopts.ximax = Mc.ximax;
 SMopts.xpmin = Mc.xpmin;
 SMopts.xpmax = Mc.xpmax;
-SMopts.optsFminS = optimset('display','none','TolX',1e-6,'TolFun',1e-6);
-SMopts.optsPBIL.Nfeval = 5000;
-SMopts.wk = 1.0;
+
+% SMopts.optsFminS = optimset('display','none','TolX',1e-6,'TolFun',1e-6);
+% SMopts.optsPBIL.Nfeval = 5000;
+
+SMopts.globalSolver = 'ga';
+SMopts.optsGlobalOptim = optimoptions('ga');
+SMopts.optsGlobalOptim.Display = 'final';
+
+SMopts.localSolver = 'fmincon';
+SMopts.optsLocalOptim = optimoptions('fmincon');
+SMopts.optsLocalOptim.Display = 'iter-detailed';
+SMopts.optsLocalOptim.Diagnostics = 'on';
+SMopts.optsLocalOptim.DiffMinChange = 1e-10;
+SMopts.normaliseAlignmentParameters = 1;
+% SMopts.optsLocalOptim.DiffMinChange = 1e-10;
+% SMopts.normaliseAlignmentParameters = 0;
+
+SMopts.plotAlignmentFlag = 0;
+% SMopts.plotAlignmentFlag = 1;
+% SMopts.wk = 1.0;
+SMopts.wk = 0;
 
 % Set up the optimization
 OPTopts.ximin = Mf.ximin;
 OPTopts.ximax = Mf.ximax;
-OPTopts.Ni = 15;
+% OPTopts.Ni = 15;
+OPTopts.Ni = 6;
 OPTopts.TRNi = OPTopts.Ni*2;
 % OPTopts.TRNi = 1;
-OPTopts.Rtype = {'Gen'};
+OPTopts.globOpt = 1;
+OPTopts.globOptSM = 0;
 % OPTopts.globOpt = 1;
-OPTopts.globOpt = 0;
+% OPTopts.globOptSM = 1;
+% OPTopts.globOptSM = 2;
+OPTopts.Rtype = {'Gen'};
 OPTopts.goalType = {'minimax'};
 OPTopts.goalResType = {'Gen'};
 % OPTopts.goalVal = {-20};
@@ -98,51 +123,56 @@ OPTopts.eta1 = 0.05;
 OPTopts.eta2 = 0.9;
 OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
-OPTopts.DeltaInit = 0.25;
-OPTopts.testEnabled = true;
+% OPTopts.DeltaInit = 0.25;
+% TODO_DWW: This give an unexpectedly good result... 
+OPTopts.DeltaInit = 0.35;
+% OPTopts.DeltaInit = 0.50;
+OPTopts.startWithIterationZero = 1;
 % OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
 
 
 
 %% Build the models
-
-
+% keyboard
 modPar = [];
 if any(type == 'A')
-    A = rand(1);
-    modPar.A = A;
+    % A = rand(1);
+    % modPar.A = A
     SMopts.getA = 1;
 end
 if any(type == 'B')
-    B = rand(Nn)./500;
-    Bd = eye(Nn) + eye(Nn).*(rand(Nn) - 0.5) ;
-    B = B + Bd;
-    modPar.B = B;
+    % B = rand(Nn)./500;
+    % Bd = eye(Nn) + eye(Nn).*(rand(Nn) - 0.5) ;
+    % B = B + Bd;
+    % modPar.B = B
     SMopts.getB = 1;
 end
 if any(type == 'c')
     % c = (rand(Nn,1) - 0.5)./5;
-    % CRC_TestEnabled: Changed for specific test run:
-    c = [-0.019217570882377;-0.080709094966322;-0.073605341478733]
+    % CRC_startWithIterationZero: Changed for specific test run:
+    c = [-0.019217570882377;-0.080709094966322;-0.073605341478733];
 %     c = x_init./10;
-    modPar.c = c;
+    modPar.c = c
     SMopts.getc = 1;
 end
 if any(type == 'G')
-    G = rand(Nq,Nn);
-    modPar.G = G;
+    % G = rand(Nq,Nn);
+    % modPar.G = G
     SMopts.getG = [1,0,1;0,1,0];
 end
 if any(type == 'p')
-    xp = rand(Nq,1);
-    modPar.xp = xp;
+    % xp = rand(Nq,1);
+    % modPar.xp = xp
     SMopts.getxp = 1;
 end
 if any(type == 'F')
-    F = rand(2,1)./10;
-    modPar.F = F;
+    % F = rand(2,1)./10;
+    % modPar.F = F
     SMopts.getF = 1;
 end
+
+
+
 
 % Sinit.c = c.*1.01;
 

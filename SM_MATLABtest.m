@@ -4,14 +4,14 @@ if nargin < 1
     type = 'c';
 end
 
-opts.getA = 0;
-opts.getB = 0;
-opts.getc = 0;
-opts.getG = 0;
-opts.getxp = 0;
-opts.getF = 0;
-opts.getd = 0;
-opts.getE = 1;
+% opts.getA = 0;
+% opts.getB = 0;
+% opts.getc = 0;
+% opts.getG = 0;
+% opts.getxp = 0;
+% opts.getF = 0;
+% opts.getd = 0;
+% opts.getE = 1;
 
 opts.optsFminS = optimset('display','none');
 
@@ -65,10 +65,18 @@ SMopts.ximin = Mc.ximin;
 SMopts.ximax = Mc.ximax;
 SMopts.xpmin = Mc.xpmin;
 SMopts.xpmax = Mc.xpmax;
-SMopts.optsFminS = optimset('display','none','TolX',1e-6,'TolFun',1e-6);
-SMopts.optsPBIL.Nfeval = 5000;
-% SMopts.wk = 10;
+% SMopts.optsFminS = optimset('display','none','TolX',1e-6,'TolFun',1e-6);
+% SMopts.optsPBIL.Nfeval = 5000;
+SMopts.globalSolver = 'ga';
+SMopts.optsGlobalOptim = optimoptions('ga');
+% SMopts.optsGlobalOptim.Display = 'final';
+SMopts.localSolver = 'fmincon';
+SMopts.optsLocalOptim = optimoptions('fmincon');
+% SMopts.optsLocalOptim.Display = 'iter-detailed';
+% SMopts.optsLocalOptim.Diagnostics = 'on';
+% SMopts.optsLocalOptim.DiffMinChange = 1e-6;
 SMopts.wk = 0;
+% SMopts.wk = 10;
 
 % Set up the optimization
 OPTopts.ximin = Mf.ximin;
@@ -97,7 +105,8 @@ OPTopts.eta1 = 0.05;
 OPTopts.eta2 = 0.9;
 OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
-OPTopts.testEnabled = 0;
+OPTopts.DeltaInit = 0.25;
+OPTopts.startWithIterationZero = 0;
 % OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
 
 

@@ -17,17 +17,19 @@ function Ri = findResponseFor(R, goalResType)
 %               'Sb,a_deg' - degrees
 %               'Gen' - general 
 
-foundMathingType = false;
+foundMatchingType = false;
 Nr = length(R);
 tt = 1;
 while tt <= Nr
-    if isfield(R{tt},'t') && strncmp(R{tt}.t, goalResType, find(goalResType=='_')-1)
+    if isfield(R{tt},'t') && ( strcmp(R{tt}.t, goalResType) || strncmp(R{tt}.t, goalResType, find(goalResType=='_')-1) )
         Ri = convertResponse(R{tt}, goalResType);
-        foundMathingType = true;
+        foundMatchingType = true;
         break;
     end
     tt = tt + 1;
 end
-assert(foundMathingType, ['No matching result type was found for the specified goalResType.', goalResType, '.  R{:}.t = ', R{:}.t])
+% keyboard
+% assert(foundMatchingType, ['No matching result type was found for the specified goalResType.', goalResType, '.  R{:}.t = ', R{:}.t])
+assert(foundMatchingType, ['No matching result type was found for the specified goalResType: ', goalResType])
 
 end % function findResponseFor

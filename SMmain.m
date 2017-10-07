@@ -38,7 +38,7 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   Ni:         Maximum number of iterations
 %   TRNi:       Maximum number of iterations for the Trust region loop.
 %               To turn the TR off use TRNi=1.
-%   globOpt:    Flag to run PBIL (1 for only first iteration, 2 for all iterations) (default 0)
+%   globOpt:    Flag to run a globabl optimisation routine (1 for only first iteration, 2 for all iterations) (default 0)
 %   M_PBIL:     Vector of bits for the global search variables (see PBILreal.m)
 %   globOptSM:  Flag to run PBIL during the PE process (1 for only first iteration, 2 for all iterations) (default 0)
 %   goalResType:Cell array of response names to consider for the different goals {1,Ng}
@@ -67,6 +67,14 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %               Valid types: (1,2,inf)
 %   TolX:       Termination tolerance on X [ positive scalar - default 10^-2]
 %   optsFminS:  options for the fminsearch local optimizer
+%   TODO_DWW: Update this... now this uses problem.options = optimoptions(....
+
+% TODO_DWW: 
+% globalSolver
+% optsGlobalOptim
+% localSolver
+% optsLocalOptim
+
 %   optsPBIL:   options for the PBIL global optimizer
 %   plotIter:   Flag to plot the responses after each iteration
 %   eta1:       A factor used by the TR to define the bound governing when to keep or reduce the radius.
@@ -74,6 +82,8 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   alp1:       A factor used by the TR to define the rate at which the radius grows with a very successful run.
 %   alp2:       A factor used by the TR to define the rate at which the radius shrinks for divergent fine and surrogate runs.
 %   DeltaInit:  The initial trust region radius.
+%   startWithIterationZero: Starts with the xinit value right away. This is typrically used for reproducing test cases
+%                           where it is not desired for an initial optimisation phase to take place.  
 %   prepopulatedSpaceFile: File name used to preload fine model runs so that a better surrogate can be calculated.
 
 % Returns:
@@ -128,6 +138,9 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %             used to build a better surrogate. In future a surrogate could potentially be 
 %             specified from outside SMmain. The 'prepopulatedSpaceFile' variable on OPTopts 
 %             is used to specify the space that should be loaded. 
+% 2017-08-14: Added validation for the coarse AWR model evaluation to pick up errors in simulations.
+%             Also fixed coarse models being clamped to the values that are acceptable in the evaluation.
+%             The optimisation can give output beyond what is defined as the constraints.
 
 % ===== ToDo =====
 % - Global optimisor
@@ -141,16 +154,22 @@ TRNi = Ni;  % Maximum number of iterations for the Trust region loop
 TolX = 10^-2;
 TolXnorm = 0;
 globOpt = 0;
-M_PBIL = 8;
+localSolver = 'fmincon';
+optsLocalOptim = optimoptions('fmincon');
+globalSolver = 'ga';
+optsGlobalOptim = optimoptions('ga');
 globOptSM = 0;
+% TODO_DWW: Deprecate - do it
+M_PBIL = 8;
 optsFminS = optimset('display','none');
+% TODO_DWW: Deprecate
 optsPBIL = [];
 plotIter = 1;
 eta1 = 0.05;
 eta2 = 0.9;
 alp1 = 2.5;
 alp2 = 0.25;
-testEnabled = 0;
+startWithIterationZero = 0;
 prepopulatedSpaceFile = '';
 DeltaInit = 0.25;
 
@@ -158,10 +177,15 @@ if isfield(OPTopts,'Ni'), Ni = OPTopts.Ni; end
 if isfield(OPTopts,'TRNi'), TRNi = OPTopts.TRNi; end
 if isfield(OPTopts,'TolX'), TolX = abs(OPTopts.TolX); end % Force positive
 if isfield(OPTopts,'globOpt'), globOpt = OPTopts.globOpt; end
-if isfield(OPTopts,'M_PBIL'), M_PBIL = OPTopts.M_PBIL; end
 if isfield(OPTopts,'globOptSM'), globOptSM = OPTopts.globOptSM; end
+if isfield(OPTopts,'localSolver'), localSolver = OPTopts.localSolver; end
+if isfield(OPTopts,'optsLocalOptim'), optsLocalOptim = OPTopts.optsLocalOptim; end
+if isfield(OPTopts,'globalSolver'), globalSolver = OPTopts.globalSolver; end
+if isfield(OPTopts,'optsGlobalOptim'), optsGlobalOptim = OPTopts.optsGlobalOptim; end
+% TODO_DWW: Deprecate
 if isfield(OPTopts,'optsFminS'), optsFminS = OPTopts.optsFminS; end
 if isfield(OPTopts,'M_PBIL'), M_PBIL = OPTopts.M_PBIL; end
+% TODO_DWW: Deprecate
 if isfield(OPTopts,'optsPBIL'), optsPBIL = OPTopts.optsPBIL; end
 if isfield(OPTopts,'plotIter'), plotIter = OPTopts.plotIter; end
 if isfield(OPTopts,'eta1'), eta1 = OPTopts.eta1; end
@@ -169,7 +193,7 @@ if isfield(OPTopts,'eta2'), eta2 = OPTopts.eta2; end
 if isfield(OPTopts,'alp1'), alp1 = OPTopts.alp1; end
 if isfield(OPTopts,'alp2'), alp2 = OPTopts.alp2; end
 if isfield(OPTopts,'DeltaInit'), DeltaInit = OPTopts.DeltaInit; end
-if isfield(OPTopts,'testEnabled'), testEnabled = OPTopts.testEnabled; end
+if isfield(OPTopts,'startWithIterationZero'), startWithIterationZero = OPTopts.startWithIterationZero; end
 if isfield(OPTopts,'prepopulatedSpaceFile'), prepopulatedSpaceFile = OPTopts.prepopulatedSpaceFile; end
 
 % Set up models - bookkeeping
@@ -282,48 +306,46 @@ ximaxn = OPTopts.ximax./OPTopts.ximax;
 Ti.Deltan{1} = DeltaInit;
 Ti.Delta{1} = DeltaInit.*(OPTopts.ximax - OPTopts.ximin);
 
-LHSmat = [];
-RHSvect = [];
-nonLcon = [];
-
-% CRC_DWW: for global optimisation work.
-% prob = {}
-% prob.objective = @(xin) costSurr(xin,Sinit,OPTopts);
-% prob.x0 = xinitn;
-% prob.Aineq = LHSmat
-% prob.bineq = RHSvect
-% prob.Aeq = [];
-% prob.beq = [];
-% prob.lb = ximinn
-% prob.ub = ximaxn
-% prob.nonlcon = nonLcon
-
 % For the initial starting point ii=1
 ii = 1;
 % Normalize the optimization parameters
 ximinn = OPTopts.ximin - OPTopts.ximin;
 ximaxn = OPTopts.ximax./OPTopts.ximax;
-% CRC_DDV: DWW: We need to come up with better names for these xinitn, init, xin.
-% camel case or paskal or with underscores or something >.< 
 xinitn = (xinit - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
 % The initial trust region radius
 Ti.Deltan{1} = DeltaInit;
 Ti.Delta{1} = DeltaInit.*(OPTopts.ximax - OPTopts.ximin);
 
-if ~testEnabled
+if ~startWithIterationZero
     % Optimize coarse model to find initial alignment position
+    problem = {};
+    problem.x0 = xinitn;
+    problem.Aineq = [];
+    problem.bineq = [];
+    problem.Aeq = [];
+    problem.beq = [];
+    problem.lb = ximinn;
+    problem.ub = ximaxn;
+    problem.nonlcon = [];
     if globOpt
-        % CRC_DWW: for global optimisation work.
-        error('TODO_DWW: implement this.');
-        % [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Sinit,OPTopts),ximinn,ximaxn,M_PBIL,optsPBIL);
-        [xin{1}, costS{1}] = ga(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
-        xinitn = reshape(xinitn,Nn,1);
+        problem.fitnessfcn = @(tempXinGlobal) costSurr(tempXinGlobal,Sinit,OPTopts)
+        problem.nvars = length(problem.x0);
+        problem.solver = globalSolver;
+        problem.options = optsGlobalOptim;
+        [xinGlobal,fval,exitflag,output] = doOptimisation(problem);
+        xinGlobal = reshape(xinGlobal, length(xinGlobal),1)
+        % Start with global search to get initial value.
+        problem.x0 = xinGlobal;
     end
-    [xin{1}, costS{1}] = fminsearchcon(@(xin) costSurr(xin,Sinit,OPTopts),xinitn,ximinn,ximaxn,LHSmat,RHSvect,nonLcon,optsFminS);
+    problem.objective = @(tempXin) costSurr(tempXin,Sinit,OPTopts)
+    problem.solver = localSolver;
+    problem.options = optsLocalOptim;
+    [xin{1}, costS{1}, exitflag, output] = doOptimisation(problem)
 else
-    testEnabled
+    startWithIterationZero
     xin{1} = xinitn;
 end
+
 % De-normalize input vector
 xi{1} = xin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
 
@@ -337,18 +359,18 @@ if length(prepopulatedSpaceFile) > 1
     Ti.Rfi_all = space.Ti.Rfi_all;
     Ti.costF_all = space.Ti.costF_all;
 
-    Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
-    Rfi{1} = fineMod(Mf,xi{1});
+    Rci{1} = coarseMod(Mc, xi{1}, Sinit.xp, fc);
+    Rfi{1} = fineMod(Mf, xi{1});
 
     Ti.xi_all{end+1} = xi{1};
     Ti.Rfi_all{end+1} = Rfi{1};
 
     for rr = 1:Nr
         r = {};
-        % if globOptSM > 0, SMopts.globOpt = 1; end
         for iii = 1:length(Ti.Rfi_all)
             r{end+1} = Ti.Rfi_all{iii}{rr}.r;
         end
+        if globOptSM > 0, SMopts.globOpt = 1; end
         Si{1}{rr} = buildSurr(Ti.xi_all,r,Sinit,SMopts);
         Rsi{1}{rr}.r = evalSurr(xi{1},Si{1}{rr});
         Rsi{1}{rr}.t = Rci{1}{rr}.t;
@@ -369,6 +391,8 @@ if length(prepopulatedSpaceFile) > 1
     Ti.costChangeF{1} = costF{1}; 
 
 else 
+    % TODO_DWW: Leave this in and formalise... 
+    display(['--- TODO_DWW: Initialising ---'])
     Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
     Rfi{1} = fineMod(Mf,xi{1});
     for rr = 1:Nr
@@ -379,7 +403,8 @@ else
         if isfield(Rci{1}{rr},'f'), Rsi{1}{rr}.f = Rci{1}{rr}.f; end
         Rsai{1}{rr} = Rsi{1}{rr};
     end
-    costS{1} = costSurr(xin{1},Si{1}{:},OPTopts);
+%     keyboard;
+    costS{1} = costSurr(xin{1},{Si{1}{:}},OPTopts);
 
     Ti.xi_all{1} = xi{1};
     Ti.Rfi_all{1} = Rfi{1};
@@ -397,6 +422,8 @@ end
 
 % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
 plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, OPTopts);
+
+display(['--- TODO_DWW: Start loop ---'])
 
 while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
     % Coming into this iteration as ii now with the fine model run here already and responses available. 
@@ -419,20 +446,31 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                 ximinnTR = max((xin{ii} - Ti.Deltan{ii}),ximinn);
                 ximaxnTR = min((xin{ii} + Ti.Deltan{ii}),ximaxn);
             end
-
-            % Do optimization
-            if globOpt == 2
-                error('TODO_DWW: Test this!');
-                [tempxin,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinnTR,ximaxnTR,M_PBIL,optsPBIL);
-                xin{ii} = reshape(tempxin,Nn,1);
-                % [xinitn,costSi,exitFlag,output] = PBILreal(@(xin) costSurr(xin,Si{ii}{:},OPTopts),ximinnTR,ximaxnTR,M_PBIL,optsPBIL);
-                % xinitn = reshape(xinitn,Nn,1);
-            end
-            LHSmat = [];
-            RHSvect = [];
-            nonLcon = [];
             
-            [xin{ii+1}, costSi] = fminsearchcon(@(xin) costSurr(xin,Si{ii}{:},OPTopts),xin{ii},ximinnTR,ximaxnTR,LHSmat,RHSvect,nonLcon,optsFminS);
+            display(['--- TODO_DWW:loop optimisation ', num2str(ii), ' ---'])
+            problem = {};
+            problem.x0 = xin{ii};
+            problem.Aineq = [];
+            problem.bineq = [];
+            problem.Aeq = [];
+            problem.beq = [];
+            problem.lb = ximinnTR;
+            problem.ub = ximaxnTR;
+            problem.nonlcon = [];
+            if globOpt == 2
+                problem.fitnessfcn = @(tempXinGlobal) costSurr(tempXinGlobal, {Si{ii}{:}}, OPTopts);
+                problem.nvars = length(problem.x0);
+                problem.solver = globalSolver;
+                problem.options = optsGlobalOptim;
+                [xinGlobal,fval,exitflag,output] = doOptimisation(problem);
+                xinGlobal = reshape(xinGlobal, length(xinGlobal),1)
+                % Start with global search to get initial value.
+                problem.x0 = xinGlobal;
+            end
+            problem.objective = @(tempXin) costSurr(tempXin, {Si{ii}{:}}, OPTopts);
+            problem.solver = localSolver;
+            problem.options = optsLocalOptim;
+            [xin{ii+1}, costSi, exitflag, output] = doOptimisation(problem)
             assert( costS{ii} >= costSi ); % The cost must have gotten better else chaos!
 			Ti.costS_all{end+1} = costSi;
 
@@ -518,6 +556,8 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                     % length(Ti.xi_all)
                     % length(r)
                     % assert(length(Ti.xi_all) == length(r), 'The lengths of xi and responses needs to be the same.')
+                    
+                    display(['--- TODO_DWW: build surr for iteration ', num2str(ii), ' ---'])
                     Si{targetCount}{rr} = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
                 end
                 % Also get the currently aligned surrogate for comparison
@@ -529,7 +569,7 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
             end % for rr
 
             Ti.Si_all{end+1} = Si{targetCount};
-            costS{targetCount} = costSurr(xin{targetCount},Si{targetCount}{:},OPTopts);
+            costS{targetCount} = costSurr(xin{targetCount},{Si{targetCount}{:}},OPTopts);
             
             kk = kk+1;  % Increase TR loop count
             
@@ -569,8 +609,8 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
 
             % TODO_DWW: Remember to update this to a better default
             % createLog('SMLog_MSstub.mat', space);
-            % createLog('SMLog.mat', space);
-            createLog(['SMLog_',Mf.name,'.mat'], space);
+            createLog('SMLog.mat', space);
+%             createLog(['SMLog_',Mf.name,'.mat'], space);
             % Make a (crude) log file
             % save SMLog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c TolX_achieved Ti TRterminate
 
@@ -579,9 +619,22 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
         end
     end
     
-    % keyboard
     if (~TRterminate)
         ii = ii+1;  % Increase main loop count
+        if (ii == Ni)
+            display(['====== Terminated due to: max iteration count reached (', num2str(ii), '). ======'])
+        end
+    else
+        % TODO_DWW: refine these messages
+        if (specF)
+            display(['====== Terminated due to: specF reached. ======'])
+        end
+        if (TolX_achieved)
+            display(['====== Terminated due to: TolX_achieved. ======'])
+        end
+        if (TRterminate)
+            display(['====== Terminated due to: TRterminate. ======'])
+        end
     end
 end % Main while loop
 
@@ -618,28 +671,28 @@ function enforceFineModelLimits()
 	% Check if fine model is limited 
 	if isfield(Mf,'ximin')
 		limMin_f{ii} = xi{ii+1} < Mf.ximin;
-		if limMin_f{ii} | 0
+		if any(limMin_f{ii})
 			warning( strcat('Fine model bound met: xi{ii+1} = ', ...
 				mat2str(xi{ii+1}), ', Mf.ximin = ', mat2str(Mf.ximin)) )
 		end
 	end
 	if isfield(Mc,'ximin')
 		limMin_c{ii} = xi{ii+1} < Mc.ximin;
-		if limMin_c{ii} | 0
+		if any(limMin_c{ii})
 			warning( strcat('Fine model bound met: xi{ii+1} = ', ...
 				mat2str(xi{ii+1}), ', Mc.ximin = ', mat2str(Mc.ximin)) )
 		end
 	end
 	if isfield(Mf,'ximax')
 		limMax_f{ii} = xi{ii+1} > Mf.ximax;
-		if limMax_f{ii} | 0
+		if any(limMax_f{ii})
 			warning( strcat('Fine model bound met: xi{ii+1} = ', ...
 				mat2str(xi{ii+1}), ', Mf.ximax = ', mat2str(Mf.ximax)) )
 		end
 	end
 	if isfield(Mc,'ximax')
 		limMax_c{ii} = xi{ii+1} > Mc.ximax;
-		if limMin_f{ii} | 0
+		if any(limMin_f{ii})
 			warning( strcat('Fine model bound met: xi{ii+1} = ', ...
 				mat2str(xi{ii+1}), ',  Mc.ximax = ', mat2str( Mc.ximax)) )
 		end
@@ -685,132 +738,43 @@ if isfield(M,'ximax')
 	end
 end
 
-Nn = length(xi);
 % Get number of responses requested
 if length(M.Rtype) == 1 && ~iscell(M.Rtype)
     Rtype = {M.Rtype};  % Special case - make a cell
 else
     Rtype = M.Rtype;
 end
-Nr = length(Rtype);
-Rf = cell(1,Nr);
 
 % Call the correct solver
 switch M.solver
-    
     case 'AWR'
-        case 'AWR'
         error('AWR solver not implemented yet for fine model evaluations')
-
     case 'CST'
-        % Start CST activeX
-        cst = actxserver('CSTSTUDIO.Application');
-        % Get handle to the model
-        mws = invoke(cst,'OpenFile',[M.path,M.name,'.cst']);
-        % Update parameters
-        for nn = 1:Nn
-            invoke(mws,'StoreParameter',M.params{nn},xi(nn));
-        end
-        invoke(mws,'Rebuild');
-        % Run simulation
-        solver = invoke(mws,'Solver');
-        invoke(solver,'Start');
-        
-        % Generate output
-        for rr = 1:Nr
-            % TODO_DWW: This needs to be updated
-            if strcmp(Rtype{rr},'S1,1_dB')
-                result = invoke(mws,'Result1D','d1(1)1(1)');    % Sb,a in dB
-                % Get nr of frequency points in the plot
-                nRead = invoke(result,'GetN');
-                [fin,Sbain] = deal(zeros(nRead,1));
-                for nn = 1:nRead
-                    fin(nn) = invoke(result,'GetX',nn-1);        % Typically in GHz
-                    Sbain(nn) = invoke(result,'GetY',nn-1);
-                end
-                if isfield(M,'freq')
-                    Nm = length(M.freq);
-                    Rf{rr}.r = reshape(interp1(fin,Sbain,M.freq,'spline'),Nm,1);
-                    Rf{rr}.f = M.freq;
-                else
-                    Nm = nRead;
-                    Rf{rr}.r = Sbain;
-                    Rf{rr}.f = fin;
-                end
-                Rf{rr}.t = Rtype{rr};
-                release(result);
-            elseif strcmp(Rtype{rr},'S1,1_complex')
-                resultA = invoke(mws,'Result1D','a1(1)1(1)');    % amplitude of Sb,a
-                resultP = invoke(mws,'Result1D','p1(1)1(1)');    % phase of Sb,a
-                % Get nr of frequency points in the plots
-                nRead = invoke(resultA,'GetN');
-                [fin,Sbain] = deal(zeros(nRead,1));
-                for nn = 1:nRead
-                    fin(nn) = invoke(resultA,'GetX',nn-1);        % Typically in GHz
-                    amp = invoke(resultA,'GetY',nn-1);
-                    phase = rad(invoke(resultP,'GetY',nn-1));
-                    Sbain(nn) = amp.*exp(1i*phase);
-                end
-                if isfield(M,'freq')
-                    Nm = length(M.freq);
-                    Rreal = reshape(interp1(fin,real(Sbain),M.freq,'spline'),Nm,1);
-                    Rimag = reshape(interp1(fin,imag(Sbain),M.freq,'spline'),Nm,1);
-                    Rf{rr}.r = Rreal + 1i*Rimag;
-                    Rf{rr}.f = M.freq;
-                else
-                    Nm = nRead;
-                    Rf{rr}.r = Sbain;
-                    Rf{rr}.f = fin;
-                end
-                Rf{rr}.t = Rtype{rr};
-                release(resultA);
-                release(resultP);
-            end
-        end
-        invoke(mws,'Save');
-        invoke(mws,'Quit');
-        
+        Rf = cstMod(M, xi, [], Rtype, []);
     case 'FEKO'
-        Rf = fekoMod(M,xi,Rtype);
-        
+        Rf = fekoMod(M, xi, [], Rtype, []);
     case 'MATLAB'
-        Ni = length(M.params);  % This is interpreted as the number of inputs to the function
-        inType = [];
-        for ii = 1:Ni
-            inType = [inType,M.params{ii}];   % Initialise
-        end
-        switch inType
-            case 'xf'
-                Rfi = M.name(xi,M.freq);
-            otherwise
-                Rfi = M.name(xi);
-        end
-        % Distribute the responses
-        % For MATLAB case the model should the return the specified responses
-        % columnwise...
-        for rr = 1:Nr
-            Rf{rr}.r = Rfi(:,rr);
-            Rf{rr}.t = Rtype{rr};
-            if exist('f','var')
-                Rf{rr}.f = f;
-            end
-        end
-        
+        Rf = matlabMod(M, xi, [], Rtype, []);
     otherwise
         error(['M.solver unknown for fine model evaluation'])
 end
 
-end % fineMod
+end % fineMod function
 
 
-function Rc = coarseMod(M,xi,xp,f)
+function Rc = coarseMod(M, xi, xp, f)
 
-% Rc is a cell array of structures containing the response in Rc.r, the type Rc.t, and the
+% Rc: is a cell array of structures containing the response in Rc.r, the type Rc.t, and the
 % (optional) domain (typically frequency) in Rc.f.  Same length as M.Rtype
-% xi is an array of input parameters - same order as those specified in M
-% xp is an array of implicit parameters - same order as those specified in M
-% f is an array of frequency points where to evaluate the model (optional)
-% M is a structure containing all the info to describe to model containing:
+%   hasError:   is true if an error was encountered during the simulation. Results cannot
+%               be trusted if this flag is true.
+%   TODO_DWW: Remove i guess... 
+%   TODO_DWW: flow through system if this is the chosen approach.
+%   TODO_DWW: add to the other methods
+% xi: is an array of input parameters - same order as those specified in M
+% xp: is an array of implicit parameters - same order as those specified in M
+% f: is an array of frequency points where to evaluate the model (optional)
+% M: is a structure containing all the info to describe to model containing:
 %   path:   Full path to file
 %   name:   File name of file (without extension)
 %   solver:     'CST'/'FEKO'/'MATLAB' (for now)
@@ -824,233 +788,66 @@ function Rc = coarseMod(M,xi,xp,f)
 %               Valid types:
 %               'Sb,a_dB'
 %               'Sb,a_complex'
-% TODO_DWW: Flesh out
 %               'Gen'
 
 % Limit the inputs - this should really never happen...
 if isfield(M,'ximin')
     minI = xi < M.ximin;
-    xi(minI) = M.ximin(minI);
-    if minI | 0
+    if ( any(minI) )
+        xi(minI) = M.ximin(minI);
 		warning( strcat('Out of bounds coarse model evaluation encountered on ximin = ', ...
 			mat2str(M.ximin), ', xi = ', mat2str(xi)) )
-	end
+    end
 end
 if isfield(M,'ximax')
     maxI = xi > M.ximax;
-    xi(maxI) = M.ximax(maxI);
-    if maxI | 0
+    if ( any(maxI) )
+        xi(maxI) = M.ximax(maxI);
 		warning( strcat('Out of bounds coarse model evaluation encountered on ximax', ...
 			mat2str(M.ximax), ', xi = ', mat2str(xi)) )
 	end
 end
 if isfield(M,'xpmin')
     minIp = xp < M.xpmin;
-    xp(minIp) = M.xpmin(minIp);
-    if minIp | 0
+    if ( any(minIp) )
+        xp(minIp) = M.xpmin(minIp);
 		warning( strcat('Out of bounds coarse model evaluation encountered on xpmin', ...
 			mat2str(M.xpmin), ', xi = ', mat2str(xi)) )
-	end
+    end
 end
 if isfield(M,'xpmax')
     maxIp = xp > M.xpmax;
-    xp(maxIp) = M.xpmax(maxIp);
-    if maxIp | 0
+    if ( any(maxIp) )
+        xp(maxIp) = M.xpmax(maxIp);
 		warning( strcat('Out of bounds coarse model evaluation encountered on xpmax', ...
 			mat2str(M.xpmax), ', xi = ', mat2str(xi)) )
-	end
+    end
 end
 
-Nn = length(xi);
-Nq = length(xp);
-Nm = length(f);
 % Get number of responses requested
 if length(M.Rtype) == 1 && ~iscell(M.Rtype)
     Rtype = {M.Rtype};  % Special case - make a cell
 else
     Rtype = M.Rtype;
 end
-Nr = length(Rtype);
-Rc = cell(1,Nr);
 
 % Call the correct solver
 switch M.solver
     case 'CST'
         error('CST solver not implemented yet for coarse model evaluations')
-        
     case 'FEKO'
-        Rc = fekoMod(M,xi,Rtype);
-
+        Rc = fekoMod(M, xi, [], Rtype, []);
     case 'AWR'
-        % Ensure that NI AWR is open and that all projects have been closed.
-        awr = actxserver('AWR.MWOffice');
-        % pause(0.001);
-        if ( awr.ProjectOpen() )
-            proj = awr.Project;
-        else
-            [M.path,M.name,'.emp']
-            awr.invoke('Open', [M.path,M.name,'.emp']);
-            proj = awr.Project;
-            proj.Frequencies.Clear();
-            for mm = 1:Nm
-                awr.Project.Frequencies.Add(M.freq(mm));
-            end
-        end
-
-        eqns = proj.GlobalDefinitionDocuments.Item(1).Equations;
-
-        for nn = 1:Nn
-            if ~eqns.Exists(M.params{nn}) 
-                error(strcat('AWR parameter not found: ', M.params{nn}))
-            end
-            parStr = [M.params{nn},'=',num2str(xi(nn))];
-            eqns.Item(M.params{nn}).Expression = parStr;
-        end
-        % Also include possible implicit parameters
-        for qq = 1:Nq
-            if ~eqns.Exists(M.Iparams{qq}) 
-                error(['AWR parameter not found: ', M.Iparams{qq}])
-            end
-            parStr = [M.Iparams{qq},'=',num2str(xp(qq))];
-            eqns.Item(M.Iparams{qq}).Expression = parStr;
-        end
-
-        % Generate output
-        for rr = 1:Nr
-            if strncmp(Rtype{rr},'S',1)
-                assert(~contains(Rtype{rr},'_'), 'S-parameters are always complex therefore specifying units here does not make sense. The goal type can have units though.')
-                RTypeString = replace(Rtype{rr},',','_');
-                portsString = [Rtype{rr}(2:end)];
-
-                % Adding a graph and measurement 
-                graphs = proj.Graphs;
-                if graphs.Exists([RTypeString,'_Mag Graph'])
-                    graph = graphs.Item([RTypeString,'_Mag Graph']);
-                else
-                    graph = graphs.Add([RTypeString,'_Mag Graph'],'mwGT_Rectangular');
-                end
-                measurement_Sxx_Mag = graph.Measurements.Add(M.name,['|S(', portsString, ')|']);
-
-                if graphs.Exists([RTypeString,'_Ang Graph'])
-                    graph = graphs.Item([RTypeString,'_Ang Graph']);
-                else
-                    graph = graphs.Add([RTypeString,'_Ang Graph'],'mwGT_Rectangular');
-                end
-                measurement_Sxx_Ang = graph.Measurements.Add(M.name,['Ang(S(', portsString, '))']);
-
-                proj.Simulator.Analyze;
-
-                nRead = measurement_Sxx_Mag.XPointCount;
-                [fin,Sxxin] = deal(zeros(nRead,1));
-                fin = measurement_Sxx_Mag.XValues;
-
-                for nn = 1:nRead
-                    amp = measurement_Sxx_Mag.YValue(nn,1);
-                    phase = measurement_Sxx_Ang.YValue(nn,1);
-                    Sxxin(nn) = amp.*exp(1i*phase);
-                end
-
-                if isfield(M,'freq')
-                    Nm = length(M.freq);
-                    Rreal = reshape(interp1(fin,real(Sxxin),M.freq,'spline'),Nm,1);
-                    Rimag = reshape(interp1(fin,imag(Sxxin),M.freq,'spline'),Nm,1);
-                    Rc{rr}.r = Rreal + 1i*Rimag;
-                    Rc{rr}.f = M.freq;
-                else
-                    Nm = nRead;
-                    Rc{rr}.r = Sxxin;
-                    Rc{rr}.f = fin;
-                end
-                Rc{rr}.t = Rtype{rr};
-            else
-                error(['Unrecognised Rtype request ', Rtype{rr}]);
-            end
-        end % for Nr
-        % awr.Project.Close(false)
-        % awr.Quit()
-        release(awr)
-
+        Rc = awrMod(M, xi, xp, Rtype, []);
     case 'ADS'
         error('ADS solver not implemented yet for coarse model evaluations')
-        
     case 'MATLAB'
-        Ni = length(M.params);  % This is interpreted as the number of inputs to the function
-        inType = [];
-        for ii = 1:Ni
-            inType = [inType,M.params{ii}];   % Initialise
-        end
-        switch inType
-            case 'xxpf'
-                Rci = M.name(xi,xp,f);
-            case 'xf'
-                Rci = M.name(xi,f);
-            case 'xxp'
-                Rci = M.name(xi,xp);
-            otherwise
-                Rci = M.name(xi);
-        end
-        % Distribute the responses
-        % For MATLAB case the model should return the specified responses
-        % columnwise...
-        for rr = 1:Nr
-            Rc{rr}.r = Rci(:,rr);
-            Rc{rr}.t = Rtype{rr};
-            if exist('f','var')
-                Rc{rr}.f = f;
-            end
-        end
+        Rc = matlabMod(M, xi, xp, Rtype, f);
     otherwise
         error(['M.solver unknown for coarse model evaluation'])
 end
-end % coarseMod
 
-
-function R = fekoMod(M,xi,Rtype)
-
-% TODO_DWW: Add functunality for coarse model xp
-Nn = length(xi);
-Nr = length(Rtype);
-
-% Build parameter string
-parStr = [];
-for nn = 1:Nn
-    parStr = [parStr,' -#',M.params{nn},'=',num2str(xi(nn))];
-end
-% Remesh the structure with the new parameters
-FEKOmesh = ['cadfeko_batch ',[M.path,M.name,'.cfx'],parStr];
-[statusMesh, cmdoutMesh] = system(FEKOmesh);
-% Run FEKO - cannot run with path, so change the directory
-curDir = pwd;
-cd(M.path);
-FEKOrun = ['runfeko ', [M.name,'.cfx']];
-[statusRun, cmdoutRun] = system(FEKOrun);
-cd(curDir);
-% Generate output
-for rr = 1:Nr
-    if strncmp(Rtype{rr},'S',1)
-        portB = Rtype{rr}(2:find(Rtype{rr}==',')-1);
-        portB_num = str2double(portB);
-        portA = Rtype{rr}(find(Rtype{rr}==',')+1:end);
-        portA_num = str2double(portA);
-        % Read the Sb_a touchstone file - must be exported by the FEKO
-        % file with the correct name - Name_S1_1.s*p!
-        fileName = [M.name,'_S',portB,'_',portA,'.s*p'];
-        wildPos = find(fileName=='*');
-        fileDir = dir([M.path,fileName]);
-        portCount = str2double(fileDir.name(wildPos));
-        file = [fileDir.folder, '\', fileDir.name];
-        [Spar,freq] = touchread(file,portCount);
-        Sba = reshape(Spar(portB_num,portA_num,:),length(freq),1);
-        R{rr}.f = freq;
-    else
-        error(['Unrecognised Rtype{rr} for FEKO run. Rtype{',rr,'} = ', Rtype{rr}])
-    end
-    R{rr}.r = Sba;
-    R{rr}.t = Rtype{rr};
-end
-save FEKOLog statusMesh cmdoutMesh statusRun cmdoutRun;
-
-end % fekoMod function
+end % coarseMod function
 
 
 function cost = costSurr(xin,S,OPTopts)
@@ -1127,9 +924,11 @@ Ni = length(Ti.xi_all);    % Number of iterations
 % end
 % legend('show') 
 % title('costs')
-
 subplot(2,2,[1 2])
-if strcmp(extractUnitString(OPTopts.goalResType{1}),'complex')
+if strcmp(OPTopts.goalResType{1},'Gen')
+    plot(cell2mat(Ti.costF_all), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+    plotGoals()
+elseif strcmp(extractUnitString(OPTopts.goalResType{1}),'complex')
     plot(real(cell2mat(Ti.costF_all)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     plot(imag(cell2mat(Ti.costF_all)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     legend('real','imag');
@@ -1147,7 +946,9 @@ title('Ti.costF\_all')
 
 % Meaningless -> just for debugging
 subplot(2,2,3)
-if strcmp(extractUnitString(OPTopts.goalResType{1}),'complex')
+if strcmp(OPTopts.goalResType{1},'Gen')
+    plot(cell2mat(costS), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+elseif strcmp(extractUnitString(OPTopts.goalResType{1}),'complex')
     plot(real(cell2mat(costS)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     plot(imag(cell2mat(costS)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     legend('real','imag')
@@ -1161,7 +962,10 @@ xlabel('Iterations success points')
 title('costS - fairly meaningless')
 
 subplot(2,2,4)
-if strcmp(extractUnitString(OPTopts.goalResType{1}),'complex')
+if strcmp(OPTopts.goalResType{1},'Gen')
+    plot(cell2mat(costF), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
+    plotGoals()
+elseif strcmp(extractUnitString(OPTopts.goalResType{1}),'complex')
     plot(real(cell2mat(costF)), strcat(markerstr(1),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     plot(imag(cell2mat(costF)), strcat(markerstr(2),colourstr(1)),'LineWidth',2,'MarkerSize',10), grid on, hold on
     legend('real','imag')

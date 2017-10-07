@@ -53,6 +53,16 @@ SMopts.getF = 0;
 SMopts.getE = 0;
 SMopts.getd = 0;
 
+% SMopts.globalSolver = 'ga';
+% SMopts.optsGlobalOptim = optimoptions('ga');
+% SMopts.optsGlobalOptim.Display = 'final';
+
+% SMopts.localSolver = 'fmincon';
+% SMopts.optsLocalOptim = optimoptions('fmincon');
+% SMopts.optsLocalOptim.Display = 'iter-detailed';
+% SMopts.optsLocalOptim.Diagnostics = 'on';
+% SMopts.optsLocalOptim.DiffMinChange = 1e-6;
+
 SMopts.ximin = Mc.ximin;
 SMopts.ximax = Mc.ximax;
 % SMopts.xpmin = Mc.xpmin;

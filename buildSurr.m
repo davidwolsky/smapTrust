@@ -60,7 +60,8 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %        uses the number of SM types requested (implying the number of unknowns)
 %        to keep track of how many fine model points to include. Ones are used for
 %        the weight of the number of SM types for the most recent fine points 
-%        and a zero weight is applied to all previous entries.
+%        and a zero weight is applied to all previous entries. 
+%        If wk is empty then only one fine model will be passed in.
 %   vk - weights to determine the error function in the Jacobian fitting when
 %        more than one fine point is included. Can be the same length 
 %        as the number of cells in xi and Rfi. Default all (0). See eq
@@ -76,14 +77,22 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %           say the coarse model will only ever be evaluated within these
 %           bounds during the PE process.  Equal upper and lower bounds
 %           will remove the parameters of interest from the PE optimization
-%   Amin - minimum value for A to constrain the search space (default 0)
-%   Amax - maximum value for A to constrain the search space (default inf)
+%   Amin - minimum value for A to constrain the search space (default 0.5)
+%   Amax - maximum value for A to constrain the search space (default 2.0)
 %          The above values can be scalar of vectors of length Nm
-%   Fmin - minimum values for F to constrain the search space [2,1] (default [0;-min(S.f)])
-%   Fmax - maximum values for F to constrain the search space [2,1] (default [inf;inf])
+%   Fmin - minimum values for F to constrain the search space [2,1]
+%   Fmax - maximum values for F to constrain the search space [2,1]
 %          Once again, equal upper and lower bounds can be used above to
 %          remove a certain element from the search space
+%   fmin - minimum shifted frequency when using getF
+%   fmax - maximum shifted frequency when using getF
+%TODO_DWW: remove this option once it is obsolete
 %   optsFminS - options for the fminsearch local optimizer in the PE
+%   localSolver     - option choosing the solver for the  local parameter extraction (alignment).
+%   optsLocalOptim  - problem options for the local optimiser. 
+% TODO_DWW: To make this totally set from the outside a function handle to the optimiser would also need to be set.
+%   globalSolver    - option choosing the solver for the  global parameter extraction (alignment).
+%   optsGlobalOptim - problem options for the global optimiser. 
 %   globOpt - flag to include global search (PBILreal) in the PE (Not currently working)
 %   M_PBIL - number of bits per parameter in the PBIL global search (8)
 %   optsPBIL - options for the PBIL global optimizer in the PE
@@ -92,6 +101,17 @@ function Si = buildSurr(xi,Rfi,S,opts)
 %          of length Nm, to calculate the extraction error.  Can be used to 
 %          mask out regions in the response domain of less importance. 
 %          Default ones. 
+%   normaliseAlignmentParameters - Normalises the SM parameters between the maximum and 
+%           minimum equivalent in actual varaible space. For example B*x+c has a maximum
+%           and minimum. Parameters maximum and minimum values are calculated for the B 
+%           and c values. If this flag is true then the normalisation is carried out before
+%           the parameters are passed into the optimisation routine.This should allow the 
+%           optimiser to work on values all in a similar range.
+%   plotAlignmentFlag - When true a plot of the starting point and final point
+%           of alignment will be plotted. For complex results both the real and 
+%           imaginary part is shown along with the error between the fine model and
+%           the evaluated surrogate. NOTE an extra two coarse model evaluations are 
+%           done when populating the errors to plot.
 %
 % Returns:
 % S -  The surrogate model structure containing:
@@ -158,6 +178,14 @@ function Si = buildSurr(xi,Rfi,S,opts)
 % 2017-03-08: Introduced a wk == 0  option that used the number of SM types to determine how
 %             how many of the most recent fine points to use when calculating the error function
 %             for model fitting. 
+% 2017-07-08: Bring in functions from the Matlab Optimisation toolbox. To do this the constraints
+%             and variables need to take a different form. 
+% 2017-07-29: Removed fixed parameters from the optimisation space. This is especially neccessary for
+%             the global optimiser and to reduce the complexity for debugging.
+% 2017-08-14: Introduced a plotting flag and function to make a graph showing the error before and 
+%             after the alignment phase.
+% 2017-09-18: Introduced normalisation of alignment parameters.
+% 2017-09-19: Reintroducing globOpt, really thought it was working again already.
 
 % ToDo: Implement E (first order OSM)
 % ToDo: Jacobian fitting in error functions (vk)
@@ -168,7 +196,7 @@ function Si = buildSurr(xi,Rfi,S,opts)
 [lenA,lenB,lenc,lenG,lenxp,lenF] = deal(0);
 [Nc,Nn,Nq,Nm] = deal(0);
 [A_init,Av_init,B_init,Bv_init,c_init,G_init,Gv_init,xp_init,F_init,typeA,typeB,typec,typeG,typexp,typeF] = deal([]);
-[Bmin,Bmax,cmin,cmax,Gmin,Gmax,xpmin,xpmax,fmin] = deal([]);
+[Bmin,Bmax,cmin,cmax,Gmin,Gmax,xpmin,xpmax,fmin,fmax] = deal([]);
 
 % Sort out formats
 if iscell(xi) && iscell(Rfi) && (length(xi) == length(Rfi))   % Basic error checking - if any issue here only first point will be used
@@ -193,6 +221,8 @@ getd = 0;
 getE = 0;
 getF = 0;
 
+plotOpts = {}
+
 % Default constraints
 ximin = -inf.*ones(Nn,1); 
 ximax = inf.*ones(Nn,1);
@@ -205,12 +235,8 @@ if isfield(S,'xp')
         S = rmfield(S,'xp');    % Get rid of empty xp field for later checks
     end
 end
-Amin = eps;
-Amax = inf;
-if isfield(S,'f')
-    Fmin = [0,min(S.f)]';
-    Fmax = [inf,inf]';
-end
+Amin = 0.5;
+Amax = 2.0;
 
 % Get user SM type request
 if isfield(opts,'getA'), getA = opts.getA; end
@@ -222,31 +248,52 @@ if isfield(opts,'getd'), getd = opts.getd; end
 if isfield(opts,'getE'), getE = opts.getE; end
 if isfield(opts,'getF'), getF = opts.getF; end
 
+if ~isfield(S,'f')
+    % If no frequency is provided use indices
+    S.f = 1:Nm;
+end
+fmin = 0.9*min(S.f);
+fmax = 1.1*max(S.f);
+
 NSMUnknowns = getNSMUnknowns();
 
 % Default optimization parameters
+% TODO_DWW: Depricating
 optsFminS = optimset('display','none');
+localSolver = 'fmincon';
+optsLocalOptim = optimoptions('fmincon');
+globalSolver = 'ga';
+optsGlobalOptim = optimoptions('ga');
+
 globOpt = 0;
 % M_PBIL = 8;
 % optsPBIL = [];
-errNorm = 2;
+% TODO_DWW: Change the error norm to one throughout the other examples!
+errNorm = 1;
 errW = 1;
+normaliseAlignmentParameters = 0;
+plotAlignmentFlag = 0;
 if isfield(opts,'wk') 
-    wk = opts.wk;
-    if length(wk) == 1
-        if (wk == 0) 
-            wk = ones(1,Nc);
-            % If the error function for the model fitting becomes overdetermined 
-            % and can give a skewed model.
-            if (Nc > NSMUnknowns)
-                wk(1:end-NSMUnknowns) = 0;
+    if isempty(opts.wk)
+        wk = zeros(1,Nc);
+        wk(end) = 1;        % Only use most recent model evaluation to build the surrogate
+    else
+        wk = opts.wk;
+        if length(wk) == 1
+            if (wk == 0)
+                wk = ones(1,Nc);
+                % If the error function for the model fitting becomes overdetermined
+                % and can give a skewed model.
+                if (Nc > NSMUnknowns)
+                    wk(1:end-NSMUnknowns) = 0;
+                end
+            else
+                wk = wk.^[1:Nc];
             end
-        else
-            wk = wk.^[1:Nc];
         end
     end
 else
-    wk = ones(1,Nc);
+    wk = ones(1,Nc);        % Default case - same weight given to all previous fine model evaluations to build the surrogate
 end
 
 if isfield(opts,'vk') 
@@ -263,21 +310,28 @@ end
 % Get user constraints
 if isfield(opts,'ximin'), ximin = opts.ximin; end
 if isfield(opts,'ximax'), ximax = opts.ximax; end
-if isfield(opts,'xpmin'), xpmin = opts.xpmin; end
-if isfield(opts,'xpmax'), xpmax = opts.xpmax; end
 if isfield(opts,'Amin'), Amin = opts.Amin; end
 if isfield(opts,'Amax'), Amax = opts.Amax; end
-if isfield(opts,'Fmin'), Fmin = opts.Fmin; end
-if isfield(opts,'Fmax'), Fmax = opts.Fmax; end
-
+if isfield(opts,'xpmin'), xpmin = opts.xpmin; end
+if isfield(opts,'xpmax'), xpmax = opts.xpmax; end
+if isfield(opts,'fmin'), fmin = opts.fmin; end
+if isfield(opts,'fmax'), fmax = opts.fmax; end
 
 % Get user optimization parameters
+% TODO_DWW: Depricate -  do it.
 if isfield(opts,'optsFminS'), optsFminS = opts.optsFminS; end
-if isfield(opts,'globOpt'), globOpt = opts.globOpt; end
+if isfield(opts,'localSolver'), localSolver = opts.localSolver; end
+if isfield(opts,'optsLocalOptim'), optsLocalOptim = opts.optsLocalOptim; end
+if isfield(opts,'globalSolver'), globalSolver = opts.globalSolver; end
+if isfield(opts,'optsGlobalOptim'), optsGlobalOptim = opts.optsGlobalOptim; end
+% TODO_DWW: Depricate
 % if isfield(opts,'M_PBIL'), M_PBIL = opts.M_PBIL; end
 % if isfield(opts,'optsPBIL'), optsPBIL = opts.optsPBIL; end
+if isfield(opts,'globOpt'), globOpt = opts.globOpt; end
 if isfield(opts,'errNorm'), errNorm = opts.errNorm; end
 if isfield(opts,'errW'), errW = opts.errW; end
+if isfield(opts,'normaliseAlignmentParameters'), normaliseAlignmentParameters = opts.normaliseAlignmentParameters; end
+if isfield(opts,'plotAlignmentFlag'), plotAlignmentFlag = opts.plotAlignmentFlag; end
 
 % Assign current iteration S-model
 Si = S;
@@ -339,40 +393,53 @@ else    % A not requested - revert to default and clamp box limits.  Do here sin
     [A_init,Av_init,Amin,Amax] = deal(1);
     lenA = 1;
 end
+
+% --- getB ----
 lenB = Nn*Nn;
 B_init = eye(Nn);
 [Bv_init,Bmin,Bmax] = deal(reshape(B_init,lenB,1));
+BminDefaultDiag = 0.5;
+BmaxDefaultDiag = 2.0;
+BminDefaultCross = -0.5;
+BmaxDefaultCross = 0.5;
 if any(getB)
     typeB = 'B';
     if isfield(S,'B')
         B_init = S.B;
     end
     % Sort out the box limits according to what is requested
-    if numel(getB) == 1 && getB == 1    % Full matrix to be optimized - unconstrained in the box
-        BminM = -inf.*ones(Nn,Nn);  
-        BmaxM = inf.*ones(Nn,Nn);
-    elseif numel(getB) == 1 && getB == 2    % Only the diagonal entries optimized - unconstrained in the box
+    if numel(getB) == 1 && getB == 1    % Full matrix to be optimized
+        BminM = BminDefaultCross.*ones(Nn,Nn).*~eye(Nn) + diag(BminDefaultDiag.*ones(Nn,1));  
+        BmaxM = BmaxDefaultCross.*ones(Nn,Nn).*~eye(Nn) + diag(BmaxDefaultDiag.*ones(Nn,1));
+    elseif numel(getB) == 1 && getB == 2    % Only the diagonal entries optimized
         % Keep the rest of the entries the same as B - this allows (rarely
         % used) the off-diagonal entries to be the user supplied values
         [BminM,BmaxM] = deal(B_init);
-        BminM = BminM + diag(-inf.*ones(Nn,1));
-        BmaxM = BmaxM + diag(inf.*ones(Nn,1));
-    elseif numel(getB) == Nn   % Only certain of the diagonal entries optimized - unconstrained in the box
+        BminM = BminM.*~eye(Nn) + diag(BminDefaultDiag.*ones(Nn,1));
+        BmaxM = BmaxM.*~eye(Nn) + diag(BmaxDefaultDiag.*ones(Nn,1));
+    elseif numel(getB) == Nn   % Only certain of the diagonal entries optimized
         % Keep the rest of the entries the same as B - this allows (rarely
         % used) the off-diagonal entries to be the user supplied values
         [BminM,BmaxM] = deal(B_init);
         [minDiag,maxDiag] = deal(zeros(Nn,1));
-        minDiag(getB == 1) = -inf;
-        maxDiag(getB == 1) = inf;
-        BminM = BminM + diag(minDiag);
-        BmaxM = BmaxM + diag(maxDiag);
+        minDiag(getB == 1) = BminDefaultDiag;
+        maxDiag(getB == 1) = BmaxDefaultDiag;
+        BminM = BminM.*(~diag(getB)) + diag(minDiag);
+        BmaxM = BmaxM.*(~diag(getB)) + diag(maxDiag);
     else
-        error(['Unknown getB flag: ', num2str(getB),', should be 0, 1, 2 or a bollena vector of length Nn = ', num2str(Nn)]);
+        error(['Unknown getB flag: ', num2str(getB),', should be 0, 1, 2 or a bollean vector of length Nn = ', num2str(Nn)]);
     end
+
+    % Override defaults with user input
+    if isfield(opts,'Bmin'), BminM = opts.Bmin; end
+    if isfield(opts,'Bmax'), BmaxM = opts.Bmax; end
+
     Bv_init = reshape(B_init,lenB,1);
     Bmin = reshape(BminM,lenB,1);
     Bmax = reshape(BmaxM,lenB,1);
 end
+
+% --- getC ----
 lenc = Nn; 
 [c_init,cmin,cmax] = deal(zeros(lenc,1));
 if getc
@@ -380,50 +447,69 @@ if getc
     if isfield(S,'c')
         c_init(:,1) = S.c;
     end
-    cmin = -inf.*ones(Nn,1);   % Unconstrained in the box
-    cmax = inf.*ones(Nn,1);
+
+    cmin = ximin - reshape(Bmax, Nn, Nn)*ximax;
+    cmax = ximax - reshape(Bmin, Nn, Nn)*ximin;
+
+    % Override defaults with user input
+    if isfield(opts,'cmin'), cmin = opts.cmin; end
+    if isfield(opts,'cmax'), cmax = opts.cmax; end
 end
+
+% --- getxp and getG ----
 % Have to provide an xp input for implicit space mapping...
 if isfield(S,'xp')
     lenxp = Nq;
-    [xp_init(:,1),pmin(:,1),pmax(:,1)] = deal(S.xp);    % Note name pmin/max here - xpmin reserved for linear constraints
+    % Note name pmin/max here - xpmin reserved for linear constraints
+    [xp_init(:,1),pmin(:,1),pmax(:,1)] = deal(S.xp);    
     lenG = Nq*Nn;
     G_init = zeros(Nq,Nn); 
     [Gv_init,Gmin,Gmax] = deal(reshape(G_init,lenG,1));
-    if getxp
-        typexp = 'xp';
-        xp_init(:,1) = S.xp;
-        pmin = -inf.*ones(Nq,1);   % Unconstrained in box
-        pmax = inf.*ones(Nq,1);
-    end
+
+    GminDefault = -2.0;
+    GmaxDefault = 2.0;
     if any(getG)
         typeG = 'G';
         if isfield(S,'G')
             G_init = S.G;
         end
         % Sort out the box limits according to what is requested
-        if numel(getG) == 1 && getG == 1    % Full matrix to be optimized - unconstrained in the box
-            GminM = -inf.*ones(Nq,Nn);
-            GmaxM = inf.*ones(Nq,Nn);
-        elseif numel(getG) == Nn  % Only certain input parameter dependencies are kept for all implicit parameters - unconstrained in the box
+        if numel(getG) == 1 && getG == 1    % Full matrix to be optimized
+            GminM = GminDefault.*ones(Nq,Nn);
+            GmaxM = GmaxDefault.*ones(Nq,Nn);
+        elseif numel(getG) == Nn  % Only certain input parameter dependencies are kept for all implicit parameters
             % Keep the rest of the entries the same as G
             [GminM,GmaxM] = deal(G_init);
             % Unconstrained columns where we want to allow a search
-            GminM(:,getG == 1) = -inf;
-            GmaxM(:,getG == 1) = inf;
+            GminM(:,getG == 1) = GminDefault;
+            GmaxM(:,getG == 1) = GmaxDefault;
         elseif all(size(getG) == [Nq,Nn])
             % Keep the rest of the entries the same as G
             [GminM,GmaxM] = deal(G_init);
             % Unconstrained entries where we want to allow a search
-            GminM(getG == 1) = -inf;
-            GmaxM(getG == 1) = inf;
+            GminM(getG == 1) = GminDefault;
+            GmaxM(getG == 1) = GmaxDefault;
         else
             error(['Unknown getG flag: ', num2str(getG),', should be 0, 1 or a bollean vector of length Nn = ', num2str(Nn),', or a boolean matrix of size [Nq,Nn] = [',num2str(Nq),',',num2str(Nn),']']);
         end
+        
+        % Override defaults with user input
+        if isfield(opts,'Gmin'), GminM = opts.Gmin; end
+        if isfield(opts,'Gmax'), GmaxM = opts.Gmax; end
+        
         Gv_init = reshape(G_init,lenG,1);
         Gmin = reshape(GminM,lenG,1);
         Gmax = reshape(GmaxM,lenG,1);
     end
+
+    if getxp
+        typexp = 'xp';
+        xp_init(:,1) = S.xp;
+        % Box constraint
+        pmin = xpmin - reshape(Gmax, Nq, Nn)*ximax;
+        pmax = xpmax - reshape(Gmin, Nq, Nn)*ximin;
+    end
+
 else
     if getxp
         warning('Cannot perform getxp with no S.xp provided - request ignored');
@@ -432,6 +518,8 @@ else
     end
     [xp_init,pmin,pmax,G_init,Gv_init,Gmin,Gmax] = deal([]);
 end
+
+% --- getF ---
 lenF = 2;
 if getF 
     if ~isfield(S,'f')
@@ -443,9 +531,17 @@ if getF
     else
         F_init = [1;0];
     end
-    % Limits already handled earlier while setting up defaults and reading
-    % user supplied data
-    fmin = eps; % Linear constraint to force positive surrogate frequency
+    F1min = 0.5;
+    F1max = 2.0;
+    F2min = fmin - F1max*max(S.f);
+    F2max = fmax - F1min*min(S.f);
+
+    Fmin = [F1min; F2min];
+    Fmax = [F1max; F2max];
+
+    if isfield(opts,'Fmin'), Fmin = opts.Fmin; end
+    if isfield(opts,'Fmax'), Fmax = opts.Fmax; end
+
 else  % F not requested - revert to default and clamp box limits.  Do here since user can supply limits.
     [F_init,Fmin,Fmax] = deal([1;0]);
 end
@@ -488,6 +584,10 @@ if strcmp(inputType,'F') || strcmp(inputType,'AF') && Nc == 1 % Special cases wh
         % F_init = PBILreal(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),Fmin,Fmax,M_PBIL,optsPBIL);
     % end
 %     Fvect = fminsearchcon(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),F_init,[0, -inf],[],[-min(S.f),0;0,-1],[0;0],[],optsFminS);     % Positive multiplier, and minimum frequency
+    % TODO_DWW: Follow through here...
+    %           Match this and the bottom errf as a function.
+    %           spline acting on complex values here - try use linear
+    %           Want to use optimisation toolbox instead of fminsearch.
     Fvect = fminsearchcon(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),F_init,[0, -inf],[],[-min(S.f),-1],[0],[],optsFminS);     % Positive multiplier, and minimum frequency
     
     fs = Fvect(1).*S.f + Fvect(2);
@@ -526,31 +626,31 @@ elseif strcmp(inputType,'A') && Nc == 1  % Special case without optimization
     optVect(firstPos(1):lastPos(1)) = A;
 else
     % Set up the linear constraints
-    Ncon = 2*Nn + 2*Nq + getF;
+    Ncon = 2*Nn + 2*Nq + 2;
     LHS_mat = zeros(Ncon,length(initVect));
     
     lhsA_mat = zeros(size(A_init));        
     lhsB_mat = zeros(size(B_init));    % Basic matrix shape to use for distribution of the input vector in the LHS matrix for B
-    lhsc_mat = zeros(size(c_init));    % Basic matrix shape to use for distribution of the input vector in the LHS matrix for B
+    lhsc_mat = zeros(size(c_init));    % Basic matrix shape to use for distribution of the input vector in the LHS matrix for c
     lhsG_mat = zeros(size(G_init));    % Basic matrix shape to use for distribution of the input vector in the LHS matrix for G
     lhsxp_mat = zeros(size(xp_init));
     lhsF_mat = zeros(size(F_init));
     
-    RHS_vect = [-ximin;ximax;-xpmin;xpmax;-fmin];
+    RHS_vect = [-ximin; ximax; -xpmin; xpmax; -fmin; fmax];
     
     % First populate the input space limits in LHS_mat
-    for xx = 1:Nn
+    for nn = 1:Nn
         xA_vect = diag(lhsA_mat);       % Always zeros - no influence on input/implicit space or frequency bounds
         
         xB_mat = lhsB_mat;
         if lenB > 0;
-            xB_mat(xx,:) = xi{1}';
+            xB_mat(nn,:) = xi{1}';
         end
         xB_vect = reshape(xB_mat,1,lenB);
         
         xc_mat = lhsc_mat;
         if lenc > 0
-            xc_mat(xx,:) = 1;
+            xc_mat(nn,:) = 1;
         end
         xc_vect = reshape(xc_mat,1,lenc);
         
@@ -558,88 +658,138 @@ else
         xxp_vect = reshape(lhsxp_mat,1,lenxp);
         xF_vect = reshape(lhsF_mat,1,lenF);
         
-        LBrow = [xA_vect,-xB_vect,-xc_vect,xG_vect,xxp_vect,xF_vect];
-        UBrow = [xA_vect,xB_vect,xc_vect,xG_vect,xxp_vect,xF_vect];
+        xLBrow = [xA_vect,-xB_vect,-xc_vect,xG_vect,xxp_vect,xF_vect];
+        xUBrow = [xA_vect,xB_vect,xc_vect,xG_vect,xxp_vect,xF_vect];
         
-        LHS_mat(xx,:) = LBrow; % Lower bound row
-        LHS_mat(Nn+xx,:) = UBrow; % Upper bound row
+        LHS_mat(nn,:) = xLBrow; % Lower bound row
+        LHS_mat(Nn+nn,:) = xUBrow; % Upper bound row
     end
     % And now the implicit parameters part
-    for ii = 1:Nq
-        rLB = 2*Nn + ii;    % Lower bound row
+    for qq = 1:Nq
+        % Always zeros
+        xpA_vect = diag(lhsA_mat);
+        xpB_vect = reshape(lhsB_mat,1,lenB);
+        xpc_vect = reshape(lhsc_mat,1,lenc);
+        xpF_vect = reshape(lhsF_mat,1,lenF);
+        
+        xpG_mat = lhsG_mat;
+        if lenG > 0
+            xpG_mat(qq,:) = xi{1}';
+        end
+        xpG_vect = reshape(xpG_mat,1,lenG);
+        
+        xpxp_mat = lhsxp_mat;
+        if lenxp > 0
+            xpxp_mat(qq,:) = 1;
+        end
+        xpxp_vect = reshape(xpxp_mat,1,lenxp);
+                
+        xpLBrow = [xpA_vect,xpB_vect,xpc_vect,-xpG_vect,-xpxp_vect,xpF_vect];
+        xpUBrow = [xpA_vect,xpB_vect,xpc_vect,xpG_vect,xpxp_vect,xpF_vect];
+
+        rLB = 2*Nn + qq;    % Lower bound row
         rUB = rLB + Nq;     % Upper bound row
         
-        % Always zeros
-        xA_vect = diag(lhsA_mat);      
-        xB_vect = reshape(lhsB_mat,1,lenB);
-        xc_vect = reshape(lhsc_mat,1,lenc);
-        xF_vect = reshape(lhsF_mat,1,lenF);
-        
-        xG_mat = lhsG_mat;
-        if lenG > 0
-            xG_mat(ii,:) = xi{1}';
-        end
-        xG_vect = reshape(xG_mat,1,lenG);
-        
-        xxp_mat = lhsxp_mat;
-        if lenxp > 0
-            xxp_mat(ii,:) = 1;
-        end
-        xxp_vect = reshape(xxp_mat,1,lenxp);
-                
-        LBrow = [xA_vect,xB_vect,xc_vect,-xG_vect,-xxp_vect,xF_vect];
-        UBrow = [xA_vect,xB_vect,xc_vect,xG_vect,xxp_vect,xF_vect];
-        
-        LHS_mat(rLB,:) = LBrow; % Lower bound row
-        LHS_mat(rUB,:) = UBrow; % Upper bound row
+        LHS_mat(rLB,:) = xpLBrow; % Lower bound row
+        LHS_mat(rUB,:) = xpUBrow; % Upper bound row
     end
     % And frequency shifts
-    if getF
-        LHS_mat(2*(Nn+Nq)+1,end-1:end) = [-min(S.f),-1];
-    end
-
-    % CRC_DWW: for global optimisation work.
-    % prob = {}
-    % prob.objective = @(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE);
-    % prob.fitnessfcn = @(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE);
-    % prob.nvars = length(xi)
-    % prob.x0 = [];
-    % prob.Aineq = LHSmat
-    % prob.bineq = RHSvect
-    % prob.Aeq = [];
-    % prob.beq = [];
-    % prob.lb = ximinn
-    % prob.ub = ximaxn
-    % prob.nonlcon = nonLcon
-
-    if 0 && globOpt
-        [initVect] = ga(prob);
-        % Start with global search to get initial value
-        % PBIL Not implimented yet
-        % [initVect] = PBILreal(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),minVect,maxVect,M_PBIL,optsPBIL);
-    end
-%     optVect = fminsearch(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),initVect,optsFminS);
-%     keyboard
-    % TODO_DWW:
-    optVect = fminsearchcon(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),initVect,minVect,maxVect,LHS_mat,RHS_vect,[],optsFminS);
-%     optsFminS.OptimalityTolerance = 1e-12
-%     [optVect,f,outputs,next] = fmincon(@(optVect) erri(optVect,xi,Rfi,S,wk,vk,optsParE),initVect,LHS_mat,RHS_vect,[],[],minVect,maxVect,[],optsFminS);
+    LHS_mat(2*(Nn+Nq)+1,end-1:end) = [-min(S.f),-1];
+    LHS_mat(2*(Nn+Nq)+2,end-1:end) = [max(S.f),1];
     
-end
-% Rebuild the individual parameters from the vector
-A = diag(optVect(firstPos(1):lastPos(1)));
-B = reshape(optVect(firstPos(2):lastPos(2)),sqrt(lenB),sqrt(lenB));   % Always square
-c = reshape(optVect(firstPos(3):lastPos(3)),lenc,1);
-G = reshape(optVect(firstPos(4):lastPos(4)),min(lenG,Nq),Nn); % Must be empty matrix if lenG == 0
-xp = reshape(optVect(firstPos(5):lastPos(5)),lenxp,1);
-F = reshape(optVect(firstPos(6):lastPos(6)),lenF,1); % Must be empty matrix if lenG == 0
+    originalProblem = {};
+    originalProblem.x0 = initVect;
+    originalProblem.Aineq = LHS_mat;
+    originalProblem.bineq = RHS_vect;
+    originalProblem.lb = minVect;
+    originalProblem.ub = maxVect;
 
-Si.A = A; 
-Si.B = B; 
-Si.c = c; 
-Si.G = G; 
-Si.xp = xp; 
-Si.F = F; 
+    if ( normaliseAlignmentParameters == 1 )
+        [normalisedProblem] = normaliseProblem(originalProblem, optsParE);
+        baseProblem = normalisedProblem;
+    else
+        % If no normalisation is required then the base model is just the original problem.
+        baseProblem = originalProblem;
+    end
+    [reducedProblem] = removeFixedParameters(baseProblem);
+
+    if ( normaliseAlignmentParameters == 1 )
+        % normalisation consistancy check
+        optVectn = normalisedProblem.x0;
+        optVect = denormaliseOptVect(optVectn, originalProblem, optsParE);
+        
+        if (~all( (originalProblem.x0 - optVect) < 1e-15 ))
+            [originalProblem.x0, optVect]
+            assert(all(originalProblem.x0 == optVect), 'Normalisation and denormalisation has to result in the same thing.')
+        end
+    end
+
+    if ( plotAlignmentFlag == 1 )
+        startingError = 0;
+        completionError = 0;
+        % Plot initial error before alignment
+        plotOpts.plotTitle = 'Starting alignment';
+        startingError = erri(reducedProblem.x0, xi, Rfi, S, wk, vk, optsParE, ...
+                             normaliseAlignmentParameters, baseProblem, originalProblem, ...
+                             plotAlignmentFlag, plotOpts);
+    end
+
+    problem = {};
+    problem.x0 = reducedProblem.x0;
+    problem.Aineq = reducedProblem.Aineq;
+    problem.bineq = reducedProblem.bineq;
+    problem.Aeq = [];
+    problem.beq = [];
+    problem.lb = reducedProblem.lb;
+    problem.ub = reducedProblem.ub;
+    problem.nonlcon = [];
+    if globOpt
+        problem.fitnessfcn = @(tempOptVect) erri(tempOptVect, xi, Rfi, S, wk, vk, optsParE, ...
+                                                 normaliseAlignmentParameters, baseProblem, originalProblem, ...
+                                                 false, plotOpts);
+        problem.nvars = length(reducedProblem.x0);
+        problem.solver = globalSolver;
+        problem.options = optsGlobalOptim;
+        % TODO_DWW: Check this work with function handle from outside- rather case it...
+        % [optVectGlobalReduced,fval,exitflag,output] = ga(problem);
+        [optVectGlobalReduced,fval,exitflag,output] = doOptimisation(problem);
+        % Start with global search to get initial value.
+        problem.x0 = optVectGlobalReduced;
+    end
+    problem.objective = @(tempOptVect) erri(tempOptVect, xi, Rfi, S, wk, vk, optsParE, ...
+                                            normaliseAlignmentParameters, baseProblem, originalProblem, ...
+                                            false, plotOpts);
+    problem.solver = localSolver;
+    problem.options = optsLocalOptim;
+    % TODO_DWW: Check this work with function handle from outside - rather case it...
+    % [optVectReduced,fval,exitflag,output] = fmincon(problem);
+    [optVectReduced,fval,exitflag,output] = doOptimisation(problem);
+    
+    if ( plotAlignmentFlag == 1 )
+        % Plot errors after alignment
+        plotOpts.plotTitle = 'Alignment complete';
+        completionError = erri(optVectReduced,xi,Rfi,S,wk,vk,optsParE, ...
+                               normaliseAlignmentParameters, baseProblem, originalProblem, ...
+                               plotAlignmentFlag, plotOpts);
+
+        assert(completionError == fval, 'The optimised parameters should return the same error as the optimiser received.')
+        if ( (startingError - completionError) < 0.0 )
+            warning(['Starting error ', mat2str(startingError), ' is less than the completion error (', ...
+            mat2str(completionError), ') during the alignment phase of building the surrogate.'])
+        end
+    end
+
+    optVect = [];
+    if ( normaliseAlignmentParameters == 1 )
+        optVectn = reconstructWithFixedParameters(optVectReduced, baseProblem);
+        optVect = denormaliseOptVect(optVectn, originalProblem, optsParE);
+    else
+        optVect = reconstructWithFixedParameters(optVectReduced, baseProblem);
+    end
+end
+
+% Put the results together again before asigning to the surrogate.
+Si = reshapeParameters(optVect, Si, optsParE);
 
 % Additive zero order OSM 
 d = zeros(Nm,1);
@@ -647,6 +797,7 @@ if getd, d = Rfi{end} - evalSurr(xi{end},Si); end
 Si.d = d;
 
 % Additive first order OSM - ToDo
+
 
 function NSMUnknowns = getNSMUnknowns()    
 % NSMUnknowns - The number of SM request types represent the number of unknowns that need to be solved. 
@@ -700,28 +851,39 @@ function NSMUnknowns = getNSMUnknowns()
     % Do nothing yet
 
     % --- getF ---
-    if getd == 1
+    if getF == 1
         NSMUnknowns = NSMUnknowns + 1;
     end
-end % end getNSMUnknowns
-
-end % end buildSurr
+end % getNSMUnknowns funcation
 
 
-% Error function for optimization
-function e = erri(optVect,xi,Rfi,S,wk,vk,opts)
+end % buildSurr function 
+
+
+% ======================================
+% ========= begin subfunctions =========
+% ======================================
+
+function [S] = reshapeParameters(optVect, S, optsParE)
+% Reshaped the optimisation vector back into the parameters.
+% Arguments:
+%   optVect: optimisation vector containing all the different parameters lumped together.
+%   S: The existing surrogate model
+%   optsParE: options for the parameters
+%       Nn;Nq;lenVect;firstPos;lastPos;errNorm;errW;
+% Returns: A surrogate with its individual parameters
 
 % Unpack the input structure
-Nn = opts.Nn;
-Nq = opts.Nq;
-firstPos = opts.firstPos;
-lastPos = opts.lastPos;
-lenA = opts.lenVect(1);
-lenB = opts.lenVect(2);
-lenc = opts.lenVect(3);
-lenG = opts.lenVect(4);
-lenxp = opts.lenVect(5);
-lenF = opts.lenVect(6);
+Nn = optsParE.Nn;
+Nq = optsParE.Nq;
+firstPos = optsParE.firstPos;
+lastPos = optsParE.lastPos;
+lenA = optsParE.lenVect(1);
+lenB = optsParE.lenVect(2);
+lenc = optsParE.lenVect(3);
+lenG = optsParE.lenVect(4);
+lenxp = optsParE.lenVect(5);
+lenF = optsParE.lenVect(6);
 
 % Extract individual parameters
 A = diag(optVect(firstPos(1):lastPos(1)));
@@ -734,10 +896,40 @@ F = reshape(optVect(firstPos(6):lastPos(6)),lenF,1); % Must be empty matrix if l
 % Update the surrogate model structure
 S.A = A;
 S.B = B;
-S.c = c; 
+S.c = c;
 S.G = G;
 S.xp = xp;
 S.F = F;
+
+end % reshapeParameters function
+
+% ======================================
+
+function e = erri(reducedOptVect, xi, Rfi, S, wk, vk, opts, ...
+                  normaliseAlignmentParameters,  baseProblem, originalProblem, ...
+                  plotFlag, plotOpts)
+% Error function for optimization
+% Aguments: 
+%   see buildSurr for an explanation of the other arguments.
+%   baseProblem: This is either the original problem or the normalised problem.
+%   reducedOptVect: A reduced optimisation parameter vector that only contains changeable parameters.
+%   originalProblem: The orginal (full or normalised) problem with both modifiable and fixed parameters
+%       x0:     Initial parameter vector
+%       lb:     Lower bound vector for the optimisation parameter
+%       ub:     Upper bound vector for the optimisation parameter
+% Returns:
+%   e:  The total sum of normalised error between the complex fine model and the new surrogate evaluation.
+%       If multiple fine model evaluations are being used to build up a better surrogate then the error is 
+%       calculated for each fine model step for each output parameter. The surrogate is evaluated for each 
+%       output parameter at each of the fine model steps.
+
+if ( normaliseAlignmentParameters == 1 )
+    optVectn = reconstructWithFixedParameters(reducedOptVect, baseProblem);
+    optVect = denormaliseOptVect(optVectn, originalProblem, opts);
+else
+    optVect = reconstructWithFixedParameters(reducedOptVect, baseProblem);
+end
+S = reshapeParameters(optVect, S, opts);
 
 % Calculate the error function value
 Nc = length(wk);
@@ -748,27 +940,96 @@ if length(opts.errW) == 1
 else
     errW = opts.errW;
 end
-% Count over points
+diffR = {};
+errorValue = {};
+Rs = {};
 for cc = 1:Nc
-    Rs = evalSurr(xi{cc},S);
-    [Nm,Np] = size(Rs);
     ev = 0;
-    % Errors for each of the output parameters aggregated
+    Rs{cc} = evalSurr(xi{cc},S);
+    [Nm,Np] = size(Rs{cc});
+    % Errors for each output parameter (e.g. s-parameters) aggregated
     for pp = 1:Np
-        diffR = errW.*(Rfi{cc}(:,pp) - Rs(:,pp));
-        ev = ev + norm(diffR,opts.errNorm);
+        diffR{cc}{pp} = errW.*(Rfi{cc}(:,pp) - Rs{cc}(:,pp));
+        % keyboard
+        % A one norm gives the distance between functions in the complex plane.
+        errorValue{cc}{pp} = norm(diffR{cc}{pp},opts.errNorm);
+        % TODO_DWW: rather use this, better to explain 
+        % the same as the one norm.
+        % errorValue{cc}{pp} = sum(abs(diffR{cc}{pp}));
+        ev = ev + errorValue{cc}{pp};
     end
     ec(cc) = wk(cc).*ev;
 end
 e = sum(ec)./Nc;
+
+if ( plotFlag == 1 )
+    plotErri(Nc, Rfi, Rs, diffR, errorValue, opts.errNorm, ec, e, plotOpts);
 end
 
+end % erri function
 
+% ======================================
+
+function plotErri(Nc, Rfi, Rs, diffR, errorValue, errorNorm, ec, e, plotOpts)
+% Plots the error between the fine models and the response of the surrogate.
+
+% Parameters:
+%   plotOpts:
+%       plotTitle:  The graphs title.
+%       yLims:  Limits for the y axis. This is used to keep the graph scaling the same as the 
+%               initial alignment plot for easier comparison.
+%               Format: ylim([0.05,1.5])
+plotTitle = '';
+if isfield(plotOpts,'plotTitle'), plotTitle = plotOpts.plotTitle; end
+
+fig = figure();
+% The number of parameters per model should not change
+[Nm,Np] = size(Rs{1});
+for cc = 1:Nc
+    for pp = 1:Np
+        diffAll = Rfi{cc}(:,pp) - Rs{cc}(:,pp);
+
+        subplot(Nc,Np*2, (Np*(cc-1)*2) + pp*2-1), grid on, hold on
+        plot(real(Rfi{cc}),'k', 'LineWidth',2)
+        plot(real(Rs{cc}),'--r', 'LineWidth',2)
+        plot(real(diffR{cc}{pp}),'og', 'LineWidth',2)
+        plot(abs(real(diffAll)),'+m', 'LineWidth',2)
+        title({[plotTitle], ...
+            [' - Real:'], ...
+            ['Fine model ', num2str(cc), 'of', num2str(Nc), ', Output param: ', num2str(pp), 'of', num2str(Np)], ...
+            ['Outpus parameter error = ', num2str(errorValue{cc}{pp})], ...
+            ['Combined normalised error = ', num2str(ec(cc))], ...
+            [' using norm ', num2str(errorNorm), ', final error:', num2str(e)]})
+        % legend('real(Rfi)','real(Rs)','real(diffR)','(abs(real(diffAll))')
+        ylabel('Value')
+        xlabel('Point')
+
+        subplot(Nc,Np*2, (Np*(cc-1)*2) + pp*2), grid on, hold on
+        plot(imag(Rfi{cc}),'k', 'LineWidth',2)
+        plot(imag(Rs{cc}),'--r', 'LineWidth',2)
+        plot(imag(diffR{cc}{pp}),'og', 'LineWidth',2)
+        plot(abs(imag(diffAll)),'+m', 'LineWidth',2)
+        title({[plotTitle], .... 
+            [' - Imag:'], ...
+            ['Fine model ', num2str(cc), 'of', num2str(Nc), ', Output param: ', num2str(pp), 'of', num2str(Np)], ...
+            ['Outpus parameter error = ', num2str(errorValue{cc}{pp})], ...
+            ['Combined normalised error = ', num2str(ec(cc))], ...
+            [' using norm ', num2str(errorNorm), ', final error:', num2str(e)]})
+        % legend('imag(Rfi)','imag(Rs)','imag(diffR)','(abs(imag(diffAll))')
+        ylabel('Value')
+        xlabel('Point')
+    end
+end
+end % plotErri function
+
+% ======================================
+
+function e = erriF(Fvect,Rfi,Rc,f,opts)
 % Special case error function where only F is optimized and the coarse
 % model is not re-evaluated - interpolation/extrapolation is used on the
 % provided coarse model response...
 % This will only work for a single response at this stage
-function e = erriF(Fvect,Rfi,Rc,f,opts)
+
 fs = Fvect(1).*f + Fvect(2);
 RsComp = interp1(f,Rc,fs,'linear');
 RsComp = reshape(RsComp,length(RsComp),1);
@@ -801,5 +1062,4 @@ e = norm(diffR,opts.errNorm);
 %     error(['Unknown norm: ' opts.errNorm,'.  Should be L1, L2 or Linf']);
 % end
 
-end
-
+end % erriF function
