@@ -273,12 +273,12 @@ errNorm = 1;
 errW = 1;
 normaliseAlignmentParameters = 0;
 plotAlignmentFlag = 0;
-if isfield(opts,'wk') 
-    if isempty(opts.wk)
+if isfield(SMopts,'wk') 
+    if isempty(SMopts.wk)
         wk = zeros(1,Nc);
         wk(end) = 1;        % Only use most recent model evaluation to build the surrogate
     else
-        wk = opts.wk;
+        wk = SMopts.wk;
         if length(wk) == 1
             if (wk == 0)
                 wk = ones(1,Nc);
@@ -954,7 +954,6 @@ e = sum(ec)./Nc;
 if ( plotFlag == 1 )
     plotErri(Nc, Rfi, Rs, diffR, errW, errorValue, SMopts.errNorm, ec, e, plotOpts);
 end
-end % plotErri function
 
 end % erri function 
 

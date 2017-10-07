@@ -76,12 +76,6 @@ SMopts.ximin = Mc.ximin;
 SMopts.ximax = Mc.ximax;
 SMopts.xpmin = Mc.xpmin;
 SMopts.xpmax = Mc.xpmax;
-<<<<<<< HEAD
-SMopts.optsFminS = optimset('display','iter');
-SMopts.optsPBIL.display =  'iter';
-SMopts.optsPBIL.Nfeval = 5000;
-=======
->>>>>>> origin/feature_normaliseExtraction
 SMopts.errNorm = 1;
 % SMopts.wk = 5;
 SMopts.wk = 0;
@@ -105,16 +99,6 @@ OPTopts.goalWeight = {1};
 OPTopts.goalStart = {1.30e9};
 OPTopts.goalStop = {1.45e9};
 OPTopts.errNorm = {1};
-<<<<<<< HEAD
-OPTopts.optsPBIL.display =  'iter'; 
-OPTopts.optsPBIL.Nfeval = 5000;
-OPTopts.optsPBIL.Nbest = 10; % DOM
-OPTopts.M_PBIL = 6;
-OPTopts.optsFminS = optimset('display','iter');
-% OPTopts.optsFminS = optimset('MaxFunEvals',10,'display','iter');
-=======
-
->>>>>>> origin/feature_normaliseExtraction
 OPTopts.plotIter = 1;
 OPTopts.TolX = 10e-2;
 OPTopts.eta1 = 0.05;

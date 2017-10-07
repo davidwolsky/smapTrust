@@ -46,9 +46,14 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
+# =========================
+# Models
+# =========================
+examples/GW_hybrid_CST/CST/GWhybrid_Fine/*
+
+# =========================
 # OTHER
 # =========================
-
 *.sublime-workspace
 sm.sublime-workspace
 *.sublime-project
@@ -57,6 +62,7 @@ SM_MATLABtest.asv
 SMmain.asv
 *~
 
+# =========================
 # FEKO
 # =========================
 *.cfs
@@ -74,6 +80,7 @@ SMmain.asv
 *runfeko_tmp_*
 FEKOLog*
 
+# =========================
 # AWR
 # =========================
 *.TEMP
@@ -82,3 +89,8 @@ FEKOLog*
 *.afo
 *MWOffice_ipclog.xml
 *ipc_log_formatter.xsl
+
+
+# =========================
+# CST
+# =========================
