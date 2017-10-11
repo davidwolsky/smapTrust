@@ -923,7 +923,9 @@ end
 S = reshapeParameters(optVect, S, SMopts);
 
 % Calculate the error function value
-Nc = length(wk);
+% Nc - Number of fine models available
+Nc = length(wk); 
+% Weighted error
 ec = zeros(1,Nc);
 if length(SMopts.errW) == 1
     errW = Rfi{1}./Rfi{1};
@@ -937,6 +939,8 @@ Rs = {};
 for cc = 1:Nc
     ev = 0;
     Rs{cc} = evalSurr(xi{cc},S);
+    % Nm - length of response vectors (freq)
+    % Np - number of output parameters
     [Nm,Np] = size(Rs{cc});
     % Errors for each output parameter (e.g. s-parameters) aggregated
     for pp = 1:Np

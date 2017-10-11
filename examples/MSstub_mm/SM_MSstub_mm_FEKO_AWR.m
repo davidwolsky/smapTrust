@@ -74,14 +74,6 @@ OPTopts.optsLocalOptim.Diagnostics = 'on';
 % OPTopts.goalStart = {1.30e9};
 % OPTopts.goalStop = {1.45e9};
 % OPTopts.errNorm = {1};
-%
-% OPTopts.goalType = {'gt'};
-% OPTopts.goalResType = {'S1,1_dB'};
-% OPTopts.goalVal = {-10};
-% OPTopts.goalWeight = {1};
-% OPTopts.goalStart = {1.60e9};
-% OPTopts.goalStop = {1.75e9};
-% OPTopts.errNorm = {1};
 
 % OPTopts.goalType = {'lt'};
 % OPTopts.goalResType = {'S1,1_dB'};
@@ -91,11 +83,18 @@ OPTopts.optsLocalOptim.Diagnostics = 'on';
 % OPTopts.goalStop = {1.45e9};
 % OPTopts.errNorm = {1};
 
+% OPTopts.goalType = {'gt'};
+% OPTopts.goalResType = {'S1,1_dB'};
+% OPTopts.goalVal = {-10};
+% OPTopts.goalWeight = {1};
+% OPTopts.goalStart = {1.60e9};
+% OPTopts.goalStop = {1.75e9};
+% OPTopts.errNorm = {1};
 
 OPTopts.goalType = {'lt', 'gt'};
 OPTopts.goalResType = {'S1,1_dB', 'S1,1_dB'};
 OPTopts.goalVal = {-20, -10};
-OPTopts.goalWeight = {1, 1};
+OPTopts.goalWeight = {1, 0.1};
 OPTopts.goalStart = {1.30e9, 1.60e9};
 OPTopts.goalStop = {1.45e9, 1.75e9};
 OPTopts.errNorm = {1,1};
@@ -150,12 +149,14 @@ SMopts.xpmin = Mc.xpmin;
 SMopts.xpmax = Mc.xpmax;
 % SMopts.errNorm = 1;
 % An L2 norm is required here else the model steps in the wrong direction.
-SMopts.errNorm = 2;
+% SMopts.errNorm = 2;
+SMopts.errNorm = 1;
 % errW = 1
 errW = zeros(size(Mf.freq));
 % errW = ones(size(Mf.freq)).*0.2;
 errW(Mf.freq > OPTopts.goalStart{1} & Mf.freq < OPTopts.goalStop{1}) = 1;
 errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1
+% errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 0.1
 SMopts.errW = errW;
 % SMopts.wk = 5;
 SMopts.wk = 0;
@@ -172,3 +173,6 @@ keyboard;
 %   Alignment may not be working at all. (Shouldn't do this but could change the SMopts.errNorm...)
 %   This is applicable to all of the paramets so if one is overstepped then it is a problem.
 % - If there is no step away from the coarse model then the finite-difference gradient may be set too small.
+%
+% - It could also walk the wrong way if the goal weighting is not optimal. 
+%   This is especially true for goals that initially sit in a null.
