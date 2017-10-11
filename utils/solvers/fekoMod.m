@@ -6,10 +6,16 @@ assert(isempty(xp), 'Implicit parameters has not been implemented for this routi
 assert(isempty(f), 'Model independent frequency for coarse models has not been implemented yet.')
 % Nq = length(xp);
 
-
 Nn = length(xi);
 Nr = length(Rtype);
 R = cell(1,Nr);
+
+% Run FEKO - cannot run with path, so change the directory
+curDir = pwd;
+cd(M.path);
+% Create temp file for run so that the original isn't overwritten and doesn't show up in version control.
+copyfile([M.name,'.cfx'], ['temp_',M.name,'.cfx'])
+M.name = ['temp_',M.name];
 
 % Build parameter string
 parStr = [];
@@ -19,9 +25,12 @@ end
 % Remesh the structure with the new parameters
 FEKOmesh = ['cadfeko_batch ',[M.path,M.name,'.cfx'],parStr];
 [statusMesh, cmdoutMesh] = system(FEKOmesh);
-% Run FEKO - cannot run with path, so change the directory
-curDir = pwd;
-cd(M.path);
+% % Run FEKO - cannot run with path, so change the directory
+% curDir = pwd;
+% cd(M.path);
+% % Create temp file for run so that the original isn't overwritten and doesn't show up in version control.
+% copyfile([M.name,'.cfx'], ['temp_',M.name,'.cfx'])
+% M.name = ['temp_',M.name];
 FEKOrun = ['runfeko ', [M.name,'.cfx']];
 [statusRun, cmdoutRun] = system(FEKOrun);
 cd(curDir);

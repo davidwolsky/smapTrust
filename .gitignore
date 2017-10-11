@@ -60,6 +60,7 @@ sm.sublime-workspace
 *.asv
 SM_MATLABtest.asv
 SMmain.asv
+temp_*
 *~
 
 # =========================
