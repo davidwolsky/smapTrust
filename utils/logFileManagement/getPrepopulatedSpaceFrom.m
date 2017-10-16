@@ -1,4 +1,4 @@
-function [space] = getPreppopulatedSpaceFrom(filename)
+function [space] = getPrepopulatedSpaceFrom(filename)
 
 % Load the 'space' varaible from a file. This is a grouping of variables of interest from a previous 
 % workspace/set of runs. This is typically used for loading the Ti.xi_all, Ti.Rfi_all, Ti.costF_all 
@@ -9,4 +9,4 @@ function [space] = getPreppopulatedSpaceFrom(filename)
 
 load(filename, 'space')
 
-end % getPreppopulatedSpaceFrom function
+end % getPrepopulatedSpaceFrom function

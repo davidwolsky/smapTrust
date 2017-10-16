@@ -82,6 +82,10 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %   startWithIterationZero: Starts with the xinit value right away. This is typrically used for reproducing test cases
 %                           where it is not desired for an initial optimisation phase to take place.  
 %   prepopulatedSpaceFile: File name used to preload fine model runs so that a better surrogate can be calculated.
+%   verbosityLevel: Setting for controlling how much output/feedback the application gives. A higher level give more output
+%                   and includes all the output from lower levels.
+%                   0 - No extra output is given.
+%                   1 - Console output showing when optimisation loop and PA stages are shown.
 
 % Returns:
 % Ri:   Structure containing the responses at each iteration
@@ -140,7 +144,6 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 %             The optimisation can give output beyond what is defined as the constraints.
 
 % ===== ToDo =====
-% - Global optimisor
 % - Next example
 % - Check ToDo and CRC_ in the code
 % =====      =====
@@ -161,9 +164,10 @@ eta1 = 0.05;
 eta2 = 0.9;
 alp1 = 2.5;
 alp2 = 0.25;
+DeltaInit = 0.25;
 startWithIterationZero = 0;
 prepopulatedSpaceFile = '';
-DeltaInit = 0.25;
+verbosityLevel = 0;
 
 if isfield(OPTopts,'Ni'), Ni = OPTopts.Ni; end
 if isfield(OPTopts,'TRNi'), TRNi = OPTopts.TRNi; end
@@ -182,6 +186,7 @@ if isfield(OPTopts,'alp2'), alp2 = OPTopts.alp2; end
 if isfield(OPTopts,'DeltaInit'), DeltaInit = OPTopts.DeltaInit; end
 if isfield(OPTopts,'startWithIterationZero'), startWithIterationZero = OPTopts.startWithIterationZero; end
 if isfield(OPTopts,'prepopulatedSpaceFile'), prepopulatedSpaceFile = OPTopts.prepopulatedSpaceFile; end
+if isfield(OPTopts,'verbosityLevel'), verbosityLevel = OPTopts.verbosityLevel; end
 
 % Set up models - bookkeeping
 Nq = 0;
@@ -329,7 +334,8 @@ if ~startWithIterationZero
     problem.options = optsLocalOptim;
     [xin{1}, costS{1}, exitflag, output] = doOptimisation(problem)
 else
-    startWithIterationZero
+    if verbosityLevel >= 1, display(['--- Test case - start at iteration zero ---']); end
+    startWithIterationZero;
     xin{1} = xinitn;
 end
 
@@ -338,7 +344,8 @@ xi{1} = xin{1}.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
 
 % setup initialisation set/space
 if length(prepopulatedSpaceFile) > 1
-    space = getPreppopulatedSpaceFrom(prepopulatedSpaceFile);
+    if verbosityLevel >= 1, display(['--- Prepopulating  ---']); end
+    space = getPrepopulatedSpaceFrom(prepopulatedSpaceFile);
     assert(size(space.Rfi{1}{1}.f,2) == Nr, 'The number of results expected and those imported must correspond.')
     assert(size(space.Ti.xi_all,1) == size(space.Ti.Rfi_all,1), 'The number of fine model runs and parameters must correspond')
 
@@ -378,8 +385,7 @@ if length(prepopulatedSpaceFile) > 1
     Ti.costChangeF{1} = costF{1}; 
 
 else 
-    % TODO_DWW: Leave this in and formalise... 
-    display(['--- TODO_DWW: Initialising ---'])
+    if verbosityLevel >= 1, display(['--- Initialising ---']); end
     Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
     Rfi{1} = fineMod(Mf,xi{1});
     for rr = 1:Nr
@@ -410,7 +416,7 @@ end
 % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
 plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, OPTopts);
 
-display(['--- TODO_DWW: Start loop ---'])
+if verbosityLevel >= 1, display(['--- Starting main optimisation loop ---']); end
 
 while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
     % Coming into this iteration as ii now with the fine model run here already and responses available. 
@@ -434,7 +440,7 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                 ximaxnTR = min((xin{ii} + Ti.Deltan{ii}),ximaxn);
             end
             
-            display(['--- TODO_DWW:loop optimisation ', num2str(ii), ' ---'])
+            if verbosityLevel >= 1, display(['--- Optimisation loop iteration ', num2str(ii), ' ---']); end
             problem = {};
             problem.x0 = xin{ii};
             problem.Aineq = [];
@@ -450,14 +456,14 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                 problem.solver = globalSolver;
                 problem.options = optsGlobalOptim;
                 [xinGlobal,fval,exitflag,output] = doOptimisation(problem);
-                xinGlobal = reshape(xinGlobal, length(xinGlobal),1)
+                xinGlobal = reshape(xinGlobal, length(xinGlobal),1);
                 % Start with global search to get initial value.
                 problem.x0 = xinGlobal;
             end
             problem.objective = @(tempXin) costSurr(tempXin, {Si{ii}{:}}, OPTopts);
             problem.solver = localSolver;
             problem.options = optsLocalOptim;
-            [xin{ii+1}, costSi, exitflag, output] = doOptimisation(problem)
+            [xin{ii+1}, costSi, exitflag, output] = doOptimisation(problem);
             assert( costS{ii} >= costSi ); % The cost must have gotten better else chaos!
 			Ti.costS_all{end+1} = costSi;
 
@@ -544,7 +550,7 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                     % length(r)
                     % assert(length(Ti.xi_all) == length(r), 'The lengths of xi and responses needs to be the same.')
                     
-                    display(['--- TODO_DWW: build surr for iteration ', num2str(ii), ' ---'])
+                    if verbosityLevel >= 1, (['--- Building surrogatefor iteration ', num2str(ii), ' ---']); end
                     Si{targetCount}{rr} = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
                 end
                 % Also get the currently aligned surrogate for comparison
@@ -609,18 +615,18 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
     if (~TRterminate)
         ii = ii+1;  % Increase main loop count
         if (ii == Ni)
-            display(['====== Terminated due to: max iteration count reached (', num2str(ii), '). ======'])
+            if verbosityLevel >= 1, display(['--- Terminated due to: max iteration count reached (', num2str(ii), '). ---']); end
         end
     else
         % TODO_DWW: refine these messages
         if (specF)
-            display(['====== Terminated due to: specF reached. ======'])
+            if verbosityLevel >= 1, display(['--- Terminated due to: specF reached ---']); end
         end
         if (TolX_achieved)
-            display(['====== Terminated due to: TolX_achieved. ======'])
+            if verbosityLevel >= 1, display(['--- Terminated due to: TolX_achieved ---']); end
         end
         if (TRterminate)
-            display(['====== Terminated due to: TRterminate. ======'])
+            if verbosityLevel >= 1, display(['--- Terminated due to: TRterminate ---']); end
         end
     end
 end % Main while loop

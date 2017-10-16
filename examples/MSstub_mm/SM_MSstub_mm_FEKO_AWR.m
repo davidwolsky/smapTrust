@@ -59,13 +59,13 @@ OPTopts.globOptSM = 0;
 % OPTopts.globOptSM = 1;
 OPTopts.globalSolver = 'ga';
 OPTopts.optsGlobalOptim = optimoptions('ga');
-OPTopts.optsGlobalOptim.Display = 'final';
+% OPTopts.optsGlobalOptim.Display = 'final';
 OPTopts.localSolver = 'fmincon';
 OPTopts.optsLocalOptim = optimoptions('fmincon');
-OPTopts.optsLocalOptim.Display = 'iter-detailed';
+% OPTopts.optsLocalOptim.Display = 'iter-detailed';
 % OPTopts.optsLocalOptim.DiffMinChange = 1e-4;
 OPTopts.optsLocalOptim.DiffMinChange = 1e-5;
-OPTopts.optsLocalOptim.Diagnostics = 'on';
+% OPTopts.optsLocalOptim.Diagnostics = 'on';
 %
 % OPTopts.goalType = {'minimax'};
 % OPTopts.goalResType = {'S1,1_complex'};
@@ -111,6 +111,7 @@ OPTopts.DeltaInit = 0.25;
 % OPTopts.DeltaInit = 0.35;
 OPTopts.startWithIterationZero = 1;
 % OPTopts.prepopulatedSpaceFile = '.mat';
+OPTopts.verbosityLevel = 1;
 
 
 % ------ Set up the SM ------ 
@@ -133,15 +134,15 @@ SMopts.optsGlobalOptim.Display = 'final';
 
 SMopts.localSolver = 'fmincon';
 SMopts.optsLocalOptim = optimoptions('fmincon');
-SMopts.optsLocalOptim.Display = 'iter-detailed';
-SMopts.optsLocalOptim.Diagnostics = 'on';
+% SMopts.optsLocalOptim.Display = 'iter-detailed';
+% SMopts.optsLocalOptim.Diagnostics = 'on';
 % SMopts.normaliseAlignmentParameters = 0;
 % SMopts.optsLocalOptim.DiffMinChange = 1e-5;
 SMopts.normaliseAlignmentParameters = 1;
 SMopts.optsLocalOptim.DiffMinChange = 1e-4;
 % SMopts.optsLocalOptim.DiffMinChange = 2e-6;
-% SMopts.plotAlignmentFlag = 0;
-SMopts.plotAlignmentFlag = 1;
+SMopts.plotAlignmentFlag = 0;
+% SMopts.plotAlignmentFlag = 1;
 
 SMopts.ximin = Mc.ximin;
 SMopts.ximax = Mc.ximax;
@@ -149,8 +150,8 @@ SMopts.xpmin = Mc.xpmin;
 SMopts.xpmax = Mc.xpmax;
 % SMopts.errNorm = 1;
 % An L2 norm is required here else the model steps in the wrong direction.
-% SMopts.errNorm = 2;
-SMopts.errNorm = 1;
+SMopts.errNorm = 2;
+% SMopts.errNorm = 1;
 % errW = 1
 errW = zeros(size(Mf.freq));
 % errW = ones(size(Mf.freq)).*0.2;

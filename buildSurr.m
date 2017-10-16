@@ -219,7 +219,7 @@ getd = 0;
 getE = 0;
 getF = 0;
 
-plotOpts = {}
+plotOpts = {};
 
 % Default constraints
 ximin = -inf.*ones(Nn,1); 
