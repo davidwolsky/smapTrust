@@ -207,7 +207,7 @@ end
 
 % Get vector sizes
 Nn = length(xi{Nc});    % Number of input parameters
-Nm = length(Rfi{1});    % Number of responses
+Nm = length(Rfi{1});    % Length of response vector
 
 % Default SM type requests
 getA = 0;
@@ -312,8 +312,18 @@ if isfield(SMopts,'ximin'), ximin = SMopts.ximin; end
 if isfield(SMopts,'ximax'), ximax = SMopts.ximax; end
 if isfield(SMopts,'Amin'), Amin = SMopts.Amin; end
 if isfield(SMopts,'Amax'), Amax = SMopts.Amax; end
-if isfield(SMopts,'xpmin'), xpmin = SMopts.xpmin; end
-if isfield(SMopts,'xpmax'), xpmax = SMopts.xpmax; end
+if isfield(SMopts,'xpmin'), xpmin = SMopts.xpmin; 
+else
+    if isfield(SMopts,'normaliseAlignmentParameters')
+        assert(~SMopts.normaliseAlignmentParameters,'You must provide a lower limit in SMopts.xpmin when problem normalisation is requested.');
+    end
+end
+if isfield(SMopts,'xpmax'), xpmax = SMopts.xpmax; 
+else
+    if isfield(SMopts,'normaliseAlignmentParameters')
+        assert(~SMopts.normaliseAlignmentParameters,'You must provide an upper limit in SMopts.xpmax when problem normalisation is requested.');
+    end
+end
 if isfield(SMopts,'fmin'), fmin = SMopts.fmin; end
 if isfield(SMopts,'fmax'), fmax = SMopts.fmax; end
 
@@ -715,7 +725,7 @@ else
         
         if (~all( (originalProblem.x0 - optVect) < 1e-15 ))
             [originalProblem.x0, optVect]
-            assert(all(originalProblem.x0 == optVect), 'Normalisation and denormalisation has to result in the same thing.')
+            assert(all(originalProblem.x0 == optVect), 'Normalisation and denormalisation has to result in the same thing. Check that all limits have been provided.')
         end
     end
 
@@ -938,6 +948,7 @@ errorValue = {};
 Rs = {};
 for cc = 1:Nc
     ev = 0;
+%     keyboard;
     Rs{cc} = evalSurr(xi{cc},S);
     % Nm - length of response vectors (freq)
     % Np - number of output parameters

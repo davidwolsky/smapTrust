@@ -10,7 +10,7 @@ format compact
 % Frequencies 
 fmin = 12e9;
 fmax = 18e9;  
-Nm = 41;	% Number of frequencies
+Nm = 201;	% Number of frequencies
 
 % Initial input parameters
 %       {'L1',   'L2'}
@@ -27,7 +27,7 @@ currentPath = replace(fullpath, filename, '');
 %setenv('PATH', [getenv('PATH') ';C:\Program Files\Altair\14.0\feko\bin']);
 Mf.path = [currentPath,'CST\'];
 Mf.name = 'GWhybrid_Fine';
-Mf.solver = 'CST';
+Mf.solver = 'CST_TD';
 Mf.params = {'L1',  'L2'};
 Mf.ximin =  [14,    14]';
 Mf.ximax =  [18,    18]';
@@ -63,7 +63,7 @@ SMopts.getd = 0;
 %% Set up the optimization
 OPTopts.ximin = Mf.ximin;
 OPTopts.ximax = Mf.ximax;
-OPTopts.Ni = 5;
+OPTopts.Ni = 1;
 % OPTopts.TRNi = OPTopts.Ni*2;
 OPTopts.TRNi = OPTopts.Ni;
 OPTopts.Rtype = {'S1,1','S3,1','S4,1'};
@@ -112,7 +112,7 @@ SMopts.optsLocalOptim.Diagnostics = 'on';
 % SMopts.optsLocalOptim.DiffMinChange = 1e-5;
 SMopts.normaliseAlignmentParameters = 1;
 SMopts.optsLocalOptim.DiffMinChange = 1e-4;
-SMopts.plotAlignmentFlag = 0;
+SMopts.plotAlignmentFlag = 1;
 
 SMopts.ximin = Mc.ximin;
 SMopts.ximax = Mc.ximax;
