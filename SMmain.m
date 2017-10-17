@@ -10,7 +10,7 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
 % Mf:       Fine model structure
 %   path:   Full path to file
 %   name:   File name of file (without extension)
-%   solver:     'CST'/'FEKO'/'MATLAB' (for now)
+%   solver:     'CST_TD'/'CST_FD'/'FEKO'/'MATLAB' (for now)
 %   params:     Cell array of parameter names - same order as xinit {Nn,1}
 %   The following (2) limits are only for warning generation - not used in optimization
 %   ximin:  Vector of minimum values to limit the parameters [Nn,1] 
@@ -194,10 +194,11 @@ else
     [Sinit.xp] = deal([]);
 end
 Nr = length(OPTopts.Rtype); % Number of responses requested
-Mc.Rtype = OPTopts.Rtype;
-Mf.Rtype = OPTopts.Rtype;
 Sinit.M = Mc;
 Sinit.coarse = @coarseMod;
+% Dont include the full Rtype cell array into Sinit here - it is done as needed and while stepping through the different repsonses 
+Mc.Rtype = OPTopts.Rtype;
+Mf.Rtype = OPTopts.Rtype;
 if isfield(Mc,'freq')
     Sinit.f = Mc.freq;
     fc = Mc.freq;
@@ -298,6 +299,7 @@ ii = 1;
 % Normalize the optimization parameters
 ximinn = OPTopts.ximin - OPTopts.ximin;
 ximaxn = OPTopts.ximax./OPTopts.ximax;
+ximaxn(OPTopts.ximax == 0) = 1;
 xinitn = (xinit - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
 % The initial trust region radius
 Ti.Deltan{1} = DeltaInit;
@@ -346,6 +348,8 @@ if length(prepopulatedSpaceFile) > 1
     Ti.Rfi_all = space.Ti.Rfi_all;
     Ti.costF_all = space.Ti.costF_all;
 
+    
+    
     Rci{1} = coarseMod(Mc, xi{1}, Sinit.xp, fc);
     Rfi{1} = fineMod(Mf, xi{1});
 
@@ -358,6 +362,10 @@ if length(prepopulatedSpaceFile) > 1
             r{end+1} = Ti.Rfi_all{iii}{rr}.r;
         end
         if globOptSM > 0, SMopts.globOpt = 1; end
+        
+        % DdV_New
+        Sinit.M.Rtype{1} = OPTopts.Rtype{rr};
+        
         Si{1}{rr} = buildSurr(Ti.xi_all,r,Sinit,SMopts);
         Rsi{1}{rr}.r = evalSurr(xi{1},Si{1}{rr});
         Rsi{1}{rr}.t = Rci{1}{rr}.t;
@@ -380,10 +388,15 @@ if length(prepopulatedSpaceFile) > 1
 else 
     % TODO_DWW: Leave this in and formalise... 
     display(['--- TODO_DWW: Initialising ---'])
+    
     Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
     Rfi{1} = fineMod(Mf,xi{1});
     for rr = 1:Nr
         if globOptSM > 0, SMopts.globOpt = 1; end
+        
+        % DdV_New
+        Sinit.M.Rtype{1} = OPTopts.Rtype{rr};
+        
         Si{1}{rr} = buildSurr(xi{1},Rfi{1}{rr}.r,Sinit,SMopts);
         Rsi{1}{rr}.r = evalSurr(xi{1},Si{1}{rr});
         Rsi{1}{rr}.t = Rci{1}{rr}.t;
@@ -413,6 +426,7 @@ plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, OPTopts);
 display(['--- TODO_DWW: Start loop ---'])
 
 while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
+    keyboard;
     % Coming into this iteration as ii now with the fine model run here already and responses available. 
     % Exit if spec is reached (will typically not work for eq and never for minimax, and bw is explicitly excluded)
     % CRC_DDV: DWW: Think there should be some basic specF calculations. 
@@ -521,6 +535,8 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
             for rr = 1:Nr
                 % Get the surrogate response after previous iteration
                 % optimization - thus at current iteration position
+                % DdV_New
+                Si{ii}{rr}.M.Rtype{1} = OPTopts.Rtype{rr};
                 Rsi{ii+1}{rr}.r = evalSurr(xi{ii+1},Si{ii}{rr});
                 Rsi{ii+1}{rr}.t = Rci{1}{rr}.t;
                 if isfield(Rci{1}{rr},'f')
@@ -852,6 +868,10 @@ for rr = 1:Nr
     % De-normalize
 %     x = xn.*(S{rr}.ximax - S{rr}.ximin) + S{rr}.ximin;
     x = xn.*(OPTopts.ximax - OPTopts.ximin) + OPTopts.ximin;
+    
+    % DdV_New
+    S{rr}.M.Rtype{1} = OPTopts.Rtype{rr};
+                    
     Rs{rr}.r = evalSurr(x,S{rr});
     Rs{rr}.t = OPTopts.Rtype{rr};
     if isfield(S{rr},'f'), Rs{rr}.f = S{rr}.f; end

@@ -22,11 +22,12 @@ if isempty(mws)
     mws = invoke(cst,'OpenFile',[M.path,M.name,'.cst']);
 end
 
-% Update parameters
-for nn = 1:Nn
-    invoke(mws,'StoreParameter',M.params{nn},xi(nn));
-end
-invoke(mws,'Rebuild');
+% % Update parameters
+% for nn = 1:Nn
+%     invoke(mws,'StoreParameter',M.params{nn},xi(nn));
+% end
+% % invoke(mws,'Rebuild');
+% invoke(mws,'RebuildOnParametricChange',true,true);
 
 % Get frequency unit
 units = invoke(mws,'Units');
@@ -48,10 +49,16 @@ end
 
 % Run simulation
 
-% TODO_DWW: Break up the CST flag to include F or T solver
-solver = invoke(mws,'Solver');
-% solver = invoke(mws,'FDSolver');      % This is the FD solver
-invoke(solver,'Start');
+SolveType = invoke(mws,'GetSolverType');
+switch SolveType
+    case 'HF Time Domain'
+        solver = invoke(mws,'Solver');
+    case 'HF Frequency Domain'
+        solver = invoke(mws,'FDSolver');      % This is the FD solver
+    otherwise
+        error('Unknown CST solver type requested');
+end
+% invoke(solver,'Start');
 
 % Generate output
 for rr = 1:Nr

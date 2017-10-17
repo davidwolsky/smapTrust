@@ -7,10 +7,10 @@ function [Rs] = evalSurr(x,S)
 %
 % Returns:
 % Rs returns Nm responces (like for m frequency points) for each input 
-%      point as a matrix [Nm,Np]
+%      point as a matrix [Nm,Nc]
 %
 % Inputs:
-% x is the matrix [Nn,Np] of input parameters, each column corresponding to a
+% x is the matrix [Nn,Nc] of input parameters, each column corresponding to a
 % different point in the parameter space.  Number of rows are the number
 % of input parameters accepted by the models = Nn.
 %
@@ -22,8 +22,8 @@ function [Rs] = evalSurr(x,S)
 %          positions in the frequency domain where the model is evaluated.
 %          If f is specified and there are no implicit parameters, xp must
 %          be passed as an empty matrix.
-%       Rc [Nm,Np]
-%       xc [Nn,Np]
+%       Rc [Nm,Nc]
+%       xc [Nn,Nc]
 %       xp [Nq,1]
 %       f [Nm,1]
 % M:       Structure containing auxiliary parameters to pass to coarse.  See SMmain.m for details. 
@@ -54,7 +54,7 @@ function [Rs] = evalSurr(x,S)
 %             explicitly to be compatible with legacy case also
 
 % Get vector sizes 
-[Nn,Np] = size(x);
+[Nn,Nc] = size(x);
 
 % Set up defaults for the input SM 
 if ~isfield(S,'B')
@@ -63,9 +63,9 @@ else
     B = S.B;
 end
 if ~isfield(S,'c')
-    c = zeros(Nn,Np);
+    c = zeros(Nn,Nc);
 else
-    c = repmat(S.c,1,Np);   % Repeat for each input point
+    c = repmat(S.c,1,Nc);   % Repeat for each input point
 end
 
 % Check if any pre-assigned variables are provided and set up defaults for
@@ -95,11 +95,11 @@ end
 
 % Evaluate the coarse model to find the response vector size
 Rc = [];
-for pp = 1:Np
-    xc = B*x(:,pp) + c(:,pp);
+for cc = 1:Nc
+    xc = B*x(:,cc) + c(:,cc);
     if isfield(S,'M')   % This will be the typical case - the else is left for legacy
         if Nq > 0
-            xpc = G*x(:,pp) + xp;
+            xpc = G*x(:,cc) + xp;
         end
         RcStruct = S.coarse(S.M,xc,xpc,fc);
         Rc1 = RcStruct{1}.r;    % Assume this is returned from the SMmain.m function in the response structure format
@@ -109,10 +109,10 @@ for pp = 1:Np
         elseif Nq==0 && isfield(S,'f')
             Rc1 = S.coarse(xc,[],fc);
         elseif ~isfield(S,'f')
-            xpc = G*x(:,pp) + xp;
+            xpc = G*x(:,cc) + xp;
             Rc1 = S.coarse(xc,xpc);
         else
-            xpc = G*x(:,pp) + xp;
+            xpc = G*x(:,cc) + xp;
             Rc1 = S.coarse(xc,xpc,fc);
         end
         Rc1 = Rc1;
@@ -124,17 +124,17 @@ end
 
 
 % Set up OSM defaults
-[Nm,Np] = size(Rc);
+[Nm,Nc] = size(Rc);
 if ~isfield(S,'A')
     A = eye(Nm);
 else
     A = S.A;
 end
 if ~isfield(S,'d')
-    d = zeros(Nm,Np);
+    d = zeros(Nm,Nc);
 else
     d = S.d;
-    d = repmat(d,1,Np); % repeat for all input points
+    d = repmat(d,1,Nc); % repeat for all input points
 end
 if ~isfield(S,'E')
     E = zeros(Nm,Nn);
@@ -149,7 +149,7 @@ else
 end
 
 if isfield(S,'xi')
-    xi = repmat(S.xi,1,Np); % Repeat for each input point
+    xi = repmat(S.xi,1,Nc); % Repeat for each input point
     xi = repmat(xi,Nm,1);   % And repeat for every response point
 else    % This is just a dummy, since E will always be set to zero in this case...
     xi = x;
