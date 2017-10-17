@@ -59,10 +59,10 @@ OPTopts.globOptSM = 0;
 % OPTopts.globOptSM = 1;
 OPTopts.globalSolver = 'ga';
 OPTopts.optsGlobalOptim = optimoptions('ga');
-% OPTopts.optsGlobalOptim.Display = 'final';
+OPTopts.optsGlobalOptim.Display = 'final';
 OPTopts.localSolver = 'fmincon';
 OPTopts.optsLocalOptim = optimoptions('fmincon');
-% OPTopts.optsLocalOptim.Display = 'iter-detailed';
+OPTopts.optsLocalOptim.Display = 'iter-detailed';
 % OPTopts.optsLocalOptim.DiffMinChange = 1e-4;
 OPTopts.optsLocalOptim.DiffMinChange = 1e-5;
 % OPTopts.optsLocalOptim.Diagnostics = 'on';
@@ -134,15 +134,15 @@ SMopts.optsGlobalOptim.Display = 'final';
 
 SMopts.localSolver = 'fmincon';
 SMopts.optsLocalOptim = optimoptions('fmincon');
-% SMopts.optsLocalOptim.Display = 'iter-detailed';
+SMopts.optsLocalOptim.Display = 'iter-detailed';
 % SMopts.optsLocalOptim.Diagnostics = 'on';
 % SMopts.normaliseAlignmentParameters = 0;
 % SMopts.optsLocalOptim.DiffMinChange = 1e-5;
 SMopts.normaliseAlignmentParameters = 1;
 SMopts.optsLocalOptim.DiffMinChange = 1e-4;
 % SMopts.optsLocalOptim.DiffMinChange = 2e-6;
-SMopts.plotAlignmentFlag = 0;
-% SMopts.plotAlignmentFlag = 1;
+% SMopts.plotAlignmentFlag = 0;
+SMopts.plotAlignmentFlag = 1;
 
 SMopts.ximin = Mc.ximin;
 SMopts.ximax = Mc.ximax;
@@ -156,11 +156,12 @@ SMopts.errNorm = 2;
 errW = zeros(size(Mf.freq));
 % errW = ones(size(Mf.freq)).*0.2;
 errW(Mf.freq > OPTopts.goalStart{1} & Mf.freq < OPTopts.goalStop{1}) = 1;
-errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1
-% errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 0.1
+% errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 1
+errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 0.1
 SMopts.errW = errW;
 % SMopts.wk = 5;
-SMopts.wk = 0;
+SMopts.wk = 0; % <-
+% SMopts.wk = []
 
 %% Run the main loop
 [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts);

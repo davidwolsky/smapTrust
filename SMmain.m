@@ -431,7 +431,7 @@ plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, OPTopts);
 if verbosityLevel >= 1, display(['--- Starting main optimisation loop ---']); end
 
 while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
-    keyboard;
+    % keyboard;
     % Coming into this iteration as ii now with the fine model run here already and responses available. 
     % Exit if spec is reached (will typically not work for eq and never for minimax, and bw is explicitly excluded)
     % CRC_DDV: DWW: Think there should be some basic specF calculations. 

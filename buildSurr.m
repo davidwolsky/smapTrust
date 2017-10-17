@@ -918,6 +918,8 @@ function e = erri(reducedOptVect, xi, Rfi, S, wk, vk, SMopts, ...
 %       x0:     Initial parameter vector
 %       lb:     Lower bound vector for the optimisation parameter
 %       ub:     Upper bound vector for the optimisation parameter
+%   wk: Weights to determine the error function in the model fitting when
+%       more than one fine point is included.
 % Returns:
 %   e:  The total sum of normalised error between the complex fine model and the new surrogate evaluation.
 %       If multiple fine model evaluations are being used to build up a better surrogate then the error is 
@@ -932,9 +934,13 @@ else
 end
 S = reshapeParameters(optVect, S, SMopts);
 
-% Calculate the error function value
-% Nc - Number of fine models available
-Nc = length(wk); 
+
+% Index to fine model runs that are going to included in the error (and plots). It is senseless
+% to run through iterations that are just going to be scaled by zero.
+modelIndicies = find(wk > 0);
+% Nc - number of input point cells/number of fine models available.
+Nc = length(modelIndicies); 
+
 % Weighted error
 ec = zeros(1,Nc);
 if length(SMopts.errW) == 1
@@ -946,28 +952,30 @@ end
 diffR = {};
 errorValue = {};
 Rs = {};
+% Calculate the error function value
 for cc = 1:Nc
     ev = 0;
-%     keyboard;
-    Rs{cc} = evalSurr(xi{cc},S);
+    Rs{cc} = evalSurr(xi{modelIndicies(cc)},S);
     % Nm - length of response vectors (freq)
     % Np - number of output parameters
     [Nm,Np] = size(Rs{cc});
     % Errors for each output parameter (e.g. s-parameters) aggregated
     for pp = 1:Np
-        diffR{cc}{pp} = errW.*(Rfi{cc}(:,pp) - Rs{cc}(:,pp));
+        diffR{cc}{pp} = errW.*(Rfi{modelIndicies(cc)}(:,pp) - Rs{cc}(:,pp));
         % A 1-norm gives the distance between points in the functions on the complex plane.
         errorValue{cc}{pp} = norm(diffR{cc}{pp}, SMopts.errNorm);
         % This is the same as the 1-norm.
         % errorValue{cc}{pp} = sum(abs(diffR{cc}{pp}));        
         ev = ev + errorValue{cc}{pp};
     end
-    ec(cc) = wk(cc).*ev;
+    ec(cc) = wk(modelIndicies(cc)).*ev;
 end
 e = sum(ec)./Nc;
 
 if ( plotFlag == 1 )
     plotErri(Nc, Rfi, Rs, diffR, errW, errorValue, SMopts.errNorm, ec, e, plotOpts);
+    % Pause so that the graphing system can update.
+    pause(0.1)
 end
 
 end % erri function 
@@ -995,17 +1003,23 @@ for cc = 1:Nc
         norm1 = norm(diffR{cc}{pp}, 1);
         norm2 = norm(diffR{cc}{pp}, 2);
         % sum(abs(diffR{cc}{pp}))
+    
+        usedRfi = Rfi{cc}(:,pp);
+        usedRfi(errW==0) = [];
 
-        usedRfi = errW.*(Rfi{cc}(:,pp));
-        usedRfi(usedRfi==0) = [];
-        usedRs = errW.*(Rs{cc}(:,pp));
-        usedRs(usedRs==0) = [];
+        usedRs = Rs{cc}(:,pp);
+        usedRs(errW==0) = [];
+        
+        usedErrW = errW;
+        usedErrW(errW==0) = [];
 
         subplot(Nc,Np*2, (Np*(cc-1)*2) + pp*2-1), grid on, hold on
         plot((Rfi{cc}),'k', 'LineWidth',2)
-        plot(usedRfi,'ko', 'LineWidth',2)
-        plot((Rs{cc}),'--r', 'LineWidth',2)
-        plot(usedRs,'ro', 'LineWidth',2)
+        plot((Rs{cc}),'--r','LineWidth',2)
+        for ii = 1:length(usedErrW)
+            plot(usedRfi(ii),'ko', 'LineWidth',2, 'MarkerSize',2*exp(usedErrW(ii)) ) 
+            plot(usedRs(ii), 'ro', 'LineWidth',2, 'MarkerSize',2*exp(usedErrW(ii)) )
+        end
         title({[plotTitle], ...
             ['Fine model ', num2str(cc), 'of', num2str(Nc), ', Output param: ', num2str(pp), 'of', num2str(Np)], ...
             ['Outpus parameter error = ', num2str(errorValue{cc}{pp})], ...
