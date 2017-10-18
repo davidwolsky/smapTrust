@@ -22,12 +22,12 @@ if isempty(mws)
     mws = invoke(cst,'OpenFile',[M.path,M.name,'.cst']);
 end
 
-% % Update parameters
-% for nn = 1:Nn
-%     invoke(mws,'StoreParameter',M.params{nn},xi(nn));
-% end
-% % invoke(mws,'Rebuild');
-% invoke(mws,'RebuildOnParametricChange',true,true);
+% Update parameters
+for nn = 1:Nn
+    invoke(mws,'StoreParameter',M.params{nn},xi(nn));
+end
+% invoke(mws,'Rebuild');
+invoke(mws,'RebuildOnParametricChange',true,true);
 
 % Get frequency unit
 units = invoke(mws,'Units');
@@ -58,7 +58,7 @@ switch SolveType
     otherwise
         error('Unknown CST solver type requested');
 end
-% invoke(solver,'Start');
+invoke(solver,'Start');
 
 % Generate output
 for rr = 1:Nr
