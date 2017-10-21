@@ -167,7 +167,7 @@ alp2 = 0.25;
 DeltaInit = 0.25;
 startWithIterationZero = 0;
 prepopulatedSpaceFile = '';
-verbosityLevel = 0;
+verbosityLevel = 1;
 
 if isfield(OPTopts,'Ni'), Ni = OPTopts.Ni; end
 if isfield(OPTopts,'TRNi'), TRNi = OPTopts.TRNi; end
