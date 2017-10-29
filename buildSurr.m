@@ -582,6 +582,9 @@ if (strcmp(inputType,'F') || strcmp(inputType,'AF')) && (Nc == 1)
 % Special cases where the coarse model is not re-evaluated 
 % (for each optimization iteration).  Use interpolation/extrapolation 
 % instead...
+% The first run will come in here because Nc is always one for the first run.
+% If SMopt.wk exists then more than one fine model will be passed in which
+% means that this special case would be skipped (last part of logic).
 
     % Calculate the coarse model - make sure F is set to the default!
     % If not it will be shifted twice...
