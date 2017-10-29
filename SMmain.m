@@ -599,6 +599,12 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
         end % while ~TRsuccess
         
         if (~TRterminate)
+            % TODO_DWW: Add this
+            %       -> add Rsai
+            %       -> add setup options
+            %       -> add OPTopts
+            %       -> write out with file name with time stamp
+            %       -> plot the saved file nicely... 
             space.ii = ii;
             space.xi = xi;
             space.Rci = Rci;
@@ -843,7 +849,7 @@ switch M.solver
     case 'FEKO'
         Rc = fekoMod(M, xi, [], Rtype, []);
     case 'AWR'
-        Rc = awrMod(M, xi, xp, Rtype, []);
+        Rc = awrMod(M, xi, xp, Rtype, f);
     case 'ADS'
         error('ADS solver not implemented yet for coarse model evaluations')
     case 'MATLAB'

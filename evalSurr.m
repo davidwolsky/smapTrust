@@ -1,4 +1,4 @@
-function [Rs] = evalSurr(x,S)
+function [Rs] = evalSurr(x, S)
 
 % function [Rs] = evalSurr(x,S)
 % Evaluates the surrogate model, S, at the input positions in the vector x,
@@ -57,15 +57,15 @@ function [Rs] = evalSurr(x,S)
 [Nn,Nc] = size(x);
 
 % Set up defaults for the input SM 
-if ~isfield(S,'B')
+if ~isfield(S, 'B')
     B = eye(Nn);
 else
     B = S.B;
 end
-if ~isfield(S,'c')
-    c = zeros(Nn,Nc);
+if ~isfield(S, 'c')
+    c = zeros(Nn, Nc);
 else
-    c = repmat(S.c,1,Nc);   % Repeat for each input point
+    c = repmat(S.c, 1, Nc);   % Repeat for each input point
 end
 
 % Check if any pre-assigned variables are provided and set up defaults for
@@ -78,15 +78,20 @@ else
     Nq = 0;
 end
 if ~isfield(S,'G')
-    G = zeros(Nq,Nn);
+    G = zeros(Nq, Nn);
 else
     G = S.G;
 end
 
 % Check for FSM and set up new frequency vector
 F = [1;0];
-if isfield(S,'F'), F = S.F; end
-if isfield(S,'f')
+if isfield(S, 'F'), F = S.F; end
+if isfield(S, 'f')
+    % A local frquency axis is used here. The result is returned without
+    % the frequency so this function can indeed be used to observe the
+    % results with a shift and scaling. The values are just slotted into 
+    % array placeholders. 
+    % 
     fc = F(1).*S.f + F(2);
 else
     fc = [];
@@ -101,27 +106,29 @@ for cc = 1:Nc
         if Nq > 0
             xpc = G*x(:,cc) + xp;
         end
-        RcStruct = S.coarse(S.M,xc,xpc,fc);
+        RcStruct = S.coarse(S.M, xc, xpc, fc);
         Rc1 = RcStruct{1}.r;    % Assume this is returned from the SMmain.m function in the response structure format
     else    % Legacy case with no M (probably not going to be updated much...)
         if Nq==0 && ~isfield(S,'f')
             Rc1 = S.coarse(xc);
         elseif Nq==0 && isfield(S,'f')
-            Rc1 = S.coarse(xc,[],fc);
+            Rc1 = S.coarse(xc, [], fc);
         elseif ~isfield(S,'f')
             xpc = G*x(:,cc) + xp;
-            Rc1 = S.coarse(xc,xpc);
+            Rc1 = S.coarse(xc, xpc);
         else
             xpc = G*x(:,cc) + xp;
-            Rc1 = S.coarse(xc,xpc,fc);
+            Rc1 = S.coarse(xc, xpc, fc);
         end
         Rc1 = Rc1;
 %         Rc1 = reshape(Rc1,length(Rc1),1);
     end
-    Rc = [Rc,Rc1];
+
+    % The coarse models are appended so that output space mapping can be applied.
+    % It is handled elsewhere to try and manage multiple reponse types for now... 
+    Rc = [Rc, Rc1];
 %     Rc(:,pp) = Rc1;
 end
-
 
 % Set up OSM defaults
 [Nm,Nc] = size(Rc);
@@ -154,8 +161,12 @@ if isfield(S,'xi')
 else    % This is just a dummy, since E will always be set to zero in this case...
     xi = x;
 end
+
 try
-Rs = A*Rc + d + E*(x-xi);
+    Rs = A*Rc + d + E*(x-xi);
 catch mE
     keyboard;
 end
+
+
+end % evalSurr function

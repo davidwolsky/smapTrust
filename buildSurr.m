@@ -187,8 +187,6 @@ function Si = buildSurr(xi, Rfi, S, SMopts)
 
 % ToDo: Implement E (first order OSM)
 % ToDo: Jacobian fitting in error functions (vk)
-% ToDo: Re-introduce globOpt option
-% ToDo: Include more optimizer options - start with fmincon
 
 % Preassign some variables
 [lenA,lenB,lenc,lenG,lenxp,lenF] = deal(0);
@@ -576,60 +574,85 @@ optsParE.lastPos = lastPos;
 optsParE.errNorm = errNorm;
 optsParE.errW = errW;
 
+
 % Set up and run the optimizations (parameter extractions)
 % Use provided SM parameters as initial values if available, and enhance
 % with global search if required
-if strcmp(inputType,'F') || strcmp(inputType,'AF') && Nc == 1 % Special cases where the coarse model is not re-evaluated (for each optimization iteration).  Use interpolation/extrapolation instead...
+if (strcmp(inputType,'F') || strcmp(inputType,'AF')) && (Nc == 1)
+% Special cases where the coarse model is not re-evaluated 
+% (for each optimization iteration).  Use interpolation/extrapolation 
+% instead...
+
     % Calculate the coarse model - make sure F is set to the default!
     % If not it will be shifted twice...
     S.F = [1,0];
-    Rc = evalSurr(xi{Nc},S);
+    Rc = evalSurr(xi{Nc}, S);
+
+    % Phase is not taken into account for FSM. This is applied in erriF. 
+    % Assuming that this is all complex still.
+    Rc = dB20(Rc);
+    Rf = dB20(Rfi{end});
+    % TODO_DWW: CRC_DDV: I don't understand why abs doesn't work. Not just worse results but looks like it is failing.
+    %                    To reproduce run SM_MSstub_mm_FEKO_AWR.m with only freq mapping. 
+    % Rc = abs(Rc);
+    % Rf = abs(Rfi{end});
     
-    % if 0 && globOpt    % Only use local optimizer for FSM
-        % F_init = PBILreal(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),Fmin,Fmax,M_PBIL,optsPBIL);
-    % end
-%     Fvect = fminsearchcon(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),F_init,[0, -inf],[],[-min(S.f),0;0,-1],[0;0],[],optsFminS);     % Positive multiplier, and minimum frequency
-    % TODO_DWW: Follow through here...
-    %           Match this and the bottom errf as a function.
-    %           spline acting on complex values here - try use linear
-    %           Want to use optimisation toolbox instead of fminsearch.
-    Fvect = fminsearchcon(@(Fvect) erriF(Fvect,Rfi,Rc,S.f,optsParE),F_init,[0, -inf],[],[-min(S.f),-1],[0],[],optsFminS);     % Positive multiplier, and minimum frequency
+    % No normalisation is required here because the F values are close enough to each other.
+    LHS_mat(1, 1:2) = [-min(S.f),-1];
+    LHS_mat(2, 1:2) = [max(S.f),1];
+
+    RHS_vect = [-fmin; fmax];
     
-    fs = Fvect(1).*S.f + Fvect(2);
-    RsComp = interp1(S.f,Rc,fs,'linear');
-    RsComp = reshape(RsComp,length(RsComp),1);
-    % Get rid of NaNs from shift
-    cleanPos = find(~isnan(RsComp));
-    RsCompClean = RsComp(cleanPos);
-    fClean = S.f(cleanPos);
-    fClean = reshape(fClean,length(fClean),1);
-    % Include the edge points for the interpolation
-    if max(fClean) < max(S.f)
-        RsCompClean = [RsCompClean;Rfi{1}(end)];
-        fClean = [fClean;S.f(end)];
+    if ( plotAlignmentFlag == 1 )
+        % Plot initial error before alignment
+        plotOpts.plotTitle = 'Starting alignment';
+        erriF(F_init, Rf, Rc, S.f, optsParE, plotAlignmentFlag, plotOpts);
     end
-    if min(fClean) > min(S.f)
-        RsCompClean = [Rfi{1}(1);RsCompClean];
-        fClean = [S.f(1);fClean];
+
+    problem = {};
+    problem.x0 = F_init;
+    problem.Aineq = LHS_mat;
+    problem.bineq = RHS_vect;
+    problem.Aeq = [];
+    problem.beq = [];
+    problem.lb = Fmin;
+    problem.ub = Fmax;
+    problem.nonlcon = [];
+
+    % Only use local optimizer for FSM
+    problem.objective = @(tempFvect) erriF(tempFvect, Rf, Rc, S.f, optsParE, false, plotOpts);
+    problem.solver = localSolver;
+    problem.options = optsLocalOptim;
+    [Fvect, fval, exitflag, output] = doOptimisation(problem);
+
+    if ( plotAlignmentFlag == 1 )
+        % Plot errors after alignment
+        plotOpts.plotTitle = 'Alignment complete';
+        erriF(Fvect, Rf, Rc, S.f, optsParE, plotAlignmentFlag, plotOpts);
     end
-    Rs = interp1(fClean,RsCompClean,S.f,'spline');
+
+    Rs = applyFrequencyChange(S.f, Fvect, Rc);
 
     optVect = initVect;
-    if strcmp(inputType,'AF')       % Need to also get the A factor
-        A = Rfi{1}./reshape(Rs,Nm,1);
+    if strcmp(inputType, 'AF')       % Need to also get the A factor
+        A = Rf./reshape(Rs, Nm, 1);
         if getA == 1, A = mean(A); end
         optVect(firstPos(1):lastPos(1)) = A;
     end
-    optVect(firstPos(6):lastPos(6)) = reshape(Fvect,lenF,1);
+    optVect(firstPos(6):lastPos(6)) = reshape(Fvect, lenF, 1);
+
 elseif strcmp(inputType,'A') && Nc == 1  % Special case without optimization
+
     if ~exist('Rc','var')    % Check if coarse model has been calculated
         Rc = evalSurr(xi{Nc},S);
     end
-    A = Rfi{1}./Rc;
+    A = Rfi{end}./Rc;
     if getA == 1, A = mean(A); end
     optVect = initVect;
     optVect(firstPos(1):lastPos(1)) = A;
+
 else
+
     % Set up the linear constraints
     Ncon = 2*Nn + 2*Nq + 2;
     LHS_mat = zeros(Ncon,length(initVect));
@@ -663,8 +686,8 @@ else
         xxp_vect = reshape(lhsxp_mat,1,lenxp);
         xF_vect = reshape(lhsF_mat,1,lenF);
         
-        xLBrow = [xA_vect,-xB_vect,-xc_vect,xG_vect,xxp_vect,xF_vect];
-        xUBrow = [xA_vect,xB_vect,xc_vect,xG_vect,xxp_vect,xF_vect];
+        xLBrow = [xA_vect, -xB_vect, -xc_vect, xG_vect, xxp_vect, xF_vect];
+        xUBrow = [xA_vect, xB_vect, xc_vect, xG_vect, xxp_vect, xF_vect];
         
         LHS_mat(nn,:) = xLBrow; % Lower bound row
         LHS_mat(Nn+nn,:) = xUBrow; % Upper bound row
@@ -699,8 +722,8 @@ else
         LHS_mat(rUB,:) = xpUBrow; % Upper bound row
     end
     % And frequency shifts
-    LHS_mat(2*(Nn+Nq)+1,end-1:end) = [-min(S.f),-1];
-    LHS_mat(2*(Nn+Nq)+2,end-1:end) = [max(S.f),1];
+    LHS_mat(2*(Nn+Nq)+1, end-1:end) = [-min(S.f),-1];
+    LHS_mat(2*(Nn+Nq)+2, end-1:end) = [max(S.f),1];
     
     originalProblem = {};
     originalProblem.x0 = initVect;
@@ -906,6 +929,74 @@ end % reshapeParameters function
 
 % ======================================
 
+function plotErr(Nc, Rfi, Rs, diffR, errW, errorValue, errorNorm, ec, e, plotOpts)
+% Plots the error between the fine models and the response of the surrogate.
+
+% Parameters:
+%   plotOpts:
+%       plotTitle:  The graphs title.
+%       yLims:  Limits for the y axis. This is used to keep the graph scaling the same as the 
+%               initial alignment plot for easier comparison.
+%               Format: ylim([0.05,1.5])
+plotTitle = '';
+if isfield(plotOpts,'plotTitle'), plotTitle = plotOpts.plotTitle; end
+
+if length(errW) == 1 && errW == 1
+    errW = ones(length(Rfi{1}), 1);
+end
+
+fig = figure();
+% The number of parameters per model should not change
+[Nm,Np] = size(Rs{1});
+for cc = 1:Nc
+    for pp = 1:Np
+        % diffAll = Rfi{cc}(:,pp) - Rs{cc}(:,pp);
+        norm1 = norm(diffR{cc}{pp}, 1);
+        norm2 = norm(diffR{cc}{pp}, 2);
+        % sum(abs(diffR{cc}{pp}))
+    
+        usedRfi = Rfi{cc}(:,pp);
+        usedRfi(errW==0) = [];
+
+        usedRs = Rs{cc}(:,pp);
+        usedRs(errW==0) = [];
+        
+        usedErrW = errW;
+        usedErrW(errW==0) = [];
+
+        subplot(Nc,Np*2, (Np*(cc-1)*2) + pp*2-1), grid on, hold on
+        plot((Rfi{cc}),'k', 'LineWidth',2)
+        plot((Rs{cc}),'--r','LineWidth',2)
+        for ii = 1:length(usedErrW)
+            plot(usedRfi(ii),'ko', 'LineWidth',2, 'MarkerSize',2*exp(usedErrW(ii)) ) 
+            plot(usedRs(ii), 'ro', 'LineWidth',2, 'MarkerSize',2*exp(usedErrW(ii)) )
+        end
+        title({[plotTitle], ...
+            ['Fine model ', num2str(cc), 'of', num2str(Nc), ', Output param: ', num2str(pp), 'of', num2str(Np)], ...
+            ['Outpus parameter error = ', num2str(errorValue{cc}{pp})], ...
+            ['Combined normalised error = ', num2str(ec(cc))], ...
+            [' using norm ', num2str(errorNorm), ', final error:', num2str(e)]})
+        % legend('Rfi', 'compared Rfi points', 'Rs', 'compared Rs points')
+        ylabel('Imag')
+        xlabel('Real')
+
+        subplot(Nc,Np*2, (Np*(cc-1)*2) + pp*2), grid on, hold on
+        plotv([(real(diffR{cc}{pp}))'; (imag(diffR{cc}{pp}))'])
+        title({['Vector difference between used points.'], .... 
+            ['L1 norm = ', num2str(norm1)], ...
+            ['L2 norm = ', num2str(norm2)]})
+        ylabel('Imag')
+        xlabel('Real')
+    end
+end
+
+% Pause so that the graphing system can update.
+pause(0.1)
+
+end % plotErr function
+
+% ======================================
+
 function e = erri(reducedOptVect, xi, Rfi, S, wk, vk, SMopts, ...
                   normaliseAlignmentParameters,  baseProblem, originalProblem, ...
                   plotFlag, plotOpts)
@@ -973,102 +1064,35 @@ end
 e = sum(ec)./Nc;
 
 if ( plotFlag == 1 )
-    plotErri(Nc, Rfi, Rs, diffR, errW, errorValue, SMopts.errNorm, ec, e, plotOpts);
-    % Pause so that the graphing system can update.
-    pause(0.1)
+    plotErr(Nc, Rfi, Rs, diffR, errW, errorValue, SMopts.errNorm, ec, e, plotOpts);
 end
 
 end % erri function 
 
 % ======================================
 
-function plotErri(Nc, Rfi, Rs, diffR, errW, errorValue, errorNorm, ec, e, plotOpts)
-% Plots the error between the fine models and the response of the surrogate.
-
-% Parameters:
-%   plotOpts:
-%       plotTitle:  The graphs title.
-%       yLims:  Limits for the y axis. This is used to keep the graph scaling the same as the 
-%               initial alignment plot for easier comparison.
-%               Format: ylim([0.05,1.5])
-plotTitle = '';
-if isfield(plotOpts,'plotTitle'), plotTitle = plotOpts.plotTitle; end
-
-fig = figure();
-% The number of parameters per model should not change
-[Nm,Np] = size(Rs{1});
-for cc = 1:Nc
-    for pp = 1:Np
-        % diffAll = Rfi{cc}(:,pp) - Rs{cc}(:,pp);
-        norm1 = norm(diffR{cc}{pp}, 1);
-        norm2 = norm(diffR{cc}{pp}, 2);
-        % sum(abs(diffR{cc}{pp}))
-    
-        usedRfi = Rfi{cc}(:,pp);
-        usedRfi(errW==0) = [];
-
-        usedRs = Rs{cc}(:,pp);
-        usedRs(errW==0) = [];
-        
-        usedErrW = errW;
-        usedErrW(errW==0) = [];
-
-        subplot(Nc,Np*2, (Np*(cc-1)*2) + pp*2-1), grid on, hold on
-        plot((Rfi{cc}),'k', 'LineWidth',2)
-        plot((Rs{cc}),'--r','LineWidth',2)
-        for ii = 1:length(usedErrW)
-            plot(usedRfi(ii),'ko', 'LineWidth',2, 'MarkerSize',2*exp(usedErrW(ii)) ) 
-            plot(usedRs(ii), 'ro', 'LineWidth',2, 'MarkerSize',2*exp(usedErrW(ii)) )
-        end
-        title({[plotTitle], ...
-            ['Fine model ', num2str(cc), 'of', num2str(Nc), ', Output param: ', num2str(pp), 'of', num2str(Np)], ...
-            ['Outpus parameter error = ', num2str(errorValue{cc}{pp})], ...
-            ['Combined normalised error = ', num2str(ec(cc))], ...
-            [' using norm ', num2str(errorNorm), ', final error:', num2str(e)]})
-        % legend('Rfi', 'compared Rfi points', 'Rs', 'compared Rs points')
-        ylabel('Imag')
-        xlabel('Real')
-
-        subplot(Nc,Np*2, (Np*(cc-1)*2) + pp*2), grid on, hold on
-        plotv([(real(diffR{cc}{pp}))'; (imag(diffR{cc}{pp}))'])
-        title({['Vector difference between used points.'], .... 
-            ['L1 norm = ', num2str(norm1)], ...
-            ['L2 norm = ', num2str(norm2)]})
-        ylabel('Imag')
-        xlabel('Real')
-    end
-end
-end % plotErri function
-
-% ======================================
-
-function e = erriF(Fvect,Rfi,Rc,f,SMopts)
+function e = erriF(Fvect, Rf, Rc, f, SMopts, plotFlag, plotOpts)
 % Special case error function where only F is optimized and the coarse
 % model is not re-evaluated - interpolation/extrapolation is used on the
 % provided coarse model response...
-% This will only work for a single response at this stage
+% Phase is not taken into account for FSM. Assuming that absolute values have
+% been taken of both Rc and Rf.
 
-fs = Fvect(1).*f + Fvect(2);
-RsComp = interp1(f,Rc,fs,'linear');
-RsComp = reshape(RsComp,length(RsComp),1);
-% Get rid of NaNs from shift
-cleanPos = find(~isnan(RsComp));
-RsCompClean = RsComp(cleanPos);
-fClean = f(cleanPos);
-fClean = reshape(fClean,length(fClean),1);
-% Include the edge points for the interpolation
-if max(fClean) < max(f) 
-    RsCompClean = [RsCompClean;Rfi{1}(end)];
-    fClean = [fClean;f(end)];
-end
-if min(fClean) > min(f)
-    RsCompClean = [Rfi{1}(1);RsCompClean];
-    fClean = [f(1);fClean];
-end
-Rs = interp1(fClean,RsCompClean,f,'spline');
+assert(isequal(size(Rf,2), 1), 'This only works for one responce thus far.')
 
-diffR = Rfi{1} - reshape(Rs,length(f),1);
+Rs = applyFrequencyChange(f, Fvect, Rc);
+
+diffR = Rf - reshape(Rs, length(f),1);
 e = norm(diffR, SMopts.errNorm);
+
+if ( plotFlag == 1 )
+    Nc = 1;
+    errW = 0;
+    errorValue{1}{1} = e;
+    ec = e;
+    diffRcell{1}{1} = diffR;
+    plotErr(Nc, {Rf}, {Rs}, diffRcell, errW, errorValue, SMopts.errNorm, ec, e, plotOpts);
+end
 
 % if isequal(SMopts.errNorm,'L1')
 %     e = sum(abs(diffR));  % Error vector [Nm,1]

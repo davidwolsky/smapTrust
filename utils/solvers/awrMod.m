@@ -1,16 +1,29 @@
 function R = awrMod(M, xi, xp, Rtype, f)
 
-% keyboard
 % assert(~exist('xp','var'), 'This has only been implemented for coarse model evaluations...')
 assert(logical(exist('xp','var')), 'This has only been implemented for coarse model evaluations...')
-assert(isempty(f), 'Model independent frequency for coarse models has not been implemented yet.')
+% assert(isempty(f), 'Model independent frequency for coarse models has not been implemented yet.')
 % TODO_DWW: Add functunality for fine model?
+
+if ~isempty(f)
+    % Use the frequency passed in.
+    fc = f;
+elseif isfield(M,'freq') && ~isempty(M.freq)
+    % Use frequency from the model.
+    fc = M.freq;
+else
+    % No a run using frequency, relying on the model being set up.
+    warning('AWR requires a frequency to run, hoping that the model is set up corrctly.')
+    fc = [];
+end
+
+% assert(~isempty(fc), 'A frequeny is required one way or another.')
+
 
 Nn = length(xi);
 Nr = length(Rtype);
 Nq = length(xp);
-% TODO_DWW: If frequency is not specified then just take what is in the model already... like CST implementation.
-Nm = length(M.freq);
+Nm = length(fc);
 R = cell(1,Nr);
 
 % Ensure that NI AWR is open and that all projects have been closed.
@@ -22,10 +35,46 @@ else
     [M.path,M.name,'.emp']
     awr.invoke('Open', [M.path,M.name,'.emp']);
     proj = awr.Project;
-    proj.Frequencies.Clear();
+end
+
+if (proj.Frequencies.Count == 0)
+    assert(~isempty(fc), 'A frequeny is required one way or another.')
     for mm = 1:Nm
-        awr.Project.Frequencies.Add(M.freq(mm));
+        awr.Project.Frequencies.Add(fc(mm));
     end
+elseif (~isempty(fc))
+
+    % TODO_DWW: CRC_DDV: Either of these really should work, any ideas?
+    % proj.Frequencies.Item(1).Value
+    % proj.Frequencies.invoke('Item', 1)
+
+    freqItem = [];
+    mm = 1;
+    % This is an attempt at an optimisation to not have to clear the frequency 
+    % collection every time.
+    % - 'Double' freqItem returned means that the frequency already exists.
+    % - 'Interface.AWR_Design_Environment_12.IFrequency' means that a new frequency was added
+    while isequal(class(freqItem),'double') && mm <= Nm
+        freqItem = awr.Project.Frequencies.Add(fc(mm));
+        mm = mm +1;
+    end
+
+    % If a new frequency was added then the integrity of the list is lost. 
+    % We may be adding more frequencies to an old set. 
+    if isequal(class(freqItem),'Interface.AWR_Design_Environment_12.IFrequency')
+        proj.Frequencies.Clear();
+        for mm = 1:Nm
+            awr.Project.Frequencies.Add(fc(mm));
+        end
+    elseif isequal(class(freqItem),'double')
+        % Do nothing.
+    else
+        error('An unkown frequency class type was returned.')
+    end
+
+    assert(proj.Frequencies.Count == Nm, 'There must the the same number of frequencies in AWR and our array.')
+else
+    % Do nothing, running with the model as is.    
 end
 
 eqns = proj.GlobalDefinitionDocuments.Item(1).Equations;
@@ -90,8 +139,8 @@ for rr = 1:Nr
         end
 
         nRead = measurement_Sxx_Mag.XPointCount;
-        [fin,Sxxin] = deal(zeros(nRead,1));
-        fin = measurement_Sxx_Mag.XValues;
+        [xin,Sxxin] = deal(zeros(nRead,1));
+        xin = measurement_Sxx_Mag.XValues;
 
         for nn = 1:nRead
             amp = measurement_Sxx_Mag.YValue(nn,1);
@@ -99,16 +148,22 @@ for rr = 1:Nr
             Sxxin(nn) = amp.*exp(1i*phase);
         end
 
-        if isfield(M,'freq')
+        if (~isempty(fc))
+            % If a frequency has been specified use it...
             Nm = length(M.freq);
-            Rreal = reshape(interp1(fin,real(Sxxin),M.freq,'spline'),Nm,1);
-            Rimag = reshape(interp1(fin,imag(Sxxin),M.freq,'spline'),Nm,1);
+            Rreal = reshape(real(Sxxin), Nm, 1);
+            Rimag = reshape(imag(Sxxin), Nm, 1);
             R{rr}.r = Rreal + 1i*Rimag;
-            R{rr}.f = M.freq;
+            R{rr}.f = fc;
+
+            assert(isequal(reshape(xin,Nm,1),fc), 'The xaxis and the freq requested should match.')
+            % Would use interpolation on value is the frequency were to not change.
+            % Rreal = reshape(interp1(xin,real(Sxxin),fc,'spline'),Nm,1);
+            % Rimag = reshape(interp1(xin,imag(Sxxin),fc,'spline'),Nm,1);
         else
-            Nm = nRead;
+            % Nm = nRead;
             R{rr}.r = Sxxin;
-            R{rr}.f = fin;
+            R{rr}.f = xin;
         end
         R{rr}.t = Rtype{rr};
     else
