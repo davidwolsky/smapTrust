@@ -603,13 +603,14 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
             %       -> add Rsai
             %       -> add setup options
             %       -> add OPTopts
-            %       -> write out with file name with time stamp
+            %       -> write out with file name with time stamp 'datetime'
             %       -> plot the saved file nicely... 
             space.ii = ii;
             space.xi = xi;
             space.Rci = Rci;
             space.Rfi = Rfi;
             space.Rsi = Rsi;
+            space.Rsai = Rsai;
             space.Si = Si;
             space.costS = costS;
             space.costF = costF;

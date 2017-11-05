@@ -932,7 +932,7 @@ end % reshapeParameters function
 
 % ======================================
 
-function plotErr(Nc, Rfi, Rs, diffR, errW, errorValue, errorNorm, ec, e, plotOpts)
+function plotErr(wk, Rfi, Rs, diffR, errW, errorValue, errorNorm, ec, e, plotOpts)
 % Plots the error between the fine models and the response of the surrogate.
 
 % Parameters:
@@ -943,6 +943,10 @@ function plotErr(Nc, Rfi, Rs, diffR, errW, errorValue, errorNorm, ec, e, plotOpt
 %               Format: ylim([0.05,1.5])
 plotTitle = '';
 if isfield(plotOpts,'plotTitle'), plotTitle = plotOpts.plotTitle; end
+
+modelIndicies = find(wk > 0);
+% Nc - number of input point cells/number of fine models available.
+Nc = length(modelIndicies);
 
 if length(errW) == 1 && errW == 1
     errW = ones(length(Rfi{1}), 1);
@@ -958,7 +962,7 @@ for cc = 1:Nc
         norm2 = norm(diffR{cc}{pp}, 2);
         % sum(abs(diffR{cc}{pp}))
     
-        usedRfi = Rfi{cc}(:,pp);
+        usedRfi = Rfi{modelIndicies(cc)}(:,pp);
         usedRfi(errW==0) = [];
 
         usedRs = Rs{cc}(:,pp);
@@ -968,11 +972,11 @@ for cc = 1:Nc
         usedErrW(errW==0) = [];
 
         subplot(Nc,Np*2, (Np*(cc-1)*2) + pp*2-1), grid on, hold on
-        plot((Rfi{cc}),'k', 'LineWidth',2)
+        plot((Rfi{modelIndicies(cc)}),'k', 'LineWidth',2)
         plot((Rs{cc}),'--r','LineWidth',2)
         for ii = 1:length(usedErrW)
-            plot(usedRfi(ii),'ko', 'LineWidth',2, 'MarkerSize',2*exp(usedErrW(ii)) ) 
-            plot(usedRs(ii), 'ro', 'LineWidth',2, 'MarkerSize',2*exp(usedErrW(ii)) )
+            plot(usedRfi(ii),'k.', 'LineWidth',2, 'MarkerSize',7*(usedErrW(ii))+13 ) 
+            plot(usedRs(ii), 'r.', 'LineWidth',2, 'MarkerSize',7*(usedErrW(ii))+13 )
         end
         title({[plotTitle], ...
             ['Fine model ', num2str(cc), 'of', num2str(Nc), ', Output param: ', num2str(pp), 'of', num2str(Np)], ...
@@ -1067,7 +1071,7 @@ end
 e = sum(ec)./Nc;
 
 if ( plotFlag == 1 )
-    plotErr(Nc, Rfi, Rs, diffR, errW, errorValue, SMopts.errNorm, ec, e, plotOpts);
+    plotErr(wk, Rfi, Rs, diffR, errW, errorValue, SMopts.errNorm, ec, e, plotOpts);
 end
 
 end % erri function 
@@ -1090,11 +1094,12 @@ e = norm(diffR, SMopts.errNorm);
 
 if ( plotFlag == 1 )
     Nc = 1;
+    wk = 1;
     errW = 0;
     errorValue{1}{1} = e;
     ec = e;
     diffRcell{1}{1} = diffR;
-    plotErr(Nc, {Rf}, {Rs}, diffRcell, errW, errorValue, SMopts.errNorm, ec, e, plotOpts);
+    plotErr(wk, {Rf}, {Rs}, diffRcell, errW, errorValue, SMopts.errNorm, ec, e, plotOpts);
 end
 
 % if isequal(SMopts.errNorm,'L1')
