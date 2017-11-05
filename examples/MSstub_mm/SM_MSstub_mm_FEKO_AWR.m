@@ -160,8 +160,8 @@ errW(Mf.freq > OPTopts.goalStart{1} & Mf.freq < OPTopts.goalStop{1}) = 1;
 errW(Mf.freq > OPTopts.goalStart{2} & Mf.freq < OPTopts.goalStop{2}) = 0.1
 SMopts.errW = errW;
 % SMopts.wk = 5;
-SMopts.wk = 0; % <-
-% SMopts.wk = []
+% SMopts.wk = 0; % <-
+SMopts.wk = []
 
 %% Run the main loop
 [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts);
