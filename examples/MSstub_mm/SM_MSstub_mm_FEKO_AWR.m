@@ -125,7 +125,7 @@ SMopts.getc = 1;
 SMopts.getG = 0;
 SMopts.getxp = 1;
 SMopts.getF = 0;
-SMopts.getE = 0;
+SMopts.getE = 1;
 SMopts.getd = 0;
 
 SMopts.globalSolver = 'ga';

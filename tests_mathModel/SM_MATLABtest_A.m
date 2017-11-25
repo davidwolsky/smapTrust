@@ -5,7 +5,7 @@ clear all
 format compact
 
 if nargin < 1
-    type = 'c';
+    type = 'cE';
 end
 
 % opts.getA = 0;
@@ -81,6 +81,11 @@ SMopts.optsLocalOptim.DiffMinChange = 1e-10;
 SMopts.normaliseAlignmentParameters = 1;
 % SMopts.optsLocalOptim.DiffMinChange = 1e-10;
 % SMopts.normaliseAlignmentParameters = 0;
+
+broydenOpts = {};
+broydenOpts.useSuccessfulTRRuns = 0;
+broydenOpts.radiusLimit = 0.03;
+SMopts.broydenOpts = broydenOpts;
 
 SMopts.plotAlignmentFlag = 0;
 % SMopts.plotAlignmentFlag = 1;
@@ -158,6 +163,9 @@ if any(type == 'F')
     % F = rand(2,1)./10;
     % modPar.F = F
     SMopts.getF = 1;
+end
+if any(type == 'E')
+    SMopts.getE = 1;
 end
 
 

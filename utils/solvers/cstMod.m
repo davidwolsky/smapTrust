@@ -52,7 +52,7 @@ end
 SolveType = invoke(mws,'GetSolverType');
 switch SolveType
     case 'HF Time Domain'
-        solver = invoke(mws,'Solver');
+        solver = invoke(mws,'Solver');        % This is the TD solver
     case 'HF Frequency Domain'
         solver = invoke(mws,'FDSolver');      % This is the FD solver
     otherwise

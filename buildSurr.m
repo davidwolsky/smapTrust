@@ -1,4 +1,4 @@
-function Si = buildSurr(xi, Rfi, S, SMopts)
+function Si = buildSurr(xi, Rfi, S_all, successCount, resultCount, SMopts)
 
 % function to build a surrogate model structure S, using the input fine 
 % model response pairs {xi,Rfi}.  More than one input response pair can be
@@ -19,13 +19,18 @@ function Si = buildSurr(xi, Rfi, S, SMopts)
 %   xi and Rfi may be cell arrays of the same length indicating multiple fine
 %   model evaluations.  The surrogate will then be a best fit over the entire
 %   extended parameter space.
-% S:  Initial surrogate model containing at least
-%  S.coarse -  Function handle pointing to a predefined function that evaluates
+% S_all: Either a single item or cells for the initial/previous surrogate model
+%        where each surrogate containing at least:
+%   coarse -  Function handle pointing to a predefined function that evaluates
 %          the coarse model operating as Rc = coarse(xc,xp,f) thus returning Rc 
 %          (coarse model response) for each element in xc. Optional xp are
 %          the implicit (pre-assigned) parameters.
-%  S.xp - Optional pre-assigned variables (depending on the coarse model [Nq,1]
-%  S.f - Optional frequency vector where the responses are calculated [Nm,1] (must be included for FSM)
+%   xp  - Optional pre-assigned variables (depending on the coarse model [Nq,1]
+%   f   - Optional frequency vector where the responses are calculated [Nm,1] (must be included for FSM)
+%   E   - Optional previous surrogate E value [Nm,Nn]. Required if getE is being used.
+% successCount: An array of runs that passed the TR criteria. This can be used to calculate E with 
+%               the Broyden-based update. 
+% resultCount: The paticular surrogate result that is being used here.
 % SMopts: User options structure - mostly flags to specify type of SM (defaults)
 %   getA - flag to get multiplicative OSM (set to 2 to get M factors), typically 1 to force 
 %          single factor for all outputs which is much faster and often works well (0).
@@ -110,23 +115,32 @@ function Si = buildSurr(xi, Rfi, S, SMopts)
 %           imaginary part is shown along with the error between the fine model and
 %           the evaluated surrogate. NOTE an extra two coarse model evaluations are 
 %           done when populating the errors to plot.
+%   broydenOpts - A structure of option specific for the Broyden update used to calculate the E term.
+%       useSuccessfulTRRuns - A flag to allow switching between: 1) using the last successful iteration
+%                             point for calculating the approximate Jacobian, or 0) use the previos value
+%                             calculated.
+%       radiusLimit - The maximum distance away from an evaluation that the Broyden update
+%                     will still estimate a Jacobian and use it. This is NOT a normalised value
+%                     but rather relates to the step in actual parameter space. A value of 0 will
+%                     skip the Broyden update all together. 
 %
 % Returns:
-% S -  The surrogate model structure containing:
-% coarse:  Function handle pointing to a predefined function that evaluates
-%          the coarse model operating as Rc = coarse(xc,xp) thus returning Rc 
-%          (coarse model response) for each element in xc. Optional xp are
-%          the implicit (pre-assigned) parameters.
-% A:       Multiplicative OSM factor diag[Nm,Nm]
-% B:       Multiplicative input SM factor [Nn,Nn]
-% c:       Additive input SM term [Nn,1]
-% G:       Multiplicative ISM factor [Nq,Nm]
-% xp:      Pre-assigned parameters [Nq,1]
-% d:       Additive zeroth order OSM term [Nm,1]
-% E:       Additive first order OSM term [Nm,Nn]
-% xi:      Position of last update point of the model [Nn,1]
-% F:       Frequency space mapping parameters [2,1]
-% freq:    Coarse model frequency range [Nm,1]
+% Si - The surrogate model structure containing:
+% coarse:   Function handle pointing to a predefined function that evaluates
+%           the coarse model operating as Rc = coarse(xc,xp) thus returning Rc 
+%           (coarse model response) for each element in xc. Optional xp are
+%           the implicit (pre-assigned) parameters.
+% A:        Multiplicative OSM factor diag[Nm,Nm]
+% B:        Multiplicative input SM factor [Nn,Nn]
+% c:        Additive input SM term [Nn,1]
+% G:        Multiplicative ISM factor [Nq,Nm]
+% xp:       Pre-assigned parameters [Nq,1]
+% d:        Additive zeroth order OSM term [Nm,1]
+% E:        Additive first order OSM term [Nm,Nn]
+% xi:       Position of last update point of the model [Nn,1]
+% F:        Frequency space mapping parameters [2,1]
+% freq:     Coarse model frequency range [Nm,1]
+% xi:       Value of xi that the surrogate is calculated at. Used for evaluating the surrogate.
 %
 % Date created: 2014-11-09
 % Dirk de Villiers
@@ -184,8 +198,10 @@ function Si = buildSurr(xi, Rfi, S, SMopts)
 %             after the alignment phase.
 % 2017-09-18: Introduced normalisation of alignment parameters.
 % 2017-09-19: Reintroducing globOpt, really thought it was working again already.
+% 2017-11-25: Implement E (first order OSM) using Broyden update. Based on: 
+%             2010 IEEE paper by Koziel et al on robust trust-region SM algorithms.
 
-% ToDo: Implement E (first order OSM)
+
 % ToDo: Jacobian fitting in error functions (vk)
 
 % Preassign some variables
@@ -195,9 +211,12 @@ function Si = buildSurr(xi, Rfi, S, SMopts)
 [Bmin,Bmax,cmin,cmax,Gmin,Gmax,xpmin,xpmax,fmin,fmax] = deal([]);
 
 % Sort out formats
-if iscell(xi) && iscell(Rfi) && (length(xi) == length(Rfi))   % Basic error checking - if any issue here only first point will be used
-    Nc = length(xi);  % Number of input point cells
-else     % Force only first point to be used, and make cell arrays
+% Basic error checking - if any issue here only first point will be used
+if iscell(xi) && iscell(Rfi) && (length(xi) == length(Rfi))   
+    % Number of input point cells
+    Nc = length(xi);  
+else     
+    % Force only first point to be used, and make cell arrays
     if ~iscell(xi), xi = {xi}; end 
     if ~iscell(Rfi), Rfi = {Rfi}; end 
     Nc = 1;
@@ -218,6 +237,17 @@ getE = 0;
 getF = 0;
 
 plotOpts = {};
+
+if ~iscell(S_all)
+    S = S_all;
+    % Require cell for Broyden update code.
+    S_all = {{}};
+    S_all{1}{resultCount} = S;
+else
+    % TODO_DWW: CRC_DDV: Using the most recent surrogate because thats how it was before. Not sure if 
+    %                    should rather be using the last successful run... 
+    S = S_all{successCount(end)}{resultCount};
+end 
 
 % Default constraints
 ximin = -inf.*ones(Nn,1); 
@@ -271,27 +301,25 @@ errNorm = 1;
 errW = 1;
 normaliseAlignmentParameters = 0;
 plotAlignmentFlag = 0;
-if isfield(SMopts,'wk') 
-    if isempty(SMopts.wk)
-        wk = zeros(1,Nc);
-        wk(end) = 1;        % Only use most recent model evaluation to build the surrogate
-    else
-        wk = SMopts.wk;
-        if length(wk) == 1
-            if (wk == 0)
-                wk = ones(1,Nc);
-                % If the error function for the model fitting becomes overdetermined
-                % and can give a skewed model.
-                if (Nc > NSMUnknowns)
-                    wk(1:end-NSMUnknowns) = 0;
-                end
-            else
-                wk = wk.^[1:Nc];
+
+if ( ~isfield(SMopts,'wk') ) || ( isempty(SMopts.wk) )
+    wk = zeros(1,Nc);
+    % Only use most recent model evaluation to build the surrogate
+    wk(end) = 1;  
+else 
+    wk = SMopts.wk;
+    if length(wk) == 1
+        if (wk == 0)
+            wk = ones(1,Nc);
+            % If the error function for the model fitting becomes overdetermined
+            % and can give a skewed model.
+            if (Nc > NSMUnknowns)
+                wk(1:end-NSMUnknowns) = 0;
             end
+        else
+            wk = wk.^[1:Nc];
         end
     end
-else
-    wk = ones(1,Nc);        % Default case - same weight given to all previous fine model evaluations to build the surrogate
 end
 
 if isfield(SMopts,'vk') 
@@ -335,6 +363,20 @@ if isfield(SMopts,'errNorm'), errNorm = SMopts.errNorm; end
 if isfield(SMopts,'errW'), errW = SMopts.errW; end
 if isfield(SMopts,'normaliseAlignmentParameters'), normaliseAlignmentParameters = SMopts.normaliseAlignmentParameters; end
 if isfield(SMopts,'plotAlignmentFlag'), plotAlignmentFlag = SMopts.plotAlignmentFlag; end
+
+broydenOpts = {};
+broydenOpts.useSuccessfulTRRuns = 1;
+% CRC_DDV: Any ideas on what sensible value this should be?
+broydenOpts.radiusLimit = inf;
+
+% Get broyden based options
+if isfield(SMopts,'broydenOpts')
+    tmpBOpts = SMopts.broydenOpts;
+    if isfield(tmpBOpts,'useSuccessfulTRRuns'), broydenOpts.useSuccessfulTRRuns = tmpBOpts.useSuccessfulTRRuns; end
+    if isfield(tmpBOpts,'radiusLimit'), broydenOpts.radiusLimit = tmpBOpts.radiusLimit; end
+end
+
+% --- --- ---
 
 % Assign current iteration S-model
 Si = S;
@@ -593,12 +635,8 @@ if (strcmp(inputType,'F') || strcmp(inputType,'AF')) && (Nc == 1)
 
     % Phase is not taken into account for FSM. This is applied in erriF. 
     % Assuming that this is all complex still.
-    Rc = dB20(Rc);
-    Rf = dB20(Rfi{end});
-    % TODO_DWW: CRC_DDV: I don't understand why abs doesn't work. Not just worse results but looks like it is failing.
-    %                    To reproduce run SM_MSstub_mm_FEKO_AWR.m with only freq mapping. 
-    % Rc = abs(Rc);
-    % Rf = abs(Rfi{end});
+    Rc_db20 = dB20(Rc);
+    Rf_db20 = dB20(Rfi{end});
     
     % No normalisation is required here because the F values are close enough to each other.
     LHS_mat(1, 1:2) = [-min(S.f),-1];
@@ -609,7 +647,7 @@ if (strcmp(inputType,'F') || strcmp(inputType,'AF')) && (Nc == 1)
     if ( plotAlignmentFlag == 1 )
         % Plot initial error before alignment
         plotOpts.plotTitle = 'Starting alignment';
-        erriF(F_init, Rf, Rc, S.f, optsParE, plotAlignmentFlag, plotOpts);
+        erriF(F_init, Rf_db20, Rc_db20, S.f, optsParE, plotAlignmentFlag, plotOpts);
     end
 
     problem = {};
@@ -623,7 +661,7 @@ if (strcmp(inputType,'F') || strcmp(inputType,'AF')) && (Nc == 1)
     problem.nonlcon = [];
 
     % Only use local optimizer for FSM
-    problem.objective = @(tempFvect) erriF(tempFvect, Rf, Rc, S.f, optsParE, false, plotOpts);
+    problem.objective = @(tempFvect) erriF(tempFvect, Rf_db20, Rc_db20, S.f, optsParE, false, plotOpts);
     problem.solver = localSolver;
     problem.options = optsLocalOptim;
     [Fvect, fval, exitflag, output] = doOptimisation(problem);
@@ -631,14 +669,14 @@ if (strcmp(inputType,'F') || strcmp(inputType,'AF')) && (Nc == 1)
     if ( plotAlignmentFlag == 1 )
         % Plot errors after alignment
         plotOpts.plotTitle = 'Alignment complete';
-        erriF(Fvect, Rf, Rc, S.f, optsParE, plotAlignmentFlag, plotOpts);
+        erriF(Fvect, Rf_db20, Rc_db20, S.f, optsParE, plotAlignmentFlag, plotOpts);
     end
 
-    Rs = applyFrequencyChange(S.f, Fvect, Rc);
+    Rs = applyFrequencyChange(S.f, Fvect, Rc_db20);
 
     optVect = initVect;
     if strcmp(inputType, 'AF')       % Need to also get the A factor
-        A = Rf./reshape(Rs, Nm, 1);
+        A = Rf_db20./reshape(Rs, Nm, 1);
         if getA == 1, A = mean(A); end
         optVect(firstPos(1):lastPos(1)) = A;
     end
@@ -823,8 +861,64 @@ d = zeros(Nm,1);
 if getd, d = Rfi{end} - evalSurr(xi{end},Si); end
 Si.d = d;
 
-% Additive first order OSM - ToDo
+% --- getE ---
+% Additive first order OSM - Broyden based update
+if getE
+    if Nc > 1
+        % Set the point where this surrogate was calculated. Used in evalSurr in future evaluations.
+        Si.xi = xi{end};
 
+        % Bookkeeping - Setting defaults incase S.E was not passed in even though getE was requested.
+        if ~isfield(S,'E'), S.E = zeros(Nm, Nn); end
+
+        currentCount = Nc;
+        if ( broydenOpts.useSuccessfulTRRuns && ~isempty(successCount) ) 
+            previousCount = successCount(end);
+        else
+            previousCount = Nc - 1;
+        end
+
+        hi = xi{currentCount} - xi{previousCount};
+
+        % TODO_DWW: CRC_DDV: This should either be operating on a normalised value or it should
+        %                    be a vecor of radii for the case when parameters are offset and a fine 
+        %                    radius resolution is wanted... 
+        % Any values outside the defined radius are set to zero.
+        if any(abs(hi)>broydenOpts.radiusLimit), warning('Parameter step falls outside Broyden radius limit.'); end
+        hi( abs(hi)>broydenOpts.radiusLimit ) = 0;
+
+        % TODO_DWW: CRC_DDV: Intead of setting to zero we could rather use the previous value somehow... 
+        %                    Still struggling to visualise how the incremental changes affect the value of 
+        %                    the surrogate evaluation and what zeroing this out suddently will do... 
+
+        % Rs{2} - The response of the just-calculated surrogate at the most recent xi.
+        % Rs{1} - The response of the just-calculated surrogate previous xi value.
+        Rs = {};
+        Rs{2} =  evalSurr(xi{currentCount}, Si);
+        Rs{1} =  evalSurr(xi{previousCount}, Si);
+
+        % TODO_DWW: CRC_DDV: Discuss comments...
+
+        % The E terms is use from a previous run.
+        % If useSuccessfulTRRuns:0) This will be the most recent run from SMmain, even if the trust region failed and the 
+        %                           radius is shrinking. If the previous run radius drifted too far away from the run before 
+        %                           that then this E value may be zeroed out completely. 
+        %                        1) The surrogate where the last successful evaluation was processed, that is when the 
+        %                           TR criteria were met.   
+        E = S_all{previousCount}{resultCount}.E;
+
+        fbari = ( Rfi{currentCount} - Rs{2} ) - ( Rfi{previousCount} - Rs{1} );
+        Ji = E + ( ((fbari-(E*hi))*(hi') / ((hi')*hi)) );
+
+        % Clean up NaN values that could result from no varaible step (xi{end}==xi{end-1})
+        if any(isnan(Ji)), warning('NaN detected in Broyden-based update calculation. Setting to zero.'); end
+        Ji(isnan(Ji)) = 0;
+
+        Si.E = Ji;
+    else
+        Si.E = zeros(Nm, Nn);
+    end
+end % getE
 
 function NSMUnknowns = getNSMUnknowns()    
 % NSMUnknowns - The number of SM request types represent the number of unknowns that need to be solved. 
@@ -875,7 +969,7 @@ function NSMUnknowns = getNSMUnknowns()
     end
 
     % --- getE ---
-    % Do nothing yet
+    % Do nothing
 
     % --- getF ---
     if getF == 1

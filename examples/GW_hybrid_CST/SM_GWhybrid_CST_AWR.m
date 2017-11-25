@@ -27,7 +27,7 @@ currentPath = replace(fullpath, filename, '');
 %setenv('PATH', [getenv('PATH') ';C:\Program Files\Altair\14.0\feko\bin']);
 Mf.path = [currentPath,'CST\'];
 Mf.name = 'GWhybrid_Fine';
-Mf.solver = 'CST_TD';
+Mf.solver = 'CST';
 Mf.params = {'L1',  'L2'};
 Mf.ximin =  [14,    14]';
 Mf.ximax =  [18,    18]';
@@ -94,7 +94,7 @@ OPTopts.alp1 = 2.5;
 OPTopts.alp2 = 0.25;
 OPTopts.DeltaInit = 0.25;
 OPTopts.startWithIterationZero = true;
-% OPTopts.prepopulatedSpaceFile = 'SMLog_bandpassFilter.mat'
+% OPTopts.prepopulatedSpaceFile = ''
 
 OPTopts.optsLocalOptim.Display = 'iter-detailed';
 

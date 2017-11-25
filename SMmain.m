@@ -191,6 +191,9 @@ if isfield(OPTopts,'verbosityLevel'), verbosityLevel = OPTopts.verbosityLevel; e
 % Set up models - bookkeeping
 Nq = 0;
 Nn = length(xinit);
+% TODO_DWW: CRC_DDV: Check this is always required
+assert(isfield(Mf, 'freq'), 'A frequency is required now because a default E value is required for the SM surragate.')
+Nm = length(Mf.freq)
 xi{1} = reshape(xinit,Nn,1);
 if isfield(Sinit,'xp')
     Nq = length(Sinit.xp);
@@ -210,10 +213,21 @@ if isfield(Mc,'freq')
 else
     fc = [];
 end
-useAllFine = 0;
-if isfield(SMopts,'wk')
-    % Assume user wants to use all calculated fine responses to fit the surrogate...
-    useAllFine = 1;
+
+if isfield(SMopts,'getE') && ~isfield(Sinit,'E')
+    Sinit.E = zeros(Nm, Nn);
+    Sinit.xi = xi{1};
+end
+
+% TODO_DWW: CRC_DDV: This bookkeeping shouldn't have to happen here in SMmain
+if ~isfield(SMopts,'broydenOpts')
+    SMopts.broydenOpts = {};
+    SMopts.broydenOpts.useSuccessfulTRRuns = 1;
+    % CRC_DDV: Any ideas on what sensible value this should be?
+    SMopts.broydenOpts.radiusLimit = inf;
+else
+    if ~isfield(SMopts.broydenOpts,'useSuccessfulTRRuns'), SMopts.broydenOpts.useSuccessfulTRRuns = 1; end
+    if ~isfield(SMopts.broydenOpts,'radiusLimit'), SMopts.broydenOpts.radiusLimit = inf; end
 end
 
 
@@ -247,7 +261,6 @@ end
 %         end
 %     end
 % end
-
 
 % Enter the main loop
 %   0)  Normalise parameters
@@ -355,8 +368,6 @@ if length(prepopulatedSpaceFile) > 1
     Ti.Rfi_all = space.Ti.Rfi_all;
     Ti.costF_all = space.Ti.costF_all;
 
-    
-    
     Rci{1} = coarseMod(Mc, xi{1}, Sinit.xp, fc);
     Rfi{1} = fineMod(Mf, xi{1});
 
@@ -373,7 +384,8 @@ if length(prepopulatedSpaceFile) > 1
         % DdV_New
         Sinit.M.Rtype{1} = OPTopts.Rtype{rr};
         
-        Si{1}{rr} = buildSurr(Ti.xi_all,r,Sinit,SMopts);
+        Si{1}{rr} = buildSurr(Ti.xi_all, r, Sinit, 1, rr, SMopts);
+
         Rsi{1}{rr}.r = evalSurr(xi{1},Si{1}{rr});
         Rsi{1}{rr}.t = Rci{1}{rr}.t;
         if isfield(Rci{1}{rr},'f'), Rsi{1}{rr}.f = Rci{1}{rr}.f; end
@@ -402,7 +414,8 @@ else
         % DdV_New
         Sinit.M.Rtype{1} = OPTopts.Rtype{rr};
         
-        Si{1}{rr} = buildSurr(xi{1},Rfi{1}{rr}.r,Sinit,SMopts);
+        Si{1}{rr} = buildSurr(xi{1}, Rfi{1}{rr}.r, Sinit, 1, rr, SMopts);
+
         Rsi{1}{rr}.r = evalSurr(xi{1},Si{1}{rr});
         Rsi{1}{rr}.t = Rci{1}{rr}.t;
         if isfield(Rci{1}{rr},'f'), Rsi{1}{rr}.f = Rci{1}{rr}.f; end
@@ -452,7 +465,7 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                 ximinnTR = max((xin{ii} - Ti.Deltan{ii}),ximinn);
                 ximaxnTR = min((xin{ii} + Ti.Deltan{ii}),ximaxn);
             end
-            
+
             if verbosityLevel >= 1, display(['--- Optimisation loop iteration ', num2str(ii), ' ---']); end
             problem = {};
             problem.x0 = xin{ii};
@@ -532,7 +545,7 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                 Ti.Deltan{ii+1} = 0;
                 Ti.Delta{ii+1} = 0.*(OPTopts.ximax - OPTopts.ximin);
             end
-
+            
             targetCount = ii;
             if ( TRsuccess || (kk == TRNi) || TolX_achieved )
                 targetCount = ii + 1;
@@ -548,26 +561,24 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                     Rsi{ii+1}{rr}.f = Rci{1}{rr}.f; 
                 end
                 if globOptSM < 2, SMopts.globOpt = 0; end
-                if ~useAllFine
-                    % Re-evaluate the surrogate at the new point. 
-                    % CRC_DDV: Not sure about which count to use here...
-                    Si{ii+1}{rr} = buildSurr(xi{ii+1},Rfi{ii+1}{rr}.r,Si{ii}{rr},SMopts);
-                else
-                    % TODO_DWW: Check that it makes sense for this to be inside the loop rr
-                    r = {};
-                    for iii = 1:length(Ti.Rfi_all)
-                        % DISP = ['for - ', num2str(iii),' ',];
-                        % disp(DISP)
-                        r{end+1} = Ti.Rfi_all{iii}{rr}.r;
-                    end
-                    % TODO_DWW: decide if we putting this back in
-                    % length(Ti.xi_all)
-                    % length(r)
-                    % assert(length(Ti.xi_all) == length(r), 'The lengths of xi and responses needs to be the same.')
-                    
-                    if verbosityLevel >= 1, (['--- Building surrogatefor iteration ', num2str(ii), ' ---']); end
-                    Si{targetCount}{rr} = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
+                
+                if verbosityLevel >= 1, (['--- Building surrogatefor iteration ', num2str(ii), ' ---']); end
+            
+                % TODO_DWW: Check that it makes sense for this to be inside the loop rr
+                %           - Surely it can just be done once above the rr loop and just be reused
+                %           instead of being recalcuated...
+                r = {};
+                for iii = 1:length(Ti.Rfi_all)
+                    r{end+1} = Ti.Rfi_all{iii}{rr}.r;
                 end
+                % TODO_DWW: decide if we putting this back in
+                %           - flag it and move on....
+                % length(Ti.xi_all)
+                % length(r)
+                % assert(length(Ti.xi_all) == length(r), 'The lengths of xi and responses needs to be the same.')
+                
+                Si{targetCount}{rr} = buildSurr(Ti.xi_all, r, Ti.Si_all, Ti.successCount, rr, SMopts);
+
                 % Also get the currently aligned surrogate for comparison
                 Rsai{targetCount}{rr}.r = evalSurr(xi{ii+1},Si{targetCount}{rr});
                 Rsai{targetCount}{rr}.t = Rci{1}{rr}.t;
@@ -575,6 +586,12 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                     Rsai{targetCount}{rr}.f = Rci{1}{rr}.f; 
                 end
             end % for rr
+
+            if ( TRsuccess )
+                % Updated after the surrogate has been calculated because it is used for the previous evaluation and 
+                % it is difficult to know if the last TR run was successful. 
+                Ti.successCount(end+1) = length(Ti.xi_all);
+            end
 
             Ti.Si_all{end+1} = Si{targetCount};
             costS{targetCount} = costSurr(xin{targetCount},{Si{targetCount}{:}},OPTopts);
