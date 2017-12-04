@@ -158,16 +158,7 @@ else
 end
 
 if isfield(S,'xi')
-    xi = repmat(S.xi, Nc, 1); % Repeat for each input point
-    
-    % TODO_DWW: CRC_DDV: I changed it from below (we checked it was 'right' last weel). I
-    %                    find this doesn't work and I think it is because of the way that
-    %                    the different result types/items are used now. The above seems to 
-    %                    work as expected.
-    %                    The matrices were not lining up.
-    % xi = repmat(S.xi,1,Nc); % Repeat for each input point
-    % xi = repmat(xi,Nm,1);   % And repeat for every response point
-
+    xi = repmat(S.xi,1,Nc); % Repeat for each input point
 else    
     % This is just a dummy, since E will always be set to zero in this case...
     xi = x;

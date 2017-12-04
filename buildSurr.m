@@ -244,10 +244,9 @@ if ~iscell(S_all)
     S_all = {{}};
     S_all{1}{resultCount} = S;
 else
-    % TODO_DWW: CRC_DDV: Using the most recent surrogate because thats how it was before. Not sure if 
-    %                    should rather be using the last successful run... 
-    S = S_all{successCount(end)}{resultCount};
-end 
+    % Using the most recent surrogate because thats how it was before and ...
+    S = S_all{end}{resultCount};
+end
 
 % Default constraints
 ximin = -inf.*ones(Nn,1); 
@@ -880,39 +879,37 @@ if getE
 
         hi = xi{currentCount} - xi{previousCount};
 
-        % TODO_DWW: CRC_DDV: This should either be operating on a normalised value or it should
-        %                    be a vecor of radii for the case when parameters are offset and a fine 
-        %                    radius resolution is wanted... 
-        % Any values outside the defined radius are set to zero.
-        if any(abs(hi)>broydenOpts.radiusLimit), warning('Parameter step falls outside Broyden radius limit.'); end
-        hi( abs(hi)>broydenOpts.radiusLimit ) = 0;
-
-        % TODO_DWW: CRC_DDV: Intead of setting to zero we could rather use the previous value somehow... 
-        %                    Still struggling to visualise how the incremental changes affect the value of 
-        %                    the surrogate evaluation and what zeroing this out suddently will do... 
-
-        % Rs{2} - The response of the just-calculated surrogate at the most recent xi.
-        % Rs{1} - The response of the just-calculated surrogate previous xi value.
-        Rs = {};
-        Rs{2} =  evalSurr(xi{currentCount}, Si);
-        Rs{1} =  evalSurr(xi{previousCount}, Si);
-
-        % TODO_DWW: CRC_DDV: Discuss comments...
-
-        % The E terms is use from a previous run.
+        % The E terms is used from a previous run.
         % If useSuccessfulTRRuns:0) This will be the most recent run from SMmain, even if the trust region failed and the 
         %                           radius is shrinking. If the previous run radius drifted too far away from the run before 
         %                           that then this E value may be zeroed out completely. 
         %                        1) The surrogate where the last successful evaluation was processed, that is when the 
-        %                           TR criteria were met.   
-        E = S_all{previousCount}{resultCount}.E;
+        %                           TR criteria were met.
+        E_previous = S_all{previousCount}{resultCount}.E;
 
-        fbari = ( Rfi{currentCount} - Rs{2} ) - ( Rfi{previousCount} - Rs{1} );
-        Ji = E + ( ((fbari-(E*hi))*(hi') / ((hi')*hi)) );
+        if norm(hi, 2) > broydenOpts.radiusLimit
+            warning('Parameter step falls outside Broyden radius limit.');
+            % If the squares of the deltas rooted is greater than the radius then keep the last value calculated.
+            Ji = E_previous;
+        else
+            % hi( abs(hi)>broydenOpts.radiusLimit ) = 0;
 
-        % Clean up NaN values that could result from no varaible step (xi{end}==xi{end-1})
-        if any(isnan(Ji)), warning('NaN detected in Broyden-based update calculation. Setting to zero.'); end
-        Ji(isnan(Ji)) = 0;
+            Rs = {};
+            % Rs{1} - The response of the just-calculated surrogate at the previous xi value.
+            Rs{1} = evalSurr(xi{previousCount}, Si);
+            % Rs{2} - The response of the just-calculated surrogate at the most recent xi value.
+            Rs{2} = evalSurr(xi{currentCount}, Si);
+
+            % [Nm*1]
+            fbari = ( Rfi{currentCount} - Rs{2} ) - ( Rfi{previousCount} - Rs{1} );            
+            % [Nm*Nn]
+            Ji = E_previous + ( ((fbari-(E_previous*hi))*(hi') / ((hi')*hi)) );
+
+            % If there isn't a change in one of the design variables then that column in Ji will end up being NaN. 
+            % Take the previous E value for this row. 
+            Ji(:,hi==0) = E_previous(:,hi==0);
+            assert(~isnan(Ji));
+        end 
 
         Si.E = Ji;
     else
