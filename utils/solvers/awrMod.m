@@ -42,7 +42,7 @@ if (proj.Frequencies.Count == 0)
     for mm = 1:Nm
         awr.Project.Frequencies.Add(fc(mm));
     end
-elseif (~isempty(fc))
+elseif (~isempty(fc) && 0)  % DDV: Hacked this out...
 
     % TODO_DWW: CRC_DDV: Either of these really should work, any ideas?
     % proj.Frequencies.Item(1).Value
@@ -155,8 +155,8 @@ for rr = 1:Nr
             Rimag = reshape(imag(Sxxin), Nm, 1);
             R{rr}.r = Rreal + 1i*Rimag;
             R{rr}.f = fc;
-
-            assert(isequal(reshape(xin,Nm,1),fc), 'The xaxis and the freq requested should match.')
+%             assert(isequal(reshape(xin,Nm,1),fc), 'The xaxis and the freq requested should match.')
+            assert(~any(abs(reshape(xin,Nm,1) - fc) > max(fc)*1e-5), 'The xaxis and the freq requested should match.')
             % Would use interpolation on value is the frequency were to not change.
             % Rreal = reshape(interp1(xin,real(Sxxin),fc,'spline'),Nm,1);
             % Rimag = reshape(interp1(xin,imag(Sxxin),fc,'spline'),Nm,1);
