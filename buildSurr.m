@@ -291,7 +291,8 @@ if isfield(SMopts,'wk')
         end
     end
 else
-    wk = ones(1,Nc);        % Default case - same weight given to all previous fine model evaluations to build the surrogate
+    % Default case - same weight given to all previous fine model evaluations to build the surrogate
+    wk = ones(1,Nc);        
 end
 
 if isfield(SMopts,'vk') 

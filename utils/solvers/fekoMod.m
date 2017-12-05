@@ -57,9 +57,11 @@ for rr = 1:Nr
     R{rr}.r = Sba;
     R{rr}.t = Rtype{rr};
 end
-save FEKOLog statusMesh cmdoutMesh statusRun cmdoutRun;
 
-fid=fopen('FEKOLog.txt','w');
+save(['fekoLog', datestr(datetime('now'), '_yyyymmdd_HHMM'), '.mat'], 'statusMesh', ...
+        'cmdoutMesh', 'statusRun', 'cmdoutRun');
+
+fid=fopen(['fekoLog', datestr(datetime('now'), '_yyyymmdd_HHMM'), '.txt'],'w');
 % fprintf(fid, [ cmdoutMesh '\n\n' statusRun '\n\n' cmdoutRun]);
 fprintf(fid, '%s \n\n', [cmdoutMesh]');
 fprintf(fid, '%s \n\n', [statusRun]');

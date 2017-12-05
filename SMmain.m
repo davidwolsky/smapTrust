@@ -1,4 +1,4 @@
-function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts)
+function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit, Sinit, SMopts, Mf, Mc, OPTopts)
 
 % Space Mapping main loop
 
@@ -356,12 +356,27 @@ if length(prepopulatedSpaceFile) > 1
     Ti.costF_all = space.Ti.costF_all;
 
     
-    
     Rci{1} = coarseMod(Mc, xi{1}, Sinit.xp, fc);
-    Rfi{1} = fineMod(Mf, xi{1});
+    
+    % A temporary set of options are used here to allow the overriding of using all the fine models
+    % for building the new first surrogate model. Otherwise the settings specified will be used. 
+    tmp_SMopts = SMopts;
 
-    Ti.xi_all{end+1} = xi{1};
-    Ti.Rfi_all{end+1} = Rfi{1};
+    % If the fine model already exists for the x in question, use it.
+    if any(cell2mat(Ti.xi_all) == xi{1})
+        Rfi{1} = Ti.Rfi_all{find(cell2mat(Ti.xi_all) == xi{1})};
+
+        % All fine models evaluations (Rfi) at points (xi) are used to build the space if an
+        % xi point is defined somewhere in the data.
+        tmp_Nc = length(Ti.xi_all);
+        % CRC_DDV: If this isn't desired I think we will have to send through special options for this
+        %          prepopulation phase. 
+        tmp_SMopts.wk = ones(1, tmp_Nc);
+    else % Else recalculate it
+        Rfi{1} = fineMod(Mf, xi{1});
+        Ti.xi_all{end+1} = xi{1};
+        Ti.Rfi_all{end+1} = Rfi{1};
+    end
 
     for rr = 1:Nr
         r = {};
@@ -373,8 +388,8 @@ if length(prepopulatedSpaceFile) > 1
         % DdV_New
         Sinit.M.Rtype{1} = OPTopts.Rtype{rr};
         
-        Si{1}{rr} = buildSurr(Ti.xi_all,r,Sinit,SMopts);
-        Rsi{1}{rr}.r = evalSurr(xi{1},Si{1}{rr});
+        Si{1}{rr} = buildSurr(Ti.xi_all, r, Sinit, tmp_SMopts);
+        Rsi{1}{rr}.r = evalSurr(xi{1}, Si{1}{rr});
         Rsi{1}{rr}.t = Rci{1}{rr}.t;
         if isfield(Rci{1}{rr},'f'), Rsi{1}{rr}.f = Rci{1}{rr}.f; end
         Rsai{1}{rr} = Rsi{1}{rr};
@@ -388,13 +403,13 @@ if length(prepopulatedSpaceFile) > 1
     Ti.rho = [];
     Ti.rho_all = [];
 
-    costF{1} = costFunc(Ti.Rfi_all{end},OPTopts);
+    costF{1} = costFunc(Rfi{1}, OPTopts);
     Ti.costF_all{end+1} = costF{1};
     Ti.costChangeF{1} = costF{1}; 
 
 else 
     if verbosityLevel >= 1, display(['--- Initialising ---']); end
-    Rci{1} = coarseMod(Mc,xi{1},Sinit.xp,fc);
+    Rci{1} = coarseMod(Mc,xi{1}, Sinit.xp, fc);
     Rfi{1} = fineMod(Mf,xi{1});
     for rr = 1:Nr
         if globOptSM > 0, SMopts.globOpt = 1; end
@@ -402,14 +417,14 @@ else
         % DdV_New
         Sinit.M.Rtype{1} = OPTopts.Rtype{rr};
         
-        Si{1}{rr} = buildSurr(xi{1},Rfi{1}{rr}.r,Sinit,SMopts);
-        Rsi{1}{rr}.r = evalSurr(xi{1},Si{1}{rr});
+        Si{1}{rr} = buildSurr(xi{1}, Rfi{1}{rr}.r, Sinit,SMopts);
+        Rsi{1}{rr}.r = evalSurr(xi{1}, Si{1}{rr});
         Rsi{1}{rr}.t = Rci{1}{rr}.t;
         if isfield(Rci{1}{rr},'f'), Rsi{1}{rr}.f = Rci{1}{rr}.f; end
         Rsai{1}{rr} = Rsi{1}{rr};
     end
 %     keyboard;
-    costS{1} = costSurr(xin{1},{Si{1}{:}},OPTopts);
+    costS{1} = costSurr(xin{1}, {Si{1}{:}}, OPTopts);
 
     Ti.xi_all{1} = xi{1};
     Ti.Rfi_all{1} = Rfi{1};
@@ -420,11 +435,12 @@ else
     Ti.rho = [];
     Ti.rho_all = [];
 
-    costF{1} = costFunc(Rfi{1},OPTopts);
+    costF{1} = costFunc(Rfi{1}, OPTopts);
     Ti.costF_all{1} = costF{1};
     Ti.costChangeF{1} = costF{1}; 
 end
 
+logSavePoint()
 % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
 plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, OPTopts);
 
@@ -599,36 +615,7 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
         end % while ~TRsuccess
         
         if (~TRterminate)
-            % TODO_DWW: Add this
-            %       -> add Rsai
-            %       -> add setup options
-            %       -> add OPTopts
-            %       -> write out with file name with time stamp 'datetime'
-            %       -> plot the saved file nicely... 
-            space.ii = ii;
-            space.xi = xi;
-            space.Rci = Rci;
-            space.Rfi = Rfi;
-            space.Rsi = Rsi;
-            space.Rsai = Rsai;
-            space.Si = Si;
-            space.costS = costS;
-            space.costF = costF;
-            space.limMin_f = limMin_f;
-            space.limMax_f = limMax_f;
-            space.limMin_c = limMin_c;
-            space.limMax_c = limMax_c;
-            space.TolX_achieved = TolX_achieved;
-            space.Ti = Ti;
-            space.TRterminate = TRterminate;
-
-            % TODO_DWW: Remember to update this to a better default
-            % createLog('SMLog_MSstub.mat', space);
-            createLog('SMLog.mat', space);
-%             createLog(['SMLog_',Mf.name,'.mat'], space);
-            % Make a (crude) log file
-            % save SMLog ii xi Rci Rfi Rsi Si costS costF limMin_f limMax_f limMin_c limMax_c TolX_achieved Ti TRterminate
-
+            logSavePoint()
             % Plot the fine, coarse, optimised surrogate and aligned surrogate
             plotModels(plotIter, ii+1, Rci, Rfi, Rsi, Rsai, OPTopts);
         end
@@ -682,6 +669,45 @@ Li.limMax_c = limMax_c;
 plotCosts(Ti, OPTopts, costS, costF)
 
 % ----- Helper functions -----
+
+function logSavePoint()
+    % Creates a dump of the important variables from the current workspace. This can be loaded 
+    % again, see prepopulareSpace
+    
+    % TODO_DWW: Add this
+    %       -> (y) write out with file name with time stamp 'datetime'
+    %       -> (y) save after initial fine model evaluation before entering loop
+    %       -> (y) add date time to feko file
+    %       -> (y) add Rsai
+    %       -> (y) add setup options
+    %       -> (y) add OPTopts
+    %       -> plot the saved file nicely... 
+    %       -> (y) workflow to keep initial fine model evaluation and reload it as a prepopulated space
+    %       -> flag for awr freq changing... 
+    space.OPTopts = OPTopts;
+    space.SMopts = SMopts;
+    space.Mf = Mf;
+    space.Mc = Mc;
+    space.ii = ii;
+    space.xi = xi;
+    space.Rci = Rci;
+    space.Rfi = Rfi;
+    space.Rsi = Rsi;
+    space.Rsai = Rsai;
+    space.Si = Si;
+    space.costS = costS;
+    space.costF = costF;
+    space.limMin_f = limMin_f;
+    space.limMax_f = limMax_f;
+    space.limMin_c = limMin_c;
+    space.limMax_c = limMax_c;
+    space.TolX_achieved = TolX_achieved;
+    space.Ti = Ti;
+    space.TRterminate = TRterminate;
+
+    createLog(['SMLog', Mf.name], space);
+end % logSavePoint
+
 function enforceFineModelLimits()
 	% Check if fine model is limited 
 	if isfield(Mf,'ximin')

@@ -110,7 +110,7 @@ OPTopts.alp2 = 0.25;
 OPTopts.DeltaInit = 0.25;
 % OPTopts.DeltaInit = 0.35;
 OPTopts.startWithIterationZero = 1;
-% OPTopts.prepopulatedSpaceFile = '.mat';
+OPTopts.prepopulatedSpaceFile = 'SMLogMSstubOpen_mm_EXAMPLE.mat';
 OPTopts.verbosityLevel = 1;
 
 
@@ -164,7 +164,7 @@ SMopts.wk = 0; % <-
 % SMopts.wk = []
 
 %% Run the main loop
-[Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts);
+[Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit, Sinit, SMopts, Mf, Mc, OPTopts);
 
 keyboard;
 
