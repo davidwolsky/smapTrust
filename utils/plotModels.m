@@ -72,8 +72,8 @@ else
     plot(RsaiMatch.r,'g--','LineWidth',2), grid on, hold on
     xlabel('Index')
 end
-ylabel(goalResType)
-title(['Iteration: ',num2str(itNum), ', goal of result type : ', goalResType])
+ylabel(replace(goalResType,'_',' '))    % Remove underscores in the labels
+title(['Iteration: ',num2str(itNum), ', goal of result type : ', replace(goalResType,'_',' ')])
 end % plotForRealValuedResponse function
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -94,10 +94,18 @@ otherwise
 end
 
 if ( isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
-    plot([goalStart, goalStop], (goalValue)*ones(1,2), colour, 'LineWidth',3)
-    
-    goalFreqPoints = freq(freq > goalStart & freq < goalStop);
-    plot(goalFreqPoints, (goalValue)*ones(1,length(goalFreqPoints)),['o',colour],'LineWidth',3)
+    iValidFreq = freq > goalStart & freq < goalStop;
+    goalFreqPoints = freq(iValidFreq);
+%     goalFreqPoints = freq(freq > goalStart & freq < goalStop);
+    if length(goalValue) == 1  
+        plot([goalStart, goalStop], (goalValue)*ones(1,2), colour, 'LineWidth',3)
+        plot(goalFreqPoints, (goalValue)*ones(1,length(goalFreqPoints)),['o',colour],'LineWidth',3)
+    elseif length(goalValue) == length(freq)   
+        plot(freq, goalValue,colour,'LineWidth',3)
+        plot(goalFreqPoints, goalValue(iValidFreq),['o',colour],'LineWidth',3)
+    else
+        error('Goal plotting error - goalVal should be either length 1 or length(freq)');
+    end
 end
 end % plotGoal function
 
