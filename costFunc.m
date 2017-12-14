@@ -24,6 +24,8 @@ function cost = costFunc(R,GOALS)
 %                   'eq' (equal to)
 %                   'minimax'
 %                   'bw' (Like 'lt' but also maximizes bandwidth - requires goalCent value)
+%                   'nPeaks' (number of peaks in the response - good for filter S11 typically - penalises a function with fewer peaks than goalVal)
+%                   'peaksVal' (attempt to get equal peaks of a given value - good for filter S11 typically)
 %   goalVal:    Cell array of goal values {1,Ng} - same order as goalType
 %   goalWeight: Vector of goal weights [1,Ng] (default equal weights)
 %   goalStart:  Cell array of start of valid goal domain {1,Ng} (optional)
@@ -139,6 +141,15 @@ for gg = 1:Ng
 %                 c0 = -min(i2-iCent,iCent-i1) +  beta*Lnorm(yi,'L2');
                   c0 = -min(i2-iCent,iCent-i1) +  beta*norm(yi,2);
             end
+        case 'nPeaks'
+            pks = findpeaks(Rvalid);
+            c0 = (G.goalVal - length(pks))./G.goalVal;
+        case 'peaksVal'     % Only works for equiripple peaks now...
+            pks = findpeaks(Rvalid);
+            assert(length(G.goalVal) == 1, 'For peaksVal goals a scalar goalVal must be provided');
+            y = pks - G.goalVal;
+            c0 = norm(y,G.errNorm);
+%             keyboard;
         otherwise
             error(['Unknown goalType',G.goalType]);
     end
