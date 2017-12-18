@@ -44,10 +44,10 @@ elseif ( strncmp(goalResType,Ri.t,find(goalResType=='_')-1) )
             Res = Ri;
             Res.r = deg(angle(Ri.r));
         otherwise
-            error(['Unknows combination found. Ri.t = ', Ri.t, ', goalResType = ', goalResType])
+            error(['Unknown combination found. Ri.t = ', Ri.t, ', goalResType = ', goalResType])
     end
 else
-    error(['Unknows combination found. R.t = ', Ri.t, ', goalResType = ', goalResType])
+    error(['Unknown combination found. R.t = ', Ri.t, ', goalResType = ', goalResType])
 end
 
 end % convertResponse function

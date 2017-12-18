@@ -322,16 +322,25 @@ if ~startWithIterationZero
     problem.ub = ximaxn;
     problem.nonlcon = [];
     if globOpt
-        problem.fitnessfcn = @(tempXinGlobal) costSurr(tempXinGlobal,Sinit,OPTopts)
-        problem.nvars = length(problem.x0);
-        problem.solver = globalSolver;
-        problem.options = optsGlobalOptim;
-        [xinGlobal,fval,exitflag,output] = doOptimisation(problem);
-        xinGlobal = reshape(xinGlobal, length(xinGlobal),1)
+        problem.objective = @(tempXin) costSurr(tempXin,Sinit,OPTopts);
+        if isobject(globalSolver) % Assume for now this is a GlobalSearch object
+            gs = globalSolver;
+            problemGS = problem;
+            problemGS.solver = 'fmincon';
+            problemGS.options = optimoptions('fmincon');
+            [xinGlobal,fval,exitflag,output,solutions] = run(gs,problemGS);
+        else    % General case
+            problem.fitnessfcn = @(tempXinGlobal) costSurr(tempXinGlobal,Sinit,OPTopts);
+            problem.nvars = length(problem.x0);
+            problem.solver = globalSolver;
+            problem.options = optsGlobalOptim;
+            [xinGlobal,fval,exitflag,output] = doOptimisation(problem);
+            xinGlobal = reshape(xinGlobal, length(xinGlobal),1);
+        end
         % Start with global search to get initial value.
         problem.x0 = xinGlobal;
     end
-    problem.objective = @(tempXin) costSurr(tempXin,Sinit,OPTopts)
+    problem.objective = @(tempXin) costSurr(tempXin,Sinit,OPTopts);
     problem.solver = localSolver;
     problem.options = optsLocalOptim;
     [xin{1}, costS{1}, exitflag, output] = doOptimisation(problem)
@@ -383,11 +392,13 @@ if length(prepopulatedSpaceFile) > 1
         for iii = 1:length(Ti.Rfi_all)
             r{end+1} = Ti.Rfi_all{iii}{rr}.r;
         end
-        if globOptSM > 0, SMopts.globOpt = 1; end
-        
+%         if globOptSM > 0, SMopts.globOpt = 1; end
+        if globOptSM > 0
+            SMopts.globOpt = globOptSM;
+            tmp_SMopts.globOpt = globOptSM;
+        end
         % DdV_New
         Sinit.M.Rtype{1} = OPTopts.Rtype{rr};
-        
         Si{1}{rr} = buildSurr(Ti.xi_all, r, Sinit, tmp_SMopts);
         Rsi{1}{rr}.r = evalSurr(xi{1}, Si{1}{rr});
         Rsi{1}{rr}.t = Rci{1}{rr}.t;
@@ -480,12 +491,21 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
             problem.ub = ximaxnTR;
             problem.nonlcon = [];
             if globOpt == 2
-                problem.fitnessfcn = @(tempXinGlobal) costSurr(tempXinGlobal, {Si{ii}{:}}, OPTopts);
-                problem.nvars = length(problem.x0);
-                problem.solver = globalSolver;
-                problem.options = optsGlobalOptim;
-                [xinGlobal,fval,exitflag,output] = doOptimisation(problem);
-                xinGlobal = reshape(xinGlobal, length(xinGlobal),1);
+                problem.objective = @(tempXin) costSurr(tempXin, {Si{ii}{:}}, OPTopts);
+                if isobject(globalSolver) % Assume for now this is a GlobalSearch object
+                    gs = globalSolver;
+                    problemGS = problem;
+                    problemGS.solver = 'fmincon';
+                    problemGS.options = optimoptions('fmincon');
+                    [xinGlobal,fval,exitflag,output,solutions] = run(gs,problemGS);
+                else    % General case
+                    problem.fitnessfcn = @(tempXinGlobal) costSurr(tempXinGlobal, {Si{ii}{:}}, OPTopts);
+                    problem.nvars = length(problem.x0);
+                    problem.solver = globalSolver;
+                    problem.options = optsGlobalOptim;
+                    [xinGlobal,fval,exitflag,output] = doOptimisation(problem);
+                    xinGlobal = reshape(xinGlobal, length(xinGlobal),1);
+                end
                 % Start with global search to get initial value.
                 problem.x0 = xinGlobal;
             end
@@ -697,6 +717,8 @@ function logSavePoint()
     space.Si = Si;
     space.costS = costS;
     space.costF = costF;
+%     space.Li = Li;
+%     space.Oi = Oi;
     space.limMin_f = limMin_f;
     space.limMax_f = limMax_f;
     space.limMin_c = limMin_c;

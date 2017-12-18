@@ -22,6 +22,7 @@ function cost = costFunc(R,GOALS)
 %                   'lt' (Less than)
 %                   'gt' (Greater than)
 %                   'eq' (equal to)
+%                   'eqPhaseTune' (softer than eq - hard tunes the first frequency phases to be equal)
 %                   'minimax'
 %                   'bw' (Like 'lt' but also maximizes bandwidth - requires goalCent value)
 %                   'nPeaks' (number of peaks in the response - good for filter S11 typically - penalises a function with fewer peaks than goalVal)
@@ -115,6 +116,16 @@ for gg = 1:Ng
             end
             c0 = norm(y,G.errNorm);
             
+        case 'eqPhaseTune'
+            pDiff = angle(Rvalid(iCent)) - angle(G.goalVal(iCent));
+            Rvalid = Rvalid.*exp(-1i.*pDiff);   % Force first frequency phases equal at least...
+            if length(G.goalVal) == length(Ri.r)
+                y = Rvalid - G.goalVal(iStart:iStop);
+            else
+                y = Rvalid - G.goalVal;
+            end
+            c0 = norm(y,G.errNorm);
+                
         case 'minimax'
             c0 = max(Rvalid);
             

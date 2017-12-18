@@ -113,6 +113,9 @@ case 'gt'
 case 'eq'
     colour = 'g';
     stdGoalPlot = 1;
+case 'eqPhaseTune'
+    colour = 'g';
+    stdGoalPlot = 0;
 case 'minimax'
     colour = 'y';
     stdGoalPlot = 1;
@@ -124,7 +127,7 @@ case 'peaksVal'
     colour = 'y';
     stdGoalPlot = 1;
 otherwise
-    error(['Unknows goalType found. OPTopts.goalType = ', goalType])
+    error(['Unknown goalType found. OPTopts.goalType = ', goalType])
 end
 
 if ( isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') && stdGoalPlot)

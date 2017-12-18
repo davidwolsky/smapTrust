@@ -15,6 +15,8 @@ switch problem.solver
     % ----- Global solvers ----- 
     case 'ga'
         [optVect, fval, exitflag, output] = ga(problem);
+    case 'patternsearch'
+        [optVect, fval, exitflag, output] = patternsearch(problem);
     otherwise
         error(['Unknows solver type (', problem.solver,')'])
 end

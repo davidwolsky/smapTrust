@@ -776,13 +776,25 @@ else
     problem.ub = reducedProblem.ub;
     problem.nonlcon = [];
     if globOpt
+        problem.objective = @(tempOptVect) erri(tempOptVect, xi, Rfi, S, wk, vk, optsParE, ...
+                              normaliseAlignmentParameters, baseProblem, originalProblem, ...
+                              false, plotOpts);
+        if isobject(globalSolver) % Assume for now this is a GlobalSearch object
+%             keyboard;
+            gs = globalSolver;
+            problemGS = problem;
+            problemGS.solver = 'fmincon';
+            problemGS.options = optimoptions('fmincon');
+            [optVectGlobalReduced,fval,exitflag,output,solutions] = run(gs,problemGS);
+        else
         problem.fitnessfcn = @(tempOptVect) erri(tempOptVect, xi, Rfi, S, wk, vk, optsParE, ...
                                                  normaliseAlignmentParameters, baseProblem, originalProblem, ...
                                                  false, plotOpts);
         problem.nvars = length(reducedProblem.x0);
-        problem.solver = globalSolver;
         problem.options = optsGlobalOptim;
+        problem.solver = globalSolver;
         [optVectGlobalReduced, fval, exitflag, output] = doOptimisation(problem);
+        end
         % Start with global search to get initial value.
         problem.x0 = optVectGlobalReduced;
     end
