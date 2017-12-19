@@ -805,7 +805,7 @@ else
     problem.options = optsLocalOptim;
     [optVectReduced, fval, exitflag, output] = doOptimisation(problem);
     
-    if ( plotAlignmentFlag == 1 )
+        if ( plotAlignmentFlag == 1 )
         % Plot errors after alignment
         plotOpts.plotTitle = 'Alignment complete';
         completionError = erri(optVectReduced,xi,Rfi,S,wk,vk,optsParE, ...

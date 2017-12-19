@@ -86,6 +86,8 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit, Sinit, SMopts, Mf, Mc, OPTopts)
 %                   and includes all the output from lower levels.
 %                   0 - No extra output is given.
 %                   1 - Console output showing when optimisation loop and PA stages are shown.
+%   useScAsOpt: Flag that allows most of the optimization to be skipped,
+%               by using Si{i-1}{1}.c as x{i}.  This is useful when designing circuits where the optimal response is known and only c SM is used. 
 
 % Returns:
 % Ri:   Structure containing the responses at each iteration
@@ -168,6 +170,7 @@ DeltaInit = 0.25;
 startWithIterationZero = 0;
 prepopulatedSpaceFile = '';
 verbosityLevel = 1;
+useScAsOpt = false;
 
 if isfield(OPTopts,'Ni'), Ni = OPTopts.Ni; end
 if isfield(OPTopts,'TRNi'), TRNi = OPTopts.TRNi; end
@@ -187,6 +190,7 @@ if isfield(OPTopts,'DeltaInit'), DeltaInit = OPTopts.DeltaInit; end
 if isfield(OPTopts,'startWithIterationZero'), startWithIterationZero = OPTopts.startWithIterationZero; end
 if isfield(OPTopts,'prepopulatedSpaceFile'), prepopulatedSpaceFile = OPTopts.prepopulatedSpaceFile; end
 if isfield(OPTopts,'verbosityLevel'), verbosityLevel = OPTopts.verbosityLevel; end
+if isfield(OPTopts,'useScAsOpt'), useScAsOpt = OPTopts.useScAsOpt; end
 
 % Set up models - bookkeeping
 Nq = 0;
@@ -291,8 +295,8 @@ space = {};
 % Set to zero before initialisation depending on starting set
 ii = 0;
 % Normalize the optimization parameters
-ximinn = OPTopts.ximin - OPTopts.ximin;
-ximaxn = OPTopts.ximax./OPTopts.ximax;
+% ximinn = OPTopts.ximin - OPTopts.ximin;
+% ximaxn = OPTopts.ximax./OPTopts.ximax;
 % xinitn = (xinit - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
 
 % The initial trust region radius
@@ -321,7 +325,7 @@ if ~startWithIterationZero
     problem.lb = ximinn;
     problem.ub = ximaxn;
     problem.nonlcon = [];
-    if globOpt
+    if globOpt && ~useScAsOpt
         problem.objective = @(tempXin) costSurr(tempXin,Sinit,OPTopts);
         if isobject(globalSolver) % Assume for now this is a GlobalSearch object
             gs = globalSolver;
@@ -340,10 +344,21 @@ if ~startWithIterationZero
         % Start with global search to get initial value.
         problem.x0 = xinGlobal;
     end
-    problem.objective = @(tempXin) costSurr(tempXin,Sinit,OPTopts);
-    problem.solver = localSolver;
-    problem.options = optsLocalOptim;
-    [xin{1}, costS{1}, exitflag, output] = doOptimisation(problem)
+    if ~useScAsOpt
+        problem.objective = @(tempXin) costSurr(tempXin,Sinit,OPTopts);
+        problem.solver = localSolver;
+        problem.options = optsLocalOptim;
+        [xin{1}, costS{1}, exitflag, output] = doOptimisation(problem);
+    else
+        % Normalise the S.c values
+        xin{1} = (-Sinit.c - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
+        % Limit them
+        xin{1} = min(xin{1},ximaxn);
+        xin{1} = max(xin{1},ximinn);
+        costS{1} = costSurr(xin{1},Sinit,OPTopts);
+        display(['--- No optimization done: x{1} = Sinit.c ---'])
+    end
+        
 else
     if verbosityLevel >= 1, display(['--- Test case - start at iteration zero ---']); end
     startWithIterationZero;
@@ -490,7 +505,7 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
             problem.lb = ximinnTR;
             problem.ub = ximaxnTR;
             problem.nonlcon = [];
-            if globOpt == 2
+            if globOpt == 2 && ~useScAsOpt
                 problem.objective = @(tempXin) costSurr(tempXin, {Si{ii}{:}}, OPTopts);
                 if isobject(globalSolver) % Assume for now this is a GlobalSearch object
                     gs = globalSolver;
@@ -509,11 +524,21 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                 % Start with global search to get initial value.
                 problem.x0 = xinGlobal;
             end
-            problem.objective = @(tempXin) costSurr(tempXin, {Si{ii}{:}}, OPTopts);
-            problem.solver = localSolver;
-            problem.options = optsLocalOptim;
-            [xin{ii+1}, costSi, exitflag, output] = doOptimisation(problem);
-            assert( costS{ii} >= costSi ); % The cost must have gotten better else chaos!
+            if ~useScAsOpt
+                problem.objective = @(tempXin) costSurr(tempXin, {Si{ii}{:}}, OPTopts);
+                problem.solver = localSolver;
+                problem.options = optsLocalOptim;
+                [xin{ii+1}, costSi, exitflag, output] = doOptimisation(problem);
+                assert( costS{ii} >= costSi ); % The cost must have gotten better else chaos!
+            else
+                % Normalise the S.c values
+                xin{ii+1} = (-Si{ii}{1}.c - OPTopts.ximin)./(OPTopts.ximax - OPTopts.ximin);
+                % Limit them
+                xin{ii+1} = min(xin{ii+1},ximaxnTR);
+                xin{ii+1} = max(xin{ii+1},ximinnTR);
+                costSi = costSurr(xin{ii+1},Sinit,OPTopts);
+                display(['--- No optimization done: xi{',num2str(ii+1),'} = Sinit{',num2str(ii),'}{1}.c - projected to the TR bounds.  This only works for a single response...---'])
+            end
 			Ti.costS_all{end+1} = costSi;
 
             % De-normalize input vector. The new input vector that is.
@@ -554,7 +579,7 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                 TRsuccess = 1;
                 Ti.Deltan{ii+1} = max(alp1.*norm(Ti.sk{ii}),Ti.Deltan{ii});
                 Ti.Delta{ii+1} = Ti.Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin);
-            elseif Ti.rho{ii}{kk} > eta1
+            elseif Ti.rho{ii}{kk} >= eta1
                 TRsuccess = 1;
                 Ti.Deltan{ii+1} = Ti.Deltan{ii};
                 Ti.Delta{ii+1} = Ti.Deltan{ii+1}.*(OPTopts.ximax - OPTopts.ximin);
@@ -617,7 +642,10 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
             
             kk = kk+1;  % Increase TR loop count
             
-            TRterminate = ~TRsuccess && ( (kk > TRNi) || TolX_achieved );
+            % Not sure about this: DWW - please check
+            % Seems like kk > TRNi terminates the whole thing?
+%             TRterminate = ~TRsuccess && ( (kk > TRNi) || TolX_achieved );
+            TRterminate = ~TRsuccess && (TolX_achieved);
             % Remove ii+1 entry because it didn't succeed
             if TRterminate
                 xi = xi(1:end-1);
