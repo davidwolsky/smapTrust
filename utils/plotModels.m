@@ -109,29 +109,32 @@ if plotGoalFlag
     
     stdGoalPlot = 0;
     colour = 'k';
-    switch goalType
-    case 'lt'
-        colour = 'c';
-        stdGoalPlot = 1;
-    case 'gt'
-        colour = 'm';
-        stdGoalPlot = 1;
-    case 'eq'
-        colour = 'g';
-        stdGoalPlot = 1;
-    case 'minimax'
-        colour = 'y';
-        stdGoalPlot = 1;
-    case 'bw'
-        colour = 'b';
-    case 'nPeaks'
-        % TODO: Add plots for nPeaks
-    case 'peaksVal'    
-        colour = 'y';
-        stdGoalPlot = 1;
-    otherwise
-        error(['Unknows goalType found. OPTopts.goalType = ', goalType])
-    end
+switch goalType
+case 'lt'
+    colour = 'c';
+    stdGoalPlot = 1;
+case 'gt'
+    colour = 'm';
+    stdGoalPlot = 1;
+case 'eq'
+    colour = 'g';
+    stdGoalPlot = 1;
+case 'eqPhaseTune'
+    colour = 'g';
+    stdGoalPlot = 0;
+case 'minimax'
+    colour = 'y';
+    stdGoalPlot = 1;
+case 'bw'
+    colour = 'b';
+case 'nPeaks'
+    % TODO: Add plots for nPeaks
+case 'peaksVal'    
+    colour = 'y';
+    stdGoalPlot = 1;
+otherwise
+    error(['Unknown goalType found. OPTopts.goalType = ', goalType])
+end
 
     if ( isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') && stdGoalPlot)
         iValidFreq = freq > goalStart & freq < goalStop;
