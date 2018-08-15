@@ -1,4 +1,4 @@
-function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit, Sinit, SMopts, Mf, Mc, OPTopts)
+function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit, Sinit, SMopts, Mf, Mc, OPTopts, plotOpts)
 
 % Space Mapping main loop
 
@@ -89,7 +89,18 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit, Sinit, SMopts, Mf, Mc, OPTopts)
 %                   0 - No extra output is given.
 %                   1 - Console output showing when optimisation loop and PA stages are shown.
 %   useScAsOpt: Flag that allows most of the optimization to be skipped,
-%               by using Si{i-1}{1}.c as x{i}.  This is useful when designing circuits where the optimal response is known and only c SM is used. 
+%               by using Si{i-1}{1}.c as x{i}.  This is useful when designing circuits where the 
+%               optimal response is known and only c SM is used. 
+%  plotOpts:    Ploting options for both the model and iterations.
+%    plotModelOpts:     Plotting options for graphs for models:
+%    plotIterationOpts: Plotting options for graphs for models:
+%      legendLocation: defaults to 'Best'
+%      xlim: defaults to min and max of freqeuency.
+%      ylim: defaults to internal plotting defaults.
+%      xtick: defaults to internal plotting defaults.
+%      ytick: defaults to internal plotting defaults.
+%      pbaspectVec: defaults to internal plotting defaults.
+
 
 % Returns:
 % Ri:   Structure containing the responses at each iteration
@@ -195,6 +206,11 @@ if isfield(OPTopts,'startWithIterationZero'), startWithIterationZero = OPTopts.s
 if isfield(OPTopts,'prepopulatedSpaceFile'), prepopulatedSpaceFile = OPTopts.prepopulatedSpaceFile; end
 if isfield(OPTopts,'verbosityLevel'), verbosityLevel = OPTopts.verbosityLevel; end
 if isfield(OPTopts,'useScAsOpt'), useScAsOpt = OPTopts.useScAsOpt; end
+
+plotModelOpts = {};
+plotIterationOpts = {};
+if isfield(plotOpts,'plotModelOpts'), plotModelOpts = plotOpts.plotModelOpts; end
+if isfield(plotOpts,'plotIterationOpts'), plotModelOpts = plotOpts.plotIterationOpts; end
 
 % Set up models - bookkeeping
 Nq = 0;
@@ -473,7 +489,7 @@ end
 logSavePoint()
 
 % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
-plotModels(plotIter, plotGoalFlag, ii, Rci, Rfi, Rsi, Rsai, OPTopts);
+plotModels(plotIter, plotGoalFlag, ii, Rci, Rfi, Rsi, Rsai, OPTopts, plotModelOpts);
 
 if verbosityLevel >= 1, display(['--- Starting main optimisation loop ---']); end
 
@@ -670,9 +686,9 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
         if (~TRterminate)
             logSavePoint()
             % Plot the fine, coarse, optimised surrogate and aligned surrogate
-            plotModels(plotIter, plotGoalFlag, ii+1, Rci, Rfi, Rsi, Rsai, OPTopts);
+            plotModels(plotIter, plotGoalFlag, ii+1, Rci, Rfi, Rsi, Rsai, OPTopts, plotModelOpts);
         end
-    end
+    end % if else specF
     
     if (~TRterminate)
         ii = ii+1;  % Increase main loop count
@@ -702,8 +718,8 @@ Ri.Rsa = Rsai;  % Surrogate before optimization, just after alignment at end of 
 Pi = xi;
 
 plotNormalised = true;
-plotIterations(true, xi, Ti.Delta, OPTopts, SMopts, Si, plotNormalised, 'Normalised');
-plotIterations(true, xi, Ti.Delta, OPTopts, SMopts, Si, ~plotNormalised, 'De-normalised/globalised/universalised');
+plotIterations(true, xi, Ti.Delta, OPTopts, SMopts, Si, plotNormalised, 'Normalised', plotIterationOpts);
+plotIterations(true, xi, Ti.Delta, OPTopts, SMopts, Si, ~plotNormalised, 'De-normalised/globalised/universalised', plotIterationOpts);
 Ci.costS = costS;
 Ci.costF = costF;
 
@@ -741,7 +757,7 @@ function logSavePoint()
     space.SMopts = SMopts;
     space.Mf = Mf;
     space.Mc = Mc;
-    space.ii = ii;
+    space.ii = ii+1;    % Increment because it was successful
     space.xi = xi;
     space.Rci = Rci;
     space.Rfi = Rfi;

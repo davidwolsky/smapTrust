@@ -13,6 +13,7 @@ function plotCosts(Ti, OPTopts, costS, costF)
 
 markerstr = 'xso+*d^v><ph.xso+*d^v><ph.';
 colourstr = 'kbrgmcykbrgmckbrgmcykbrgmc';
+fontsize = 13;
 
 figure()
 Ni = length(Ti.xi_all);    % Number of iterations
@@ -44,9 +45,13 @@ elseif strcmp(extractUnitString(OPTopts.goalResType{1}),'dB')
 else
     error(['goalResType (', OPTopts.goalResType{1}, ')not found']);
 end
-ylabel('Ti.costF\_all')
-xlabel('Iterations all')
+ylabel('Ti.costF\_all',...
+        'FontSize', fontsize)
+xlabel('Iterations all',...
+        'FontSize', fontsize)
 title('Ti.costF\_all')
+set(gca, ...
+    'FontSize', fontsize);
 
 % Meaningless -> just for debugging
 subplot(2,2,3)
@@ -61,9 +66,13 @@ elseif strcmp(extractUnitString(OPTopts.goalResType{1}),'dB')
 else
     error(['goalResType (', OPTopts.goalResType{1}, ')not found']);
 end
-ylabel('costS')
-xlabel('Iterations success points')
+ylabel('costS',...
+        'FontSize', fontsize)
+xlabel('Iterations success points',...
+        'FontSize', fontsize)
 title('costS - fairly meaningless')
+set(gca, ...
+    'FontSize', fontsize);
 
 subplot(2,2,4)
 if strcmp(OPTopts.goalResType{1},'Gen')
@@ -81,9 +90,13 @@ elseif strcmp(extractUnitString(OPTopts.goalResType{1}),'dB')
 else
     error(['goalResType (', OPTopts.goalResType{1}, ')not found']);
 end
-ylabel('costF')
-xlabel('Iterations success points')
+ylabel('costF',...
+        'FontSize', fontsize)
+xlabel('Iterations success points',...
+        'FontSize', fontsize)
 title('costF')
+set(gca, ...
+    'FontSize', fontsize);
 
 
 % ----- goals -----
@@ -91,7 +104,10 @@ function plotGoals()
 if ( isfield(OPTopts, 'goalVal') )%&& isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') )
     Ng = length(OPTopts.goalVal);
     for gg = 1:Ng
-        plot([1, Ni], (OPTopts.goalVal{gg})*ones(1,2), 'm', 'LineWidth',2)
+% TODO_DWW: Figure out a better way to display this.
+% Meaningless because the error should be going to zero not to the value of the goal :(
+        % plot([1, Ni], (OPTopts.goalVal{gg})*ones(1,2), 'm', 'LineWidth',2)
+        plot([1, Ni], zeros(1,2), 'm', 'LineWidth',2)
     end
 end % if validation
 end % plotGoals function

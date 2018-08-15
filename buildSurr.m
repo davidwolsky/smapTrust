@@ -251,13 +251,6 @@ end
 fmin = 0.9*min(S.f);
 fmax = 1.1*max(S.f);
 
-if ~isfield(S,'f')
-    % If no frequency is provided use indices
-    S.f = 1:Nm;
-end
-fmin = 0.9*min(S.f);
-fmax = 1.1*max(S.f);
-
 NSMUnknowns = getNSMUnknowns();
 
 % Default optimization parameters
@@ -388,7 +381,7 @@ if getA
             Amin = ones(Nm,1).*Amin;
         end
         if length(Amax) == 1
-            Amin = ones(Nm,1).*Amax;
+            Aman = ones(Nm,1).*Amax;
         end
     else
         error(['Unknown getA flag: ', num2str(getA),', should be 0, 1 or 2']);
@@ -431,7 +424,7 @@ if any(getB)
         BminM = BminM.*(~diag(getB)) + diag(minDiag);
         BmaxM = BmaxM.*(~diag(getB)) + diag(maxDiag);
     else
-        error(['Unknown getB flag: ', num2str(getB),', should be 0, 1, 2 or a bollean vector of length Nn = ', num2str(Nn)]);
+        error(['Unknown getB flag: ', num2str(getB),', should be 0, 1, 2 or a boolean vector of length Nn = ', num2str(Nn)]);
     end
 
     % Override defaults with user input
@@ -449,6 +442,7 @@ lenc = Nn;
 if getc
     typec = 'c';
     if isfield(S,'c')
+        keyboard
         c_init(:,1) = S.c;
     end
 
@@ -594,8 +588,8 @@ if (strcmp(inputType,'F') || strcmp(inputType,'AF')) && (Nc == 1)
 
     % Phase is not taken into account for FSM. This is applied in erriF. 
     % Assuming that this is all complex still.
-    Rc = dB20(Rc);
-    Rf = dB20(Rfi{end});
+    Rc = interpolateInf(dB20(Rc), S.f);
+    Rf = interpolateInf(dB20(Rfi{end}), S.f);
     % TODO_DWW: CRC_DDV: I don't understand why abs doesn't work. Not just worse results but looks like it is failing.
     %                    To reproduce run SM_MSstub_mm_FEKO_AWR.m with only freq mapping. 
     % Rc = abs(Rc);
@@ -805,7 +799,7 @@ else
     problem.options = optsLocalOptim;
     [optVectReduced, fval, exitflag, output] = doOptimisation(problem);
     
-        if ( plotAlignmentFlag == 1 )
+    if ( plotAlignmentFlag == 1 )
         % Plot errors after alignment
         plotOpts.plotTitle = 'Alignment complete';
         completionError = erri(optVectReduced,xi,Rfi,S,wk,vk,optsParE, ...
@@ -844,10 +838,11 @@ function NSMUnknowns = getNSMUnknowns()
     NSMUnknowns = 0;
     % --- getA ---
     if getA == 1
-        % Diagonal
+        % Single factor
         NSMUnknowns = NSMUnknowns + 1;
     elseif getA == 2
-        % Single factor
+        % Diagonal
+        % TODO_DWW: Is this really Nm and not Nn?!?
         NSMUnknowns = NSMUnknowns + 1*Nm;
     end
 
@@ -988,8 +983,8 @@ for cc = 1:Nc
         plot((Rfi{modelIndicies(cc)}),'k', 'LineWidth',2)
         plot((Rs{cc}),'--r','LineWidth',2)
         for ii = 1:length(usedErrW)
-            plot(usedRfi(ii),'k.', 'LineWidth',2, 'MarkerSize',7*(usedErrW(ii))+13 ) 
-            plot(usedRs(ii), 'r.', 'LineWidth',2, 'MarkerSize',7*(usedErrW(ii))+13 )
+            plot(ii, usedRfi(ii),'k.', 'LineWidth',2, 'MarkerSize',7*(usedErrW(ii))+13 ) 
+            plot(ii, usedRs(ii), 'r.', 'LineWidth',2, 'MarkerSize',7*(usedErrW(ii))+13 )
         end
         title({[plotTitle], ...
             ['Fine model ', num2str(cc), 'of', num2str(Nc), ', Output param: ', num2str(pp), 'of', num2str(Np)], ...
@@ -1001,6 +996,7 @@ for cc = 1:Nc
         xlabel('Real')
 
         subplot(Nc,Np*2, (Np*(cc-1)*2) + pp*2), grid on, hold on
+        % Requires "Neural Network Toolbox"
         plotv([(real(diffR{cc}{pp}))'; (imag(diffR{cc}{pp}))'])
         title({['Vector difference between used points.'], .... 
             ['L1 norm = ', num2str(norm1)], ...
@@ -1100,9 +1096,12 @@ function e = erriF(Fvect, Rf, Rc, f, SMopts, plotFlag, plotOpts)
 
 assert(isequal(size(Rf,2), 1), 'This only works for one responce thus far.')
 
+% TODO_DWW: clean up
+Fvect
 Rs = applyFrequencyChange(f, Fvect, Rc);
 
 diffR = Rf - reshape(Rs, length(f),1);
+% keyboard
 e = norm(diffR, SMopts.errNorm);
 
 if ( plotFlag == 1 )

@@ -81,7 +81,7 @@ x0_F1n = x0_F(1);
 x0_F1lbn = x0_Fmin(1);
 x0_F1ubn = x0_Fmax(1);
 
-x0_F2n   = (x0_F(2) - fmin)       ./ (deltaf);
+x0_F2n   = (x0_F(2) - fmin)    ./ (deltaf);
 x0_F2lbn = (x0_Fmin(2) - fmin) ./ (deltaf);
 x0_F2ubn = (x0_Fmax(2) - fmin) ./ (deltaf);
 

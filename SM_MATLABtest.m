@@ -207,11 +207,11 @@ f = F(1).*fi + F(2);
 % R = sin(f);
 g = 0;
 for nn = 1:Nn-1
-%     R = R + x(nn).*sin((2*nn-1).*f) + (x(nn) - 2).^(nn./3);
-%     R = R + x(nn).*sin((2*nn-1).*f) + x(nn).*(f./100).^(Nn-nn);
-% R = R + (f - x(nn)).^(2);
-g = g + 100.*(x(nn+1) - x(nn).^2).^2 + (x(nn) - 1).^2;
-% g = g + x(nn).^2;
+    %     R = R + x(nn).*sin((2*nn-1).*f) + (x(nn) - 2).^(nn./3);
+    %     R = R + x(nn).*sin((2*nn-1).*f) + x(nn).*(f./100).^(Nn-nn);
+    % R = R + (f - x(nn)).^(2);
+    g = g + 100.*(x(nn+1) - x(nn).^2).^2 + (x(nn) - 1).^2;
+    % g = g + x(nn).^2;
 end
 R = abs((f - 5).^(2+log(g+1)));
 

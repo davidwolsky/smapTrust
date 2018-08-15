@@ -8,33 +8,30 @@ format compact
 %% Set up the models and SM parameters
 
 % Frequencies 
-fmin = pi/2;
-fmax = 14.0*pi;  
+fmin = pi;
+fmax = 2*pi;  
 Nf = 101;
 % f = linspace(0,pi,101);
 
 % Initial input parameters 
-xinit = [1.0, 0.0*pi]';  % Initial input parameters 
+xinit = [2, pi/2]';  % Initial input parameters 
 xpinit = [2.1]';   % Initial implicit parameters
 
-label = 'SM_MATLABtest_arctan';
-filename = mfilename([label, '.m']);
+filename = mfilename('SM_MATLABtest_parabola.m');
 fullpath = mfilename('fullpath');
 currentPath = replace(fullpath, filename, '');
 
 % Set up fine model
 Mf.path = currentPath;
-Mf.label = label;
 Mf.name = @fineTest;
 Mf.solver = 'MATLAB';
 Mf.params = {'x','f'};
-Mf.ximin = [0.9,   0.0*pi]';
-Mf.ximax = [1.1,   18.0*pi]';
+Mf.ximin = [1,0.5*pi/2]';
+Mf.ximax = [3,2*pi/2]';
 Mf.freq = reshape(linspace(fmin,fmax,Nf),Nf,1);
     
 % Set up coarse model (MATLAB)
 Mc.path = currentPath;
-Mc.label = Mf.label;
 Mc.name = @coarseTest;  % Must pass a function handle if MATLAB is the simulator...
 Mc.solver = 'MATLAB';
 Mc.params = {'x','f'}; % Must be this order (and names) for MATLAB sims.  Can omit xp or f though...
@@ -50,14 +47,14 @@ Sinit = [];
 % Sinit.xp = xpinit;
 
 % All the standard SM options - not all shown here... (buildSurr.m for details)
-SMopts.getA  = 0;
-SMopts.getB  = 0;
-SMopts.getc  = 0;
-SMopts.getG  = 0;
+SMopts.getA = 0;
+SMopts.getB = 0;
+SMopts.getc = 1;
+SMopts.getG = 0;
 SMopts.getxp = 0;
-SMopts.getF  = 1;
-SMopts.getE  = 0;
-SMopts.getd  = 0;
+SMopts.getF = 0;
+SMopts.getE = 0;
+SMopts.getd = 0;
 
 % SMopts.globalSolver = 'ga';
 % SMopts.optsGlobalOptim = optimoptions('ga');
@@ -74,7 +71,6 @@ SMopts.ximax = Mc.ximax;
 % SMopts.xpmin = Mc.xpmin;
 % SMopts.xpmax = Mc.xpmax;
 % SMopts.wk = 1.15;
-SMopts.plotAlignmentFlag = 1;
 
 % Set up the optimization
 OPTopts.startWithIterationZero = 1;
@@ -88,10 +84,10 @@ OPTopts.globOptSM = 0;
 
 OPTopts.goalType =      {'gt'   };
 OPTopts.goalResType =   {'Gen'  };
-OPTopts.goalVal =       {1.0    };
+OPTopts.goalVal =       {0.5    };
 OPTopts.goalWeight =    {1.0    };
-OPTopts.goalStart =     {17.5    };
-OPTopts.goalStop =      {21.5    };
+OPTopts.goalStart =     {4    };
+OPTopts.goalStop =      {5    };
 OPTopts.errNorm =       {1      };
 
 % OPTopts.goalType = {'minimax'};

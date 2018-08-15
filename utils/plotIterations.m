@@ -1,4 +1,4 @@
-function plotIterations(plotFlag, xi, Delta, OPTopts, SMopts, Si, plotNormalised, caption)
+function plotIterations(plotFlag, xi, Delta, OPTopts, SMopts, Si, plotNormalised, caption, plotOpts)
 % Plotter for iteration by iteration details. 
 % For a two dimensional problem the iterations will be plotted against each other. For more than two 
 % parameters the plots take place iteration by iteration. The trust region radius (assuming square shape)
@@ -14,11 +14,34 @@ function plotIterations(plotFlag, xi, Delta, OPTopts, SMopts, Si, plotNormalised
 %           it, and its bounds can be plotted. 
 %   plotNormalised: use OPTopts ximin & ximax to normalise the parameters to plot. 
 %   caption: The caption of the graph.
+%   plotOpts:   Graph options:
+%       - legendLocation: defaults to internal plotting defaults.
+%       - xlim: defaults to internal plotting defaults.
+%       - ylim: defaults to internal plotting defaults.
+%       - xtick: defaults to internal plotting defaults.
+%       - ytick: defaults to internal plotting defaults.
+%       - pbaspectVec: defaults to internal plotting defaults.
 
 if plotFlag
     markerstr = 'xso+*d.^v><ph';
     colourstr = 'kbrgmcykbrgmc';
+    fontsize = 13;
 
+    % ----- Set defaults ----- 
+    legendLocation = 'Best';
+    xlim = [];
+    ylim = [];
+    xtick = [];
+    ytick = [];
+    pbaspectVec = [];
+    if isfield(plotOpts, 'legendLocation'), legendLocation = plotOpts.legendLocation; end
+    if isfield(plotOpts, 'xlim'), xlim = plotOpts.xlim; end
+    if isfield(plotOpts, 'ylim'), ylim = plotOpts.ylim; end
+    if isfield(plotOpts, 'xtick'), xtick = plotOpts.xtick; end
+    if isfield(plotOpts, 'ytick'), ytick = plotOpts.ytick; end
+    if isfield(plotOpts, 'pbaspectVec'), pbaspectVec = plotOpts.pbaspectVec; end
+
+    % ----- Do plotting -----  
     % Manipulate data format and ensure that everything has the same dimensions
     Ni = length(xi);    % Number of iterations
     Nx = length(xi{1}); % Number of parameters
@@ -46,17 +69,31 @@ if plotFlag
         doPlotForTwoDesignVariables();
 
         axis equal
-        xlabel('x1 value')
-        ylabel('x2 value')
-        title({strcat('Values at each iteration plotted against each other with trust region radius - ', caption)})
+        xlabel('x1 value',...
+            'FontSize', fontsize)
+        ylabel('x2 value',...
+            'FontSize', fontsize)
+        title({'Values at each iteration plotted ', ' against each other with trust region radius - ', strcat(' ', caption)})
+        set(gca, ...
+            'FontSize', fontsize);
     else
         doGeneralPlotForDesignVariables();
 
         doGeneralPlotForImplicitVariables(SMopts, Si, plotNormalised);
 
-        xlabel('Iteration')
-        ylabel('Value')
-        title({strcat('Values per iteration with trust region radius - ', caption)})
+        xlabel('Iteration',...
+            'FontSize', fontsize)
+        ylabel('Value',...
+            'FontSize', fontsize)
+        title({'Values per iteration with trust region radius - ', strcat(' ', caption)})
+        set(gca, ...
+            'FontSize', fontsize);
+            
+        if ~isempty(xlim), set(gca, 'xlim', xlim); end
+        if ~isempty(ylim), set(gca, 'ylim', ylim); end
+        if ~isempty(xtick), set(gca, 'XTick', xtick); end
+        if ~isempty(ytick), set(gca, 'YTick', ytick); end
+        if ~isempty(pbaspectVec), set(gca, 'PlotBoxAspectRatio', pbaspectVec); end
     end
     legend()
     % TODO_DWW: Get legend working with parameters names...
@@ -74,7 +111,7 @@ function doPlotForTwoDesignVariables()
             else
                 transDDelta = [transDelta,transDelta];
             end
-            transMerge = [transXi-transDDelta,transDDelta*2];
+            transMerge = [transXi-transDDelta, transDDelta*2];
             % Only plot radius if it is valid
             if (transMerge(ii,3) > 0)
                 rectangle('Position',transMerge(ii,1:4), 'EdgeColor',colourstr(ii),'LineWidth',2)
