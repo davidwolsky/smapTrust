@@ -10,15 +10,14 @@ format compact
 % Frequencies 
 fmin = 13.8e9;
 fmax = 14.2e9;  
-Nm = 201;	% Number of frequencies
+Nm = 401;	% Number of frequencies
 
 % Initial input parameters
-xinit = [0, 0, 0, 1, 1, 1]';  
+xinit = [0, 0, 0, 0, 0, 0]';  
 % Initial implicit parameters
-xpinit = [0,1,1,1,1,1,1,-1.04,-1.04,-1.04]';
-% xpinit = [-0.5953    0.7130    0.9302    1.0320    1.1093    0.8660    0.9690   -0.8992   -1.0866 -1.0925]';
+xpinit = [0.5282]';
 
-filename = mfilename('SM_GGW_N3_14GHz.m');
+filename = mfilename('SM_GGW_N5_14GHz.m');
 fullpath = mfilename('fullpath');
 currentPath = replace(fullpath, filename, '');
 
@@ -27,35 +26,38 @@ currentPath = replace(fullpath, filename, '');
 Mf.path = [currentPath,'CST\'];
 Mf.name = 'GGW_N5_14GHz';
 Mf.solver = 'CST';
-Mf.params = {'L1_term', 'L2_term', 'L3_term', 's12_fact', 's23_fact', 'x_fact'};
-Mf.ximin =  [-0.5, -0.25, -0.25, 0.3, 0.5, 0.5]';
-Mf.ximax =  [0.5,   0.25,  0.25, 1.5, 1.5, 2]';
+Mf.params = {'L1_term', 'L2_term', 'L3_term', 's12_term', 's23_term', 'x_term'};
+Mf.ximin =  [-0.5, -0.5, -0.5, -0.5, -0.5, -1.0]';
+Mf.ximax =  [ 0.5,  0.5,  0.5,  1.0,  1.0,  1.0]';
 Mf.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 
 % Set up coarse model (AWR)
-Mc.path = [currentPath,'AWR\'];
-Mc.name = 'GGW_N5_14GHz';
-Mc.solver = 'AWR';
-Mc.params = Mf.params;
+% Mc.path = [currentPath,'AWR\'];
+% Mc.name = 'GGW_N5_14GHz';
+% Mc.solver = 'AWR';
+% Mc.params = Mf.params;
+Mc.path = [currentPath,'MATLAB\'];
+addpath([Mc.path]);
+Mc.name = @GGW_N5_14GHz;
+Mc.solver = 'MATLAB';
+Mc.params = {'x';'xp';'f'};
 Mc.ximin =  Mf.ximin;
 Mc.ximax =  Mf.ximax;
-Mc.Iparams ={'P','as_fact','bs_fact','cs_fact','ax_fact','bx_fact','cx_fact','L1c','L2c','L3c'};
-% Mc.xpmin =  [-0.9,0.7,0.8,0.9,0.85,0.8,0.85,-1.1,-1.15,-1.15]';
-% Mc.xpmax =  [ 0.9,1.1,1.1,1.2,1.15,1.1,1.15,-0.8, -1,  -1]';
-Mc.xpmin =  [-0.9,0.7,0.8,0.9,0.85,0.8,0.85,-1.1,-1.2,-1.2]';
-Mc.xpmax =  [ 0.9,1.1,1.1,1.2,1.15,1.1,1.15,-0.3,-1,-1]';
+Mc.Iparams ={'P'};
+Mc.xpmin =  [0]';
+Mc.xpmax =  [1.8]';
 Mc.freq = reshape(linspace(fmin,fmax,Nm),Nm,1);
 
 % Set up the SM
 % The initial SM structure
-% Sinit.c = [-0.72,-1.22,0,0];
+Sinit.c = [0.0551   -0.0183   -0.0214    0.0417    0.0289   -0.2441]';
 % Sinit = [];
 Sinit.xp = xpinit;
 
 % All the standard SM options - not all shown here... (buildSurr.m for details)
 SMopts.getA = 0;
 SMopts.getB = 0;
-SMopts.getc = 0;
+SMopts.getc = 1;
 SMopts.getG = 0;
 SMopts.getxp = 1;
 SMopts.getF = 0;
@@ -65,17 +67,18 @@ SMopts.getd = 0;
 %% Set up the optimization
 OPTopts.ximin = Mf.ximin;
 OPTopts.ximax = Mf.ximax;
-OPTopts.Ni = 5;
+OPTopts.Ni = 15;
 OPTopts.TRNi = OPTopts.Ni;
 OPTopts.Rtype = {'S1,1'};
-OPTopts.globOpt = 1;
+OPTopts.globOpt = 0;
+OPTopts.useScAsOpt = true;
 
 OPTopts.globalSolver = 'ga';
 OPTopts.optsGlobalOptim = optimoptions('ga');
 OPTopts.optsGlobalOptim.Display = 'final';
 OPTopts.optsGlobalOptim.Display = 'iter';
-OPTopts.optsGlobalOptim.PopulationSize = 50;
-OPTopts.optsGlobalOptim.Generations = 6;
+OPTopts.optsGlobalOptim.PopulationSize = 300;
+OPTopts.optsGlobalOptim.Generations = 8;
 
 % OPTopts.localSolver = 'fmincon';
 % OPTopts.optsLocalOptim = optimoptions('fmincon');
@@ -89,34 +92,39 @@ OPTopts.optsLocalOptim.Display = 'iter';
 
 OPTopts.goalType =      {'gt', 'lt', 'gt'};
 OPTopts.goalResType =   {'S1,1_dB','S1,1_dB','S1,1_dB'};
-OPTopts.goalVal =       {-10, -16.4, -10};
+OPTopts.goalVal =       {-5, -16.4, -5};
 OPTopts.goalWeight =    {1,1,1};
 OPTopts.goalStart =     {fmin, 13.93e9, 14.08e9};
 OPTopts.goalStop =      {13.92e9, 14.07e9, fmax};
 OPTopts.errNorm =       {1, 1, 1};
 
 OPTopts.plotIter = 1;
-OPTopts.TolX = 1e-2;
-OPTopts.eta1 = 0.05;
+OPTopts.TolX = 1e-3;
+
+% Switch of the TR...
+OPTopts.TRNi = 1;
+OPTopts.eta1 = 0.05*0;
 OPTopts.eta2 = 0.9;
-OPTopts.alp1 = 2.5;
-OPTopts.alp2 = 0.25;
-% OPTopts.alp2 = 0.75;
-OPTopts.DeltaInit = 0.25;
+OPTopts.alp1 = 1;%2.5;
+OPTopts.alp2 = 1;%0.25;
+OPTopts.DeltaInit = 1;%0.25;
 OPTopts.startWithIterationZero = true;
-% OPTopts.prepopulatedSpaceFile = 'SMLog_bandpassFilter.mat'
+OPTopts.prepopulatedSpaceFile = 'SMLogGGW_N5_14GHz_20171218_2328.mat';
 
 %% Set up the parameter extraction
-OPTopts.globOptSM = 1;
+OPTopts.globOptSM = 2;
 
 % SM global optimiser
-SMopts.globalSolver = 'ga';
-SMopts.optsGlobalOptim = optimoptions('ga');
-SMopts.optsGlobalOptim.Display = 'final';
-% gaOptions = gaoptimset('PopulationSize',100,'Generations',2);
+% SMopts.globalSolver = 'ga';
+% SMopts.optsGlobalOptim = optimoptions('ga');
+% SMopts.optsGlobalOptim.Display = 'final';
+% % gaOptions = gaoptimset('PopulationSize',100,'Generations',2);
+% SMopts.optsGlobalOptim.Display = 'iter';
+% SMopts.optsGlobalOptim.PopulationSize = 150;
+% SMopts.optsGlobalOptim.Generations = 20;
+
+SMopts.globalSolver = GlobalSearch('Display','iter','NumStageOnePoints',1000,'NumTrialPoints',1300);
 SMopts.optsGlobalOptim.Display = 'iter';
-SMopts.optsGlobalOptim.PopulationSize = 200;
-SMopts.optsGlobalOptim.Generations = 10;
 
 % SM local optimiser
 
@@ -130,6 +138,7 @@ SMopts.optsGlobalOptim.Generations = 10;
 
 SMopts.localSolver = 'fminsearchcon';
 SMopts.optsLocalOptim.Display = 'iter';
+% SMopts.optsLocalOptim.MaxFunEvals = 11;
 
 % SMopts.localSolver = 'fminsearch';
 % SMopts.optsLocalOptim.Display = 'iter';

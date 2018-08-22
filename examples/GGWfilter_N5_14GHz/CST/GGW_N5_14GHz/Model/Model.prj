@@ -1,0 +1,19 @@
+[Version]
+2
+[Author]
+ddv
+[Mesh Cells]
+764,218
+[Mesh Type]
+Hexahedral
+[Last Problem Type]
+High Frequency
+[Last Solver Type]
+HF Frequency Domain
+[Last Solver Type Abb]
+f-res-hex
+[Results]
+Frequency Domain: S-Parameter (MOR)
+[Modeler Unique ID]
+5:ggw_n5_14ghz.cst?3380b0422e365560b78be260e6db9c11?42906:numberofparameters=27:port=1>mode=1>zre=0>zim=0?port=2>mode=1>zre=0>zim=0:::l1?l1_0?l1_term?l2?l2_0?l2_term?l3?l3_0?l3_term?s12?s12_0?s23?s23_0?w?a?coax_len?d?h?p?pd?r?r_out?s12_term?s23_term?x?x0?x_term
+[Comment]
