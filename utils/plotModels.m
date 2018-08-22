@@ -1,10 +1,11 @@
-function plotModels(plotFlag, itNum, Rci, Rfi, Rsi, Rsai, OPTopts)
+function plotModels(plotModelFlag, plotGoalFlag, itNum, Rci, Rfi, Rsi, Rsai, OPTopts)
 
 % Plot the goals and the responses for the initial fine, coarse, 
 % optimised surrogate and aligned surrogate.
 
 % Inputs:
-%   plotFlag:   If false then no plots are made.
+%   plotModelFlag:  If false then no plots are made.
+%   plotGoalFlag:   If false then the goal values are not added to the plot.
 %   itNum:      The current iteration number.
 %   Rci:        Coarse model response.
 %   Rfi:        Fine model response.
@@ -12,7 +13,7 @@ function plotModels(plotFlag, itNum, Rci, Rfi, Rsi, Rsai, OPTopts)
 %   Rsai:       The aligned surrogate response.
 %   OPTopts:    Optimization options, used for determining what the type of response is and goal values.
 
-if plotFlag && valuesAreValid()
+if plotModelFlag && valuesAreValid()
     figure()
     freq = [];
     if isfield(Rfi{1}{1},'f')
@@ -26,7 +27,7 @@ if plotFlag && valuesAreValid()
     uniqueResultTypes = unique(OPTopts.goalResType);
     Nrt = length(uniqueResultTypes);
     responsePlotted = zeros(1,Nrt);  % Check if the current response has been plotted already
-        
+    
     Ng = length(OPTopts.goalType);
     for gg = 1:Ng
         goalType = OPTopts.goalType{gg};
@@ -40,15 +41,17 @@ if plotFlag && valuesAreValid()
             if ~(responsePlotted(plotRow))
                 plotResponse([splits{1}, '_real']);
             end
-            plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, real(OPTopts.goalVal{gg}), goalType, freq)
-            % legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
+            plotGoal(plotGoalFlag, OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, real(OPTopts.goalVal{gg}), goalType, freq)
+            legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
+            legend('Location','best')
             subplot(Nrt, 2, plotRow*2)
             if ~(responsePlotted(plotRow))
                 plotResponse([splits{1}, '_imag']);
                 responsePlotted(plotRow) = 1;
             end
-            plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, imag(OPTopts.goalVal{gg}), goalType, freq)
-            % legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
+            plotGoal(plotGoalFlag, OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, imag(OPTopts.goalVal{gg}), goalType, freq)
+            legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
+            legend('Location','best')
         else
             [~,plotRow] = ismember(OPTopts.goalResType(gg),uniqueResultTypes);
             subplot(Nrt, 2, [plotRow*2-1, plotRow*2])
@@ -57,9 +60,10 @@ if plotFlag && valuesAreValid()
                 responsePlotted(plotRow) = 1;
             end
             if isfield(OPTopts, 'goalVal')
-                plotGoal(OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, OPTopts.goalVal{gg}, goalType, freq)
+                plotGoal(plotGoalFlag, OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, OPTopts.goalVal{gg}, goalType, freq)
             end
-            % legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', goalType)
+            legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', goalType)
+            legend('Location','best')
         end
     end % for Ng
 end % if validation
@@ -95,7 +99,9 @@ title(['Iteration: ',num2str(itNum), ', goal of result type : ', replace(goalRes
 end % plotForRealValuedResponse function
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function plotGoal(goalStart, goalStop, goalValue, goalType, freq)
+function plotGoal(plotGoalFlag, goalStart, goalStop, goalValue, goalType, freq)
+
+if plotGoalFlag
     % Scale the frequencies for plotting
     [freqPlot, ~, scaleFact] = freqScale(freq);
     goalStartPlot = goalStart./scaleFact;
@@ -130,20 +136,22 @@ otherwise
     error(['Unknown goalType found. OPTopts.goalType = ', goalType])
 end
 
-if ( isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') && stdGoalPlot)
-    iValidFreq = freq > goalStart & freq < goalStop;
-    goalFreqPoints = freqPlot(iValidFreq);
-%     goalFreqPoints = freq(freq > goalStart & freq < goalStop);
-    if length(goalValue) == 1  
-        plot([goalStartPlot, goalStopPlot], (goalValue)*ones(1,2), colour, 'LineWidth',3)
-        plot(goalFreqPoints, (goalValue)*ones(1,length(goalFreqPoints)),['o',colour],'LineWidth',3)
-    elseif length(goalValue) == length(freq)   
-        plot(freqPlot, goalValue,colour,'LineWidth',3)
-        plot(goalFreqPoints, goalValue(iValidFreq),['o',colour],'LineWidth',3)
-    else
-        error('Goal plotting error - goalVal should be either length 1 or length(freq)');
+    if ( isfield(OPTopts, 'goalStart') && isfield(OPTopts, 'goalStop') && stdGoalPlot)
+        iValidFreq = freq > goalStart & freq < goalStop;
+        goalFreqPoints = freqPlot(iValidFreq);
+    %     goalFreqPoints = freq(freq > goalStart & freq < goalStop);
+        if length(goalValue) == 1  
+            plot([goalStartPlot, goalStopPlot], (goalValue)*ones(1,2), colour, 'LineWidth',3)
+            plot(goalFreqPoints, (goalValue)*ones(1,length(goalFreqPoints)),['o',colour],'LineWidth',3)
+        elseif length(goalValue) == length(freq)   
+            plot(freqPlot, goalValue,colour,'LineWidth',3)
+            plot(goalFreqPoints, goalValue(iValidFreq),['o',colour],'LineWidth',3)
+        else
+            error('Goal plotting error - goalVal should be either length 1 or length(freq)');
+        end
     end
-end
+end % plotGoal flag
+
 end % plotGoal function
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

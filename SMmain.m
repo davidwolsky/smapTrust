@@ -15,7 +15,8 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit, Sinit, SMopts, Mf, Mc, OPTopts)
 %   The following (2) limits are only for warning generation - not used in optimization
 %   ximin:  Vector of minimum values to limit the parameters [Nn,1] 
 %   ximax:  Vector of maximum values to limit the parameters [Nn,1]
-%   freq:       Array of simulation frequencies [Nm,1] (optional)
+%   freq:   Array of simulation frequencies [Nm,1] (optional).
+%   label:  A label for the model used when making logs for the run.
 % Mc:       Coarse model structure (can be cell array of structures if more than one type has to be calculated to get all the fine model responses)
 %   path:   Full path to file
 %   name:   File name of file (without extension)
@@ -74,6 +75,7 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit, Sinit, SMopts, Mf, Mc, OPTopts)
 %               Valid types: (1,2,inf)
 %   TolX:       Termination tolerance on X [ positive scalar - default 10^-2]
 %   plotIter:   Flag to plot the responses after each iteration
+%   plotGoalFlag:   Flag to plot the goal values the responses for each iteration
 %   eta1:       A factor used by the TR to define the bound governing when to keep or reduce the radius.
 %   eta2:       A factor used by the TR to decide the bound governing when to keep or grow the radius.
 %   alp1:       A factor used by the TR to define the rate at which the radius grows with a very successful run.
@@ -162,6 +164,7 @@ globalSolver = 'ga';
 optsGlobalOptim = optimoptions('ga');
 globOptSM = 0;
 plotIter = 1;
+plotGoalFlag = 1;
 eta1 = 0.05;
 eta2 = 0.9;
 alp1 = 2.5;
@@ -182,6 +185,7 @@ if isfield(OPTopts,'optsLocalOptim'), optsLocalOptim = OPTopts.optsLocalOptim; e
 if isfield(OPTopts,'globalSolver'), globalSolver = OPTopts.globalSolver; end
 if isfield(OPTopts,'optsGlobalOptim'), optsGlobalOptim = OPTopts.optsGlobalOptim; end
 if isfield(OPTopts,'plotIter'), plotIter = OPTopts.plotIter; end
+if isfield(OPTopts,'plotGoalFlag'), plotGoalFlag = OPTopts.plotGoalFlag; end
 if isfield(OPTopts,'eta1'), eta1 = OPTopts.eta1; end
 if isfield(OPTopts,'eta2'), eta2 = OPTopts.eta2; end
 if isfield(OPTopts,'alp1'), alp1 = OPTopts.alp1; end
@@ -467,8 +471,9 @@ else
 end
 
 logSavePoint()
+
 % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
-plotModels(plotIter, ii, Rci, Rfi, Rsi, Rsai, OPTopts);
+plotModels(plotIter, plotGoalFlag, ii, Rci, Rfi, Rsi, Rsai, OPTopts);
 
 if verbosityLevel >= 1, display(['--- Starting main optimisation loop ---']); end
 
@@ -665,7 +670,7 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
         if (~TRterminate)
             logSavePoint()
             % Plot the fine, coarse, optimised surrogate and aligned surrogate
-            plotModels(plotIter, ii+1, Rci, Rfi, Rsi, Rsai, OPTopts);
+            plotModels(plotIter, plotGoalFlag, ii+1, Rci, Rfi, Rsi, Rsai, OPTopts);
         end
     end
     
@@ -755,7 +760,16 @@ function logSavePoint()
     space.Ti = Ti;
     space.TRterminate = TRterminate;
 
-    createLog(['SMLog', Mf.name], space);
+    logName = 'SMLog';
+    if isfield(Mf, 'label')
+        assert(isa(Mf.label, 'char'))
+        logName = [logName, '_', Mf.label];
+    else
+        if isa(Mf.name, 'string')
+            logName = [logName, '_', Mf.name]; 
+        end
+    end
+    createLog(logName, space);
 end % logSavePoint
 
 function enforceFineModelLimits()
@@ -882,33 +896,33 @@ function Rc = coarseMod(M, xi, xp, f)
 if isfield(M,'ximin')
     minI = xi < M.ximin;
     if ( any(minI) )
-        xi(minI) = M.ximin(minI);
 		warning( strcat('Out of bounds coarse model evaluation encountered on ximin = ', ...
 			mat2str(M.ximin), ', xi = ', mat2str(xi)) )
+        xi(minI) = M.ximin(minI);
     end
 end
 if isfield(M,'ximax')
     maxI = xi > M.ximax;
     if ( any(maxI) )
-        xi(maxI) = M.ximax(maxI);
 		warning( strcat('Out of bounds coarse model evaluation encountered on ximax', ...
 			mat2str(M.ximax), ', xi = ', mat2str(xi)) )
+        xi(maxI) = M.ximax(maxI);
 	end
 end
 if isfield(M,'xpmin')
     minIp = xp < M.xpmin;
     if ( any(minIp) )
-        xp(minIp) = M.xpmin(minIp);
 		warning( strcat('Out of bounds coarse model evaluation encountered on xpmin', ...
 			mat2str(M.xpmin), ', xi = ', mat2str(xi)) )
+        xp(minIp) = M.xpmin(minIp);
     end
 end
 if isfield(M,'xpmax')
     maxIp = xp > M.xpmax;
     if ( any(maxIp) )
-        xp(maxIp) = M.xpmax(maxIp);
 		warning( strcat('Out of bounds coarse model evaluation encountered on xpmax', ...
 			mat2str(M.xpmax), ', xi = ', mat2str(xi)) )
+        xp(maxIp) = M.xpmax(maxIp);
     end
 end
 
