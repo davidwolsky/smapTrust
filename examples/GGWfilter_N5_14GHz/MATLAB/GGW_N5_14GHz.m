@@ -92,7 +92,9 @@ switch TXlineType
 end
 
 % FeedLine
-Lphase = d2r(Pdeembed)./bet;
+% TODO_DWW: DDV: d2r not defined.
+% Lphase = d2r(Pdeembed)./bet;
+Lphase = deg2rad(Pdeembed)./bet;
 Lfeed = Lf + Lphase;
 Tfeed = TlineABCD(Zline,bet,Lfeed);
 

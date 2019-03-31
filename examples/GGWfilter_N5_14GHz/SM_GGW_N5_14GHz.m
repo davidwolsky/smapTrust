@@ -109,7 +109,7 @@ OPTopts.alp1 = 1;%2.5;
 OPTopts.alp2 = 1;%0.25;
 OPTopts.DeltaInit = 1;%0.25;
 OPTopts.startWithIterationZero = true;
-OPTopts.prepopulatedSpaceFile = 'SMLogGGW_N5_14GHz_20171218_2328.mat';
+% OPTopts.prepopulatedSpaceFile = 'SMLogGGW_N5_14GHz_20171218_2328.mat';
 
 %% Set up the parameter extraction
 OPTopts.globOptSM = 2;
@@ -160,9 +160,13 @@ SMopts.errW = errW;
 SMopts.wk = []; % <---
 % SMopts.wk = 1;
 
+plotOpts = {};
+plotOpts.plotModelOpts = {};
+plotOpts.plotModelOpts.ylim = [-70 0];
+plotOpts.plotModelOpts.pbaspectVec = [1 1 1];
 
 %% Run the main loop
-[Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit,Sinit,SMopts,Mf,Mc,OPTopts);
+[Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit, Sinit, SMopts, Mf, Mc, OPTopts, plotOpts);
 
 keyboard;
 

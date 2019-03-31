@@ -32,7 +32,7 @@ reducedProblem = fullProblem;
 reducedProblem.bineq = fullProblem.bineq;
 
 nn = 1;
-while nn <= size(reducedProblem.lb,1)
+while nn <= size(reducedProblem.lb, 1)
     if ( reducedProblem.lb(nn) == reducedProblem.ub(nn) )
         reducedProblem.lb(nn) = [];
         reducedProblem.ub(nn) = [];

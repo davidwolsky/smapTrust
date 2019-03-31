@@ -20,7 +20,7 @@ if isfield(plotModelOpts, 'plotGoalFlag'), plotGoalFlag = plotModelOpts.plotGoal
 
 space = getPrepopulatedSpaceFrom(prepopulatedSpaceFile);
 
-keyboard
+% keyboard
 % TODO_DWW: Check how it can be that this sometimes has one less ii item than its meant to have.
 
 for count = 1:1:space.ii

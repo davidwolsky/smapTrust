@@ -1,5 +1,22 @@
 function nProb = normaliseProblem(prob, optsParE)
 
+% Normalises before parameter extraction takes place. SM parameters that are linked to model variabels
+% are normalised but multiplicative parameters are left as is or scaled slightly. 
+% Arguments:
+%   optsParE:   Options for parameter extraction.
+%       - Nn:   Number of design variabled.
+%       - Nq:   Number of implicit variables.          
+%       - lenVect:  Vector containing position/lengths of each SM parameter.
+%       - firstPos: First position of each SM parameter set. 
+%       - lastPos:  Last position of each SM parameter set. 
+%       - errNorm:  Error norm in use.
+%       - errW: Vector of weights (typically binary but can be any real number),
+%               of length Nm, to calculate the extraction error.  Can be used to 
+%               mask out regions in the response domain of less importance. 
+%               Default ones.
+% Returns:
+%   nProb:  Normalised problem: x0, ub, lb, Aineq and bineq.
+
 parameterCount = size(prob.lb,1);
 assert(size(prob.ub,1) == parameterCount, 'The number of parameters must all match.')
 assert(size(prob.x0,1) == parameterCount, 'The number of parameters must all match.')
@@ -97,13 +114,16 @@ nProb.ub = [x0_Aubn; x0_Bubn; x0_cubn; x0_Gubn; x0_pubn; x0_Fubn];
 nProb.Aineq = prob.Aineq;
 
 deltax_mat = diag(deltax);
+% Item 3 is c
 nProb.Aineq(1:Nn,      firstPos(3):lastPos(3)) = -deltax_mat;
 nProb.Aineq(Nn+1:2*Nn, firstPos(3):lastPos(3)) = deltax_mat;
 
 deltaxp_mat = diag(deltaxp);
+% Item 5 is xp
 nProb.Aineq(2*Nn+1:   2*Nn+Nq,   firstPos(5):lastPos(5)) = -deltaxp_mat;
 nProb.Aineq(2*Nn+Nq+1:2*Nn+2*Nq, firstPos(5):lastPos(5)) = deltaxp_mat;
 
+% Last is F2
 nProb.Aineq(end-1,  end) = -deltaf;
 nProb.Aineq(end,    end) = deltaf;
 

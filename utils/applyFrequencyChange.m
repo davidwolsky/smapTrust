@@ -16,7 +16,7 @@ function [Rs] = applyFrequencyChange(origininalFreq, Fvect, Rc)
 assert(~any(isinf(Rc)), 'Need to have clean data to work with. Suggest interpolateInf method.')
 
 fs = Fvect(1).*origininalFreq + Fvect(2);
-keyboard
+% keyboard
 % TODO_DWW: This has to be linear.
 % TODO_DWW: Comment about NaN and extrapolation
 RsComp = interp1(origininalFreq, Rc, fs, 'linear');

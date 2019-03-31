@@ -25,7 +25,7 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit, Sinit, SMopts, Mf, Mc, OPTopts, 
 %   The following (2) limits are only for warning generation - not used in optimization
 %   ximin:  Vector of minimum values to limit the parameters [Nn,1]
 %   ximax:  Vector of maximum values to limit the parameters [Nn,1]
-%   Iparams:     Cell array of implicit parameter names - same order as xinit {Nn,1}
+%   Iparams:     Cell array of implicit parameter names - same order as xpinit {Nn,1}
 %   xpmin:  Vector of minimum values to limit the implicit parameters [Nq,1]
 %   xpmax:  Vector of maximum values to limit the implicit parameters [Nq,1]
 %   freq:       Array of simulation frequencies [Nm,1] (optional)
@@ -39,10 +39,14 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit, Sinit, SMopts, Mf, Mc, OPTopts, 
 %   Ni:         Maximum number of iterations
 %   TRNi:       Maximum number of iterations for the Trust region loop.
 %               To turn the TR off use TRNi=1.
-%   globOpt:    Flag to run a globabl optimisation routine (1 for only first iteration, 
-%               2 for all iterations) (default 0)
+%   globOpt:    Flag to run a globabl optimisation routine
+%               0 default
+%               1 for only first iteration, 
+%               2 for all iterations 
 %   globOptSM:  Flag to run the global optimisation routine during the PE process 
-%               (1 for only first iteration, 2 for all iterations) (default 0)
+%               0 default
+%               1 for only first iteration, 
+%               2 for all iterations 
 %   globalSolver:       String to choose the global optimiser solver type (default 'ga').
 %   optsGlobalOptim:    Problem options for the global optimiser chosen (e.g. optimoptions('ga')).
 %                       This needs to be specified when a non-default solver is chosen.
@@ -641,13 +645,8 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
                         % DISP = ['for - ', num2str(iii),' ',];
                         % disp(DISP)
                         r{end+1} = Ti.Rfi_all{iii}{rr}.r;
-                    end
-                    % TODO_DWW: decide if we putting this back in
-                    % length(Ti.xi_all)
-                    % length(r)
-                    % assert(length(Ti.xi_all) == length(r), 'The lengths of xi and responses needs to be the same.')
-                    
-                    if verbosityLevel >= 1, (['--- Building surrogatefor iteration ', num2str(ii), ' ---']); end
+                    end                    
+                    if verbosityLevel >= 1, (['--- Building surrogate for iteration ', num2str(ii), ' ---']); end
                     Si{targetCount}{rr} = buildSurr(Ti.xi_all,r,Si{ii}{rr},SMopts);
                 end
                 % Also get the currently aligned surrogate for comparison
@@ -665,8 +664,12 @@ while ii <= Ni && ~specF && ~TolX_achieved && ~TRterminate
             
             % Not sure about this: DWW - please check
             % Seems like kk > TRNi terminates the whole thing?
-%             TRterminate = ~TRsuccess && ( (kk > TRNi) || TolX_achieved );
-            TRterminate = ~TRsuccess && (TolX_achieved);
+            % TRterminate = ~TRsuccess && (TolX_achieved);
+            % DDV:  Yes, if the TR evaluation limit has been reached stop. There has been no progress within
+            %       a set of attempts it is probably not going to get better. Something like taking a step back
+            %       to an earlier point and trying again with a smaller TR could be an option. 
+            %       Here we want to terminate properly otherwise the saved parameters could go out of sync.
+            TRterminate = ~TRsuccess && ( (kk > TRNi) || TolX_achieved );
             % Remove ii+1 entry because it didn't succeed
             if TRterminate
                 xi = xi(1:end-1);
@@ -909,6 +912,8 @@ function Rc = coarseMod(M, xi, xp, f)
 %               'Gen'
 
 % Limit the inputs - this should really never happen...
+% TODO_DWW: Sort this
+% if isfield(M,'noCappingOnBounds')
 if isfield(M,'ximin')
     minI = xi < M.ximin;
     if ( any(minI) )
@@ -929,7 +934,8 @@ if isfield(M,'xpmin')
     minIp = xp < M.xpmin;
     if ( any(minIp) )
 		warning( strcat('Out of bounds coarse model evaluation encountered on xpmin', ...
-			mat2str(M.xpmin), ', xi = ', mat2str(xi)) )
+			mat2str(M.xpmin), ', xp = ', mat2str(xp), ...
+            '; xi = ', mat2str(xi)) )
         xp(minIp) = M.xpmin(minIp);
     end
 end
@@ -937,7 +943,8 @@ if isfield(M,'xpmax')
     maxIp = xp > M.xpmax;
     if ( any(maxIp) )
 		warning( strcat('Out of bounds coarse model evaluation encountered on xpmax', ...
-			mat2str(M.xpmax), ', xi = ', mat2str(xi)) )
+			mat2str(M.xpmax), ', xp = ', mat2str(xp), ...
+            '; xi = ', mat2str(xi)) )
         xp(maxIp) = M.xpmax(maxIp);
     end
 end

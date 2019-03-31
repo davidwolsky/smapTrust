@@ -334,7 +334,7 @@ if isfield(SMopts,'plotAlignmentFlag'), plotAlignmentFlag = SMopts.plotAlignment
 Si = S;
 
 % Initialise the optimization variable vector
-% The limits named *min/*max indicate the global search range.  Actual
+% The limits named *min/*max indicate the global search range. Actual
 % values may fall outside these ranges after the local search alignment...
 if getA
     typeA = 'A';
@@ -442,7 +442,6 @@ lenc = Nn;
 if getc
     typec = 'c';
     if isfield(S,'c')
-        keyboard
         c_init(:,1) = S.c;
     end
 
@@ -666,7 +665,8 @@ else
     
     % First populate the input space limits in LHS_mat
     for nn = 1:Nn
-        xA_vect = diag(lhsA_mat);       % Always zeros - no influence on input/implicit space or frequency bounds
+        % Always zeros - no influence on input/implicit space or frequency bounds
+        xA_vect = diag(lhsA_mat);       
         
         xB_mat = lhsB_mat;
         if lenB > 0;
@@ -692,7 +692,7 @@ else
     end
     % And now the implicit parameters part
     for qq = 1:Nq
-        % Always zeros
+        % Always zeros - no influence on input/implicit space or frequency bounds
         xpA_vect = diag(lhsA_mat);
         xpB_vect = reshape(lhsB_mat,1,lenB);
         xpc_vect = reshape(lhsc_mat,1,lenc);
@@ -842,7 +842,8 @@ function NSMUnknowns = getNSMUnknowns()
         NSMUnknowns = NSMUnknowns + 1;
     elseif getA == 2
         % Diagonal
-        % TODO_DWW: Is this really Nm and not Nn?!?
+        % A is output space mapping and applied as a matrix to each unput/
+        % frequency point. Nm is the length of the response vector.
         NSMUnknowns = NSMUnknowns + 1*Nm;
     end
 
@@ -879,6 +880,7 @@ function NSMUnknowns = getNSMUnknowns()
 
     % --- getd ---
     if getd == 1
+        % TODO_DWW: Is this really Nm and not Nn?!?
         NSMUnknowns = NSMUnknowns + Nm*1;
     end
 
@@ -887,7 +889,8 @@ function NSMUnknowns = getNSMUnknowns()
 
     % --- getF ---
     if getF == 1
-        NSMUnknowns = NSMUnknowns + 1;
+        % TODO_DWW: Wouldnt this be two unknowns?
+        NSMUnknowns = NSMUnknowns + 2;
     end
 end % getNSMUnknowns funcation
 
@@ -983,8 +986,8 @@ for cc = 1:Nc
         plot((Rfi{modelIndicies(cc)}),'k', 'LineWidth',2)
         plot((Rs{cc}),'--r','LineWidth',2)
         for ii = 1:length(usedErrW)
-            plot(ii, usedRfi(ii),'k.', 'LineWidth',2, 'MarkerSize',7*(usedErrW(ii))+13 ) 
-            plot(ii, usedRs(ii), 'r.', 'LineWidth',2, 'MarkerSize',7*(usedErrW(ii))+13 )
+            plot(usedRfi(ii),'k.', 'LineWidth',2, 'MarkerSize',7*(usedErrW(ii))+13 ) 
+            plot(usedRs(ii), 'r.', 'LineWidth',2, 'MarkerSize',7*(usedErrW(ii))+13 )
         end
         title({[plotTitle], ...
             ['Fine model ', num2str(cc), 'of', num2str(Nc), ', Output param: ', num2str(pp), 'of', num2str(Np)], ...
@@ -1055,6 +1058,7 @@ if length(SMopts.errW) == 1
     errW(isnan(errW)) = 1;  % In case of 0 error...
 else
     errW = SMopts.errW;
+    assert(length(errW) == length(Rfi{1}), 'If errW is specified it must be the same length as the result.');
 end
 diffR = {};
 errorValue = {};
@@ -1068,6 +1072,7 @@ for cc = 1:Nc
     [Nm,Np] = size(Rs{cc});
     % Errors for each output parameter (e.g. s-parameters) aggregated
     for pp = 1:Np
+        assert( all(size(Rfi{modelIndicies(cc)}(:,pp)) == size(Rs{cc}(:,pp))), ['Size of fine (', mat2str(size(Rfi{modelIndicies(cc)}(:,pp))), ') and coarse (', mat2str(size(Rs{cc}(:,pp))), ') model must match.'] )
         diffR{cc}{pp} = errW.*(Rfi{modelIndicies(cc)}(:,pp) - Rs{cc}(:,pp));
         % A 1-norm gives the distance between points in the functions on the complex plane.
         errorValue{cc}{pp} = norm(diffR{cc}{pp}, SMopts.errNorm);
@@ -1097,7 +1102,7 @@ function e = erriF(Fvect, Rf, Rc, f, SMopts, plotFlag, plotOpts)
 assert(isequal(size(Rf,2), 1), 'This only works for one responce thus far.')
 
 % TODO_DWW: clean up
-Fvect
+% Fvect
 Rs = applyFrequencyChange(f, Fvect, Rc);
 
 diffR = Rf - reshape(Rs, length(f),1);

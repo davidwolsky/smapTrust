@@ -45,7 +45,9 @@ if (proj.Frequencies.Count == 0)
 
 % DDV: Hacked this out...
 % TODO_DWW: Add a flag for this... default don't use to speed up.
-elseif (~isempty(fc) && 0)  
+% elseif ( ~isempty(fc) && 0 )
+keyboard
+elseif (~isempty(fc) && (getGlobalFreqOverwriteAwr() == true ) )  
 
     % TODO_DWW: CRC_DDV: Either of these really should work, any ideas?
     % proj.Frequencies.Item(1).Value
@@ -64,7 +66,7 @@ elseif (~isempty(fc) && 0)
 
     % If a new frequency was added then the integrity of the list is lost. 
     % We may be adding more frequencies to an old set. 
-    if isequal(class(freqItem),'Interface.AWR_Design_Environment_12.IFrequency')
+    if isequal(class(freqItem),'Interface.AWR_Design_Environment_12_IFrequency')
         proj.Frequencies.Clear();
         for mm = 1:Nm
             awr.Project.Frequencies.Add(fc(mm));
@@ -79,6 +81,9 @@ elseif (~isempty(fc) && 0)
 else
     % Do nothing, running with the model as is.    
 end
+
+% keyboard
+% proj.Schematics.ActiveSchematic is the only way to get through to Schematic equations :/
 
 eqns = proj.GlobalDefinitionDocuments.Item(1).Equations;
 
@@ -159,7 +164,9 @@ for rr = 1:Nr
             R{rr}.r = Rreal + 1i*Rimag;
             R{rr}.f = fc;
             
-            assert(~any(abs(reshape(xin,Nm,1) - fc) > max(fc)*1e-5), 'The xaxis and the freq requested should match.')
+%             keyboard
+            assert(~any(abs(reshape(xin,Nm,1) - fc) > max(fc)*1e-5), ...
+                ['The xaxis and the freq requested should match: ', mat2str(fc)])
             % Would use interpolation on value is the frequency were to not change.
             % Rreal = reshape(interp1(xin,real(Sxxin),fc,'spline'),Nm,1);
             % Rimag = reshape(interp1(xin,imag(Sxxin),fc,'spline'),Nm,1);

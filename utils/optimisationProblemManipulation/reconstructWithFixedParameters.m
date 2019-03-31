@@ -2,7 +2,7 @@ function [optVect] = reconstructWithFixedParameters(reducedOptVect, fullProblem)
 % Builds up the optimisation vector with the fixed parameters that we removed using removeFixedParameters.
 % Fixed parameters are those whos lower and upper bounds are equal. The optimiser cannot use these values 
 % and it clutters the useful data when debugging. The original full problem is brought in for the upper and
-% lower bounds as well as the iniial values that need to be put back. 
+% lower bounds as well as the initial values that need to be put back. 
 
 % Aguments:
 %   fullProblem: The orginal problem with both modifiable and fixed parameters

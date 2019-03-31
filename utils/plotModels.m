@@ -27,7 +27,7 @@ if plotModelFlag
     freq = [];
     if isfield(Rfi{1}{1},'f')
         freq = Rfi{1}{1}.f;
-        [freqPlot, freqUnit] = freqScale(freq);
+        [freqPlot, freqUnit, scaleFact] = freqScale(freq);
     else
         freqPlot = 1:length(Rfi{1}{1}.r);
         freqUnit = 1;
@@ -68,7 +68,12 @@ uniqueResultTypes = unique(OPTopts.goalResType);
 Nrt = length(uniqueResultTypes);
 responsePlotted = zeros(1,Nrt);  % Check if the current response has been plotted already
 
+
+
+legendText = {'Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate'};
+% keyboard
 Ng = length(OPTopts.goalType);
+% TODO_DWW: DDV: No longer plots each goal seperately.
 for gg = 1:Ng
     goalType = OPTopts.goalType{gg};
     splits = regexp(OPTopts.goalResType{gg}, '\_', 'split');
@@ -81,17 +86,19 @@ for gg = 1:Ng
         if ~(responsePlotted(plotRow))
             plotResponse([splits{1}, '_real']);
         end
-        plotGoal(plotGoalFlag, OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, real(OPTopts.goalVal{gg}), goalType, freqPlot)
-        legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
-        legend('Location',legendLocation)
+        plotGoal(plotGoalFlag, OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, real(OPTopts.goalVal{gg}), goalType, freqPlot, freqUnit, scaleFact)
+        legendText{end+1} = ['imag',goalType];
+        % legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
+        % legend('Location',legendLocation)
         subplot(Nrt, 2, plotRow*2)
         if ~(responsePlotted(plotRow))
             plotResponse([splits{1}, '_imag']);
             responsePlotted(plotRow) = 1;
         end
-        plotGoal(plotGoalFlag, OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, imag(OPTopts.goalVal{gg}), goalType, freqPlot)
-        legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', ['imag',goalType])
-        legend('Location',legendLocation)
+        plotGoal(plotGoalFlag, OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, imag(OPTopts.goalVal{gg}), goalType, freqPlot, freqUnit, scaleFact)
+        legendText{end+1} = ['imag',goalType];
+        % legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', )
+        % legend('Location',legendLocation)
     else
         [~,plotRow] = ismember(OPTopts.goalResType(gg),uniqueResultTypes);
         subplot(Nrt, 2, [plotRow*2-1, plotRow*2])
@@ -100,21 +107,21 @@ for gg = 1:Ng
             responsePlotted(plotRow) = 1;
         end
         if isfield(OPTopts, 'goalVal')
-            plotGoal(plotGoalFlag, OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, OPTopts.goalVal{gg}, goalType, freqPlot)
+            plotGoal(plotGoalFlag, OPTopts.goalStart{gg}, OPTopts.goalStop{gg}, OPTopts.goalVal{gg}, goalType, freqPlot, freqUnit, scaleFact)
         end
-        legend('Fine','Coarse','Optimised Surrogate', 'Aligned Surrogate', goalType)
-        legend('Location',legendLocation)
-        
-        set(gca, ...
-            'FontSize', fontsize);
-        
-        if ~isempty(xlim), set(gca, 'xlim', xlim); end
-        if ~isempty(ylim), set(gca, 'ylim', ylim); end
-        if ~isempty(xtick), set(gca, 'XTick', xtick); end
-        if ~isempty(ytick), set(gca, 'YTick', ytick); end
-        if ~isempty(pbaspectVec), set(gca, 'PlotBoxAspectRatio', pbaspectVec); end
+        legendText{end+1} = goalType;
     end
 end % for Ng
+
+legend(legendText)
+legend('Location',legendLocation)
+set(gca, ...
+'FontSize', fontsize);
+if ~isempty(xlim), set(gca, 'xlim', xlim); end
+if ~isempty(ylim), set(gca, 'ylim', ylim); end
+if ~isempty(xtick), set(gca, 'XTick', xtick); end
+if ~isempty(ytick), set(gca, 'YTick', ytick); end
+if ~isempty(pbaspectVec), set(gca, 'PlotBoxAspectRatio', pbaspectVec); end
 
 end % detailedPlotting
 
@@ -260,16 +267,12 @@ title(['Iteration: ',num2str(itNum), ', goal of result type : ', replace(goalRes
 end % plotForRealValuedResponse function
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function plotGoal(plotGoalFlag, goalStart, goalStop, goalValue, goalType, freq)
+function plotGoal(plotGoalFlag, goalStart, goalStop, goalValue, goalType, freq, freqUnit, scaleFact)
 
 if plotGoalFlag
     % Scale the frequencies for plotting
-    % TODO_DWW: Clean up 
-    [freqPlot, ~, scaleFact] = freqScale(freq);
     goalStartPlot = goalStart./scaleFact;
     goalStopPlot = goalStop./scaleFact;
-    % goalStartPlot = goalStart./freqUnit;
-    % goalStopPlot = goalStop./freqUnit;
     
     stdGoalPlot = 0;
     colour = 'k';
