@@ -510,8 +510,12 @@ if isfield(S,'xp')
         typexp = 'xp';
         xp_init(:,1) = S.xp;
         % Box constraint
-        pmin = xpmin - reshape(Gmax, Nq, Nn)*ximax;
-        pmax = xpmax - reshape(Gmin, Nq, Nn)*ximin;
+        pmin = xpmin;
+        pmax = xpmax;
+        if Nn > 0
+            pmin = pmin - reshape(Gmax, Nq, Nn)*ximax;
+            pmax = pmax - reshape(Gmin, Nq, Nn)*ximin;
+        end            
     end
 
 else

@@ -90,6 +90,9 @@ function [Ri,Si,Pi,Ci,Oi,Li,Ti] = SMmain(xinit, Sinit, SMopts, Mf, Mc, OPTopts)
 %                   1 - Console output showing when optimisation loop and PA stages are shown.
 %   useScAsOpt: Flag that allows most of the optimization to be skipped,
 %               by using Si{i-1}{1}.c as x{i}.  This is useful when designing circuits where the optimal response is known and only c SM is used. 
+%   onlyDoAlignment: Flag that exits the function before the optimization
+%                       but after the alignment phase. Handy for building
+%                       unknown alignment spaces.
 
 % Returns:
 % Ri:   Structure containing the responses at each iteration
@@ -174,6 +177,7 @@ startWithIterationZero = 0;
 prepopulatedSpaceFile = '';
 verbosityLevel = 1;
 useScAsOpt = false;
+onlyDoAlignment = false;
 
 if isfield(OPTopts,'Ni'), Ni = OPTopts.Ni; end
 if isfield(OPTopts,'TRNi'), TRNi = OPTopts.TRNi; end
@@ -195,6 +199,7 @@ if isfield(OPTopts,'startWithIterationZero'), startWithIterationZero = OPTopts.s
 if isfield(OPTopts,'prepopulatedSpaceFile'), prepopulatedSpaceFile = OPTopts.prepopulatedSpaceFile; end
 if isfield(OPTopts,'verbosityLevel'), verbosityLevel = OPTopts.verbosityLevel; end
 if isfield(OPTopts,'useScAsOpt'), useScAsOpt = OPTopts.useScAsOpt; end
+if isfield(OPTopts,'onlyDoAlignment'), onlyDoAlignment = OPTopts.onlyDoAlignment; end
 
 % Set up models - bookkeeping
 Nq = 0;
@@ -474,6 +479,12 @@ logSavePoint()
 
 % Plot the initial fine, coarse, optimised surrogate and aligned surrogate
 plotModels(plotIter, plotGoalFlag, ii, Rci, Rfi, Rsi, Rsai, OPTopts);
+
+% Exit here if only alignment is required...
+if onlyDoAlignment
+    [Ri,Pi,Ci,Oi,Li] = deal([]);
+    return; 
+end
 
 if verbosityLevel >= 1, display(['--- Starting main optimisation loop ---']); end
 

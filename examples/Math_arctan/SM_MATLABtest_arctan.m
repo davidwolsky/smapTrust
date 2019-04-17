@@ -85,6 +85,7 @@ OPTopts.TRNi = OPTopts.Ni;
 OPTopts.Rtype = {'Gen'};
 OPTopts.globOpt = 0;
 OPTopts.globOptSM = 0;
+OPTopts.onlyDoAlignment = true;
 
 OPTopts.goalType =      {'gt'   };
 OPTopts.goalResType =   {'Gen'  };
